@@ -101,7 +101,10 @@ function renderEventBanner(): void {
   const quizControls = id('quiz-controls');
   if (ev.kind === 'quiz' && !quizSent) {
     quizControls.classList.remove('hidden');
-    setTimeout(() => id<HTMLInputElement>('quiz-input').focus(), 30);
+    // Don't steal focus from the chat input.
+    if (!(document.activeElement instanceof HTMLInputElement)) {
+      setTimeout(() => id<HTMLInputElement>('quiz-input').focus(), 30);
+    }
   } else {
     quizControls.classList.add('hidden');
   }

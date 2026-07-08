@@ -83,15 +83,19 @@ export class Room {
   private goalProgress: number;
   private chat: ChatEntry[] = [];
 
+  private eventGap: { min: number; max: number };
+
   constructor(
     private db: Db,
     private out: Outbox,
     private now: () => number = Date.now,
     private rng: () => number = Math.random,
+    eventGap?: { min: number; max: number },
   ) {
+    this.eventGap = eventGap ?? { min: EVENT_MIN_GAP_MS, max: EVENT_MAX_GAP_MS };
     this.goalLevel = Number(db.getMeta('goal_level') ?? 0);
     this.goalProgress = Number(db.getMeta('goal_progress') ?? 0);
-    this.nextEventAt = this.now() + randBetween(EVENT_MIN_GAP_MS, EVENT_MAX_GAP_MS);
+    this.nextEventAt = this.now() + randBetween(this.eventGap.min, this.eventGap.max);
   }
 
   // -------------------------------------------------------------------------
@@ -493,7 +497,7 @@ export class Room {
         this.quiz = null;
       }
       this.event = null;
-      this.nextEventAt = now + randBetween(EVENT_MIN_GAP_MS, EVENT_MAX_GAP_MS);
+      this.nextEventAt = now + randBetween(this.eventGap.min, this.eventGap.max);
       this.out.broadcast({ t: 'event', ev: null });
     }
 

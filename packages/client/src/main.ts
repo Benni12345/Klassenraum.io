@@ -134,3 +134,6 @@ if (store.hasAccount) {
 
 // Keepalive + server clock sync.
 setInterval(() => store.ping(), 25_000);
+
+// Debug handle for integration tests and console tinkering.
+(window as unknown as Record<string, unknown>).__kr = { store, scene };

@@ -9,6 +9,10 @@ German-first UI (English toggle in settings), built to run quietly on a school C
 
 ![Klassenraum.io](docs/screenshot.png)
 
+| Platz aussuchen | Papierflieger werfen | Boss-Taste (Esc) |
+|---|---|---|
+| ![Join](docs/join.png) | ![Steal](docs/steal.png) | ![Boss key](docs/boss.png) |
+
 ## Features
 
 - Idle economy with 9 school-themed generators, upgrades and prestige („Versetzung" for Goldsterne)
@@ -46,10 +50,14 @@ connects via `wss://` on the same origin automatically.
 ## Tests
 
 ```bash
-npm test             # balance math + game logic unit tests (vitest)
+npm test               # balance math + game logic unit tests (vitest)
 npm run typecheck
-node scripts/bots.mjs # optional: simulated players against a running server
+node scripts/bots.mjs  # simulated players against a running server
+node scripts/screenshot.mjs  # browser smoke test + screenshots (playwright)
 ```
+
+For lively local testing you can speed up room events:
+`EVENT_MIN_GAP_MS=8000 EVENT_MAX_GAP_MS=14000 npm start`.
 
 ## Repo layout
 

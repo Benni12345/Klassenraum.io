@@ -71,7 +71,7 @@ export class Scene {
       const p = store.roster.get(id);
       if (!p) return;
       const pos = seatPos(p.seat);
-      this.fx.emote(pos.x + DESK_W - 4, pos.y - 12, e);
+      this.fx.emote(pos.x + DESK_W - 6, pos.y - 16, e);
     });
     store.on('goalDone', () => this.fx.confettiBurst(WORLD_W, this.camY, this.viewH));
 
@@ -158,11 +158,22 @@ export class Scene {
   private playerAt(x: number, y: number): PlayerPublic | null {
     for (const p of store.roster.values()) {
       const pos = seatPos(p.seat);
-      if (x >= pos.x - 2 && x <= pos.x + DESK_W + 2 && y >= pos.y - 10 && y <= pos.y + 26) {
+      if (x >= pos.x - 2 && x <= pos.x + DESK_W + 2 && y >= pos.y - 8 && y <= pos.y + 31) {
         return p;
       }
     }
     return null;
+  }
+
+  /** CSS-pixel center of a seat's desk (for tests and DOM overlays). */
+  screenPosOfSeat(seat: number): { x: number; y: number } {
+    const pos = seatPos(seat);
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    return {
+      x: rect.left + (this.offsetX + (pos.x + DESK_W / 2) * this.scale) / dpr,
+      y: rect.top + ((pos.y + 4 - this.camY) * this.scale) / dpr,
+    };
   }
 
   private clampCam(v: number): number {
@@ -341,10 +352,10 @@ export class Scene {
 
       ctx.globalAlpha = 1;
 
-      // Nameplate
+      // Name caption below the student, like a class photo.
       const label = p.name.toUpperCase().slice(0, 9) + (p.grade > 0 ? `★${p.grade}` : '');
-      const nameColor = isYou ? '#ffd869' : sleeping ? '#9aa4b2' : '#ffffff';
-      drawText(ctx, label, pos.x + DESK_W / 2, pos.y - 11, nameColor, {
+      const nameColor = isYou ? '#ffd869' : sleeping ? '#8d94a0' : '#fdfaf2';
+      drawText(ctx, label, pos.x + DESK_W / 2, pos.y + 24, nameColor, {
         align: 'center',
         shadow: 'rgba(0,0,0,0.45)',
       });
@@ -354,7 +365,7 @@ export class Scene {
         const bob = Math.round(Math.sin(time * 3) * 1.5);
         ctx.fillStyle = '#ffd869';
         const mx = pos.x + DESK_W / 2;
-        const my = pos.y - 17 + bob;
+        const my = pos.y - 8 + bob;
         ctx.fillRect(mx - 1, my - 3, 2, 2);
         ctx.fillRect(mx - 2, my - 1, 4, 1);
         ctx.fillRect(mx - 1, my, 2, 1);
@@ -362,16 +373,14 @@ export class Scene {
 
       if (sleeping) {
         const bob = Math.round(Math.sin(time * 2 + p.seat) * 1.5);
-        ctx.globalAlpha = 0.8;
-        ctx.drawImage(zzzIcon, pos.x + DESK_W - 2, pos.y + 2 + bob);
-        ctx.globalAlpha = 1;
+        ctx.drawImage(zzzIcon, pos.x + DESK_W - 5, pos.y + 4 + bob, 6, 10);
       }
 
       // Hover highlight
       if (this.hoverSeatPlayer?.id === p.id && !isYou) {
         ctx.strokeStyle = 'rgba(255,255,255,0.8)';
         ctx.lineWidth = 1;
-        ctx.strokeRect(pos.x - 1.5, pos.y - 5.5, DESK_W + 3, 28);
+        ctx.strokeRect(pos.x - 1.5, pos.y - 5.5, DESK_W + 3, 36);
       }
     }
   }
@@ -395,7 +404,8 @@ export class Scene {
       ctx.strokeRect(Math.round(aisleX) - 6.5, Math.round(y) - 4.5, 22, 26);
     } else {
       // Idle beside the teacher desk
-      ctx.drawImage(teacherSprite(Math.floor(time) % 2 === 0 ? 0 : 0), 52, 44);
+      ctx.drawImage(teacherSprite(0), 52, 44);
+      void time;
     }
   }
 

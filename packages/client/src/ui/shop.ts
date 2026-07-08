@@ -40,7 +40,7 @@ export function initShop(): void {
     mid.appendChild(name);
     mid.appendChild(sub);
     const right = el('div', 'right');
-    const count = el('div', 'count', '0');
+    const count = el('div', 'count', '');
     const cost = el('div', 'cost', fmt(g.baseCost));
     right.appendChild(count);
     right.appendChild(cost);

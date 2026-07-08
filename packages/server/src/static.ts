@@ -18,13 +18,19 @@ const MIME: Record<string, string> = {
 export function createStaticHandler(rootDir: string) {
   const root = path.resolve(rootDir);
   return (req: http.IncomingMessage, res: http.ServerResponse): void => {
-    const url = new URL(req.url ?? '/', 'http://localhost');
-    let filePath = path.normalize(path.join(root, decodeURIComponent(url.pathname)));
+    let pathname: string;
+    try {
+      pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+    } catch {
+      res.writeHead(400).end();
+      return;
+    }
+    let filePath = path.normalize(path.join(root, pathname));
     if (!filePath.startsWith(root)) {
       res.writeHead(403).end();
       return;
     }
-    if (url.pathname === '/' || !path.extname(filePath)) {
+    if (pathname === '/' || !path.extname(filePath)) {
       filePath = path.join(root, 'index.html');
     }
     fs.readFile(filePath, (err, data) => {
@@ -33,7 +39,7 @@ export function createStaticHandler(rootDir: string) {
         return;
       }
       const ext = path.extname(filePath);
-      const immutable = url.pathname.startsWith('/assets/');
+      const immutable = pathname.startsWith('/assets/');
       res.writeHead(200, {
         'content-type': MIME[ext] ?? 'application/octet-stream',
         'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',

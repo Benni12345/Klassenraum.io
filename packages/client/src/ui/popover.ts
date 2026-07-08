@@ -40,7 +40,7 @@ export function showDeskPopover(hit: DeskHit): void {
       closePopover();
       return;
     }
-    name.textContent = `${p.name} — ${gradeLabel(p.grade)} ★${p.stars}`;
+    name.textContent = `${p.name} — ${gradeLabel(p.grade)}${p.stars > 0 ? ` ★${p.stars}` : ''}`;
     sub.textContent = `${fmt(p.bp)} ${t('unit')} ${t('misc.onHand')}${p.online ? '' : ` · ${t('misc.sleeping')}`}`;
 
     const sn = store.serverNow();

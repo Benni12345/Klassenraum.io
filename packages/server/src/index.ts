@@ -24,7 +24,10 @@ const server = http.createServer((req, res) => {
 });
 
 const net = new Net(server);
-const room = new Room(db, net);
+const room = new Room(db, net, Date.now, Math.random, {
+  min: CONFIG.eventMinGapMs,
+  max: CONFIG.eventMaxGapMs,
+});
 net.attachRoom(room);
 
 const tickTimer = setInterval(() => room.tick(), CONFIG.tickMs);

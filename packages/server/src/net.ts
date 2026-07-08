@@ -29,8 +29,13 @@ export class Net implements Outbox {
   constructor(server: http.Server) {
     this.wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MSG_BYTES });
     server.on('upgrade', (req, socket, head) => {
-      const url = new URL(req.url ?? '/', 'http://localhost');
-      if (url.pathname !== '/ws') {
+      let pathname = '';
+      try {
+        pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+      } catch {
+        // fall through to destroy
+      }
+      if (pathname !== '/ws') {
         socket.destroy();
         return;
       }
