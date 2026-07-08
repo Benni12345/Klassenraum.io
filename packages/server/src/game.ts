@@ -87,6 +87,7 @@ export class Room {
     private db: Db,
     private out: Outbox,
     private now: () => number = Date.now,
+    private rng: () => number = Math.random,
   ) {
     this.goalLevel = Number(db.getMeta('goal_level') ?? 0);
     this.goalProgress = Number(db.getMeta('goal_progress') ?? 0);
@@ -360,7 +361,7 @@ export class Room {
     p.lastStealAt = now; // Cooldown is consumed even when caught.
     p.dirty = true;
 
-    if (this.event?.kind === 'patrol' && Math.random() < PATROL_CATCH_CHANCE) {
+    if (this.event?.kind === 'patrol' && this.rng() < PATROL_CATCH_CHANCE) {
       p.detentionUntil = now + DETENTION_MS;
       this.out.broadcast({ t: 'steal', attacker: p.id, victim: victim.id, amount: 0, caught: true });
       this.sendYou(p);
@@ -503,13 +504,22 @@ export class Room {
   }
 
   private startRandomEvent(now: number): void {
-    const roll = Math.random() * 6;
-    if (roll < 3) {
+    const roll = this.rng() * 6;
+    this.beginEvent(roll < 3 ? 'quiz' : roll < 5 ? 'patrol' : 'sub', now);
+  }
+
+  /** Starts a specific event immediately (tests / future admin tooling). */
+  forceEvent(kind: 'quiz' | 'patrol' | 'sub'): void {
+    this.beginEvent(kind, this.now());
+  }
+
+  private beginEvent(kind: 'quiz' | 'patrol' | 'sub', now: number): void {
+    if (kind === 'quiz') {
       const q = makeQuiz();
       this.quiz = { answer: q.answer, winners: [] };
       for (const p of this.players.values()) p.quizAnswered = false;
       this.event = { kind: 'quiz', startedAt: now, endsAt: now + QUIZ_MS, question: q.question };
-    } else if (roll < 5) {
+    } else if (kind === 'patrol') {
       this.event = { kind: 'patrol', startedAt: now, endsAt: now + PATROL_MS };
     } else {
       this.event = { kind: 'sub', startedAt: now, endsAt: now + SUB_BUFF_MS };
