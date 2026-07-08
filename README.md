@@ -47,6 +47,8 @@ Environment: `PORT` (default `8080`), `DB_PATH` (default `./data/klassenraum.db`
 One process serves everything — put it behind any HTTPS proxy and the client
 connects via `wss://` on the same origin automatically.
 
+A `Dockerfile` is included (`docker build -t klassenraum . && docker run -p 8080:8080 -v kr-data:/data klassenraum`).
+
 ## Tests
 
 ```bash

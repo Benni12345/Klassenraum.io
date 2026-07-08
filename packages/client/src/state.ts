@@ -2,6 +2,7 @@ import {
   baseBps,
   clickMult,
   clickPower,
+  DETENTION_FACTOR,
   resolveBuy,
   starMult,
   UPGRADE_BY_ID,
@@ -123,7 +124,7 @@ class Store {
     const sn = this.serverNow();
     let mult = starMult(y.stars);
     for (const b of y.buffs) if (b.until > sn) mult *= b.mult;
-    if (y.detentionUntil > sn) mult *= 0.25;
+    if (y.detentionUntil > sn) mult *= DETENTION_FACTOR;
     y.baseBps = baseBps({ gens: y.gens, upgrades: y.upgrades, stars: y.stars });
     y.bps = y.baseBps * mult;
     y.clickPower = clickPower(y.bps, clickMult(y.upgrades));
