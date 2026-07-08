@@ -20,6 +20,7 @@ import {
 import { closePopover, showDeskPopover } from './ui/popover';
 import { initShop } from './ui/shop';
 import { applyStaticTexts } from './ui/texts';
+import type { NetStatus } from './net';
 
 applyStaticTexts();
 initBoss();
@@ -116,8 +117,41 @@ store.on('quizResult', (r) => {
 
 store.on('goalDone', () => toast(t('goal.done'), 'gold'));
 
+function connFailedMessage(wsUrl: string): string {
+  if (location.hostname.endsWith('.vercel.app') || location.hostname.endsWith('.netlify.app')) {
+    return t('conn.failedVercel', { url: wsUrl });
+  }
+  return t('conn.failed', { url: wsUrl });
+}
+
+function updateConnBanner(s: NetStatus): void {
+  const banner = id('conn-banner');
+  const text = id('conn-banner-text');
+  const retry = id('conn-retry');
+  retry.textContent = t('conn.retry');
+
+  if (s === 'open' || s === 'replaced') {
+    banner.classList.add('hidden');
+    banner.classList.remove('failed');
+    return;
+  }
+
+  banner.classList.remove('hidden');
+  if (s === 'failed') {
+    banner.classList.add('failed');
+    text.textContent = connFailedMessage(store.wsUrl ?? '…');
+    retry.classList.remove('hidden');
+  } else {
+    banner.classList.remove('failed');
+    text.textContent = t('conn.lost');
+    retry.classList.add('hidden');
+  }
+}
+
+id('conn-retry').addEventListener('click', () => store.connect());
+
 store.on('status', (s) => {
-  id('conn-banner').classList.toggle('hidden', s !== 'reconnecting');
+  updateConnBanner(s);
   if (s === 'replaced') replacedModal();
 });
 

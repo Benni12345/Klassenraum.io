@@ -17,6 +17,7 @@ import type {
   RoomEvent,
 } from '@shared/types';
 import { Net, type NetStatus } from './net';
+import { clearWsUrlCache } from './config';
 
 export interface StealFx {
   attacker: string;
@@ -51,6 +52,7 @@ class Store {
   goal: GoalState = { level: 0, progress: 0, target: 50_000 };
   chatLog: ChatEntry[] = [];
   status: NetStatus = 'connecting';
+  wsUrl: string | null = null;
   quizAnsweredAt = 0;
 
   private net: Net;
@@ -62,8 +64,9 @@ class Store {
   constructor() {
     this.net = new Net({
       onMessage: (m) => this.onMessage(m),
-      onStatus: (s) => {
+      onStatus: (s, detail) => {
         this.status = s;
+        if (detail?.wsUrl) this.wsUrl = detail.wsUrl;
         this.emit('status', s);
       },
     });
@@ -88,6 +91,7 @@ class Store {
   }
 
   connect(joinInfo?: { name?: string; avatar?: PlayerYou['avatar'] }): void {
+    clearWsUrlCache();
     this.net.connect(joinInfo);
   }
 

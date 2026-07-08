@@ -17,5 +17,5 @@ export function applyStaticTexts(): void {
   id('btn-settings').title = t('settings.title');
   id('quiz-submit').textContent = t('event.quiz.submit');
   id<HTMLInputElement>('quiz-input').placeholder = t('event.quiz.prompt');
-  id('conn-banner').textContent = t('conn.lost');
+  id('conn-retry').textContent = t('conn.retry');
 }

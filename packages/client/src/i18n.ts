@@ -121,6 +121,10 @@ const de: Dict = {
   'conn.lost': 'Verbindung verloren — verbinde neu…',
   'conn.replaced': 'Der Klassenraum ist in einem anderen Tab geöffnet.',
   'conn.playHere': 'Hier weiterspielen',
+  'conn.failed': 'Spielserver nicht erreichbar: {url}',
+  'conn.failedVercel':
+    'Auf Vercel läuft nur die Webseite — der Spielserver muss woanders laufen (Railway, Fly.io, …). Trage die WebSocket-URL in config.json oder VITE_WS_URL ein. Versucht: {url}',
+  'conn.retry': 'Erneut verbinden',
 
   'offline.toast': 'Willkommen zurück! Dein Platz hat {v} HS erarbeitet ({t}).',
 
@@ -264,6 +268,10 @@ const en: Dict = {
   'conn.lost': 'Connection lost — reconnecting…',
   'conn.replaced': 'The classroom is open in another tab.',
   'conn.playHere': 'Play here',
+  'conn.failed': 'Game server unreachable: {url}',
+  'conn.failedVercel':
+    'Vercel only hosts the website — the game server must run elsewhere (Railway, Fly.io, …). Set the WebSocket URL in config.json or VITE_WS_URL. Tried: {url}',
+  'conn.retry': 'Reconnect',
 
   'offline.toast': 'Welcome back! Your desk earned {v} BP ({t}).',
 
