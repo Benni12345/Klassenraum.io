@@ -1,0 +1,29 @@
+{
+  "name": "klassenraum.io",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Klassenraum.io — multiplayer idle game set in one shared classroom",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=@klassenraum/server",
+    "dev:client": "npm run dev --workspace=@klassenraum/client",
+    "build": "npm run build --workspace=@klassenraum/shared --if-present && npm run build --workspace=@klassenraum/client && npm run build --workspace=@klassenraum/server",
+    "start": "node packages/server/dist/index.cjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/shared/tsconfig.json --noEmit && tsc -p packages/server/tsconfig.json --noEmit && tsc -p packages/client/tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.3",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@klassenraum/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/index.cjs --external:bufferutil --external:utf-8-validate",
+    "start": "node dist/index.cjs"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  }
+}
