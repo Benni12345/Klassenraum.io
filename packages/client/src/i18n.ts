@@ -40,6 +40,10 @@ const de: Dict = {
   'upgrade.click1.name': 'Turbo-Kuli',
   'upgrade.click2.name': 'Diamantfüller',
   'upgrade.click.desc': 'Mitschreiben bringt doppelt so viel.',
+  'upgrade.tip.reqGen': 'Voraussetzung: {n}× {gen}',
+  'upgrade.tip.reqClicks': 'Voraussetzung: {n} Klicks',
+  'upgrade.tip.cost': 'Kosten: {v} {unit}',
+  'upgrade.tip.cantAfford': 'Nicht genug Hirnschmalz!',
 
   'steal.throw': 'Papierflieger werfen',
   'steal.steals': 'klaut ca. {v} HS',
@@ -170,6 +174,10 @@ const en: Dict = {
   'upgrade.click1.name': 'Turbo Pen',
   'upgrade.click2.name': 'Diamond Fountain Pen',
   'upgrade.click.desc': 'Taking notes yields twice as much.',
+  'upgrade.tip.reqGen': 'Requires: {n}× {gen}',
+  'upgrade.tip.reqClicks': 'Requires: {n} clicks',
+  'upgrade.tip.cost': 'Cost: {v} {unit}',
+  'upgrade.tip.cantAfford': 'Not enough brainpower!',
 
   'steal.throw': 'Throw paper airplane',
   'steal.steals': 'steals ~{v} BP',

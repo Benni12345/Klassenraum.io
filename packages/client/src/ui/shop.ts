@@ -11,6 +11,7 @@ import { t } from '../i18n';
 import { genIcon, iconDataUrl } from '../render/sprites';
 import { store } from '../state';
 import { el, id } from './dom';
+import { bindTooltip, type TipLine } from './tooltip';
 
 let qtySel = 1;
 
@@ -120,6 +121,31 @@ function upgradeDesc(u: UpgradeDef): string {
   return t('upgrade.gen.desc', { gen: t(`gen.${g.id}.name`), n: u.threshold });
 }
 
+function upgradeTip(u: UpgradeDef): TipLine[] {
+  const you = store.you;
+  const afford = you ? you.bp >= u.cost : false;
+  const lines: TipLine[] = [
+    { text: upgradeName(u), title: true },
+    { text: upgradeDesc(u) },
+  ];
+  if (u.kind === 'gen') {
+    const g = GENERATORS[u.gen]!;
+    lines.push({
+      text: t('upgrade.tip.reqGen', { n: u.threshold, gen: t(`gen.${g.id}.name`) }),
+      muted: true,
+    });
+  } else {
+    lines.push({ text: t('upgrade.tip.reqClicks', { n: u.threshold }), muted: true });
+  }
+  lines.push({
+    text: t('upgrade.tip.cost', { v: fmt(u.cost), unit: t('unit') }),
+    accent: afford,
+    warn: !afford,
+  });
+  if (!afford) lines.push({ text: t('upgrade.tip.cantAfford'), warn: true });
+  return lines;
+}
+
 function refreshUpgrades(): void {
   const you = store.you;
   if (!you) return;
@@ -145,7 +171,7 @@ function refreshUpgrades(): void {
       img.alt = '';
       b.appendChild(img);
       b.appendChild(el('span', 'cost', fmt(u.cost)));
-      b.title = `${upgradeName(u)} — ${upgradeDesc(u)} (${fmt(u.cost)} ${t('unit')})`;
+      bindTooltip(b, () => upgradeTip(u));
       b.onclick = () => store.buyUpgrade(u.id);
       box.appendChild(b);
     }
