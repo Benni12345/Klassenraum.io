@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Klassenraum.io</title>
+    <meta name="description" content="Multiplayer-Idle-Game: alle Spieler in einem Klassenraum." />
+    <link rel="icon" id="favicon" href="" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="hud">
+        <div class="hud-left">
+          <img id="hud-brain" class="pix" alt="" width="36" height="36" />
+          <div class="hud-bp">
+            <div id="bp-value">0</div>
+            <div id="bps-value"></div>
+          </div>
+        </div>
+        <div id="event-banner" class="hidden">
+          <span id="event-text"></span>
+          <span id="quiz-controls" class="hidden">
+            <input id="quiz-input" type="number" inputmode="numeric" />
+            <button id="quiz-submit" class="btn small gold"></button>
+          </span>
+        </div>
+        <div class="hud-right">
+          <div id="buffs"></div>
+          <div id="grade-badge" title=""></div>
+          <button id="btn-prestige" class="btn small gold hidden"></button>
+          <button id="btn-leaderboard" class="btn small icon" title=""></button>
+          <button id="btn-settings" class="btn small icon" title=""></button>
+        </div>
+      </header>
+
+      <main id="game">
+        <div id="canvas-wrap">
+          <canvas id="scene"></canvas>
+          <button id="btn-my-desk" class="btn small"></button>
+          <div id="conn-banner" class="hidden"></div>
+          <div id="chat-panel">
+            <button id="chat-toggle"></button>
+            <div id="chat-body">
+              <div id="chat-log"></div>
+              <div id="emote-row"></div>
+              <div id="chat-input-row">
+                <input id="chat-input" maxlength="140" />
+                <button id="chat-send" class="btn small"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside id="shop">
+          <button id="btn-click">
+            <span id="click-label"></span>
+            <span id="click-power"></span>
+          </button>
+          <div id="upgrade-row-wrap" class="hidden">
+            <h3 id="upgrades-title"></h3>
+            <div id="upgrade-row"></div>
+          </div>
+          <div class="shop-head">
+            <h2 id="shop-title"></h2>
+            <div id="buy-qty">
+              <span id="buy-label"></span>
+              <button data-qty="1" class="qty on">1</button>
+              <button data-qty="10" class="qty">10</button>
+              <button data-qty="-1" class="qty" id="qty-max"></button>
+            </div>
+          </div>
+          <div id="gen-list"></div>
+        </aside>
+      </main>
+    </div>
+
+    <div id="popover-root"></div>
+    <div id="modal-root"></div>
+    <div id="toast-root"></div>
+
+    <div id="boss-overlay" class="hidden">
+      <div class="doc-chrome">
+        <div class="doc-titlebar">
+          <span id="boss-doc-title">Mathe – Notizen</span>
+          <span class="doc-meta">Zuletzt bearbeitet: heute</span>
+          <button id="boss-close" class="doc-btn">Schließen</button>
+        </div>
+        <div class="doc-toolbar">
+          <span>Datei</span><span>Bearbeiten</span><span>Ansicht</span><span>Einfügen</span
+          ><span>Format</span><span>Extras</span>
+        </div>
+        <div class="doc-page">
+          <h1>Quadratische Funktionen – Zusammenfassung</h1>
+          <p><b>Allgemeine Form:</b> f(x) = ax² + bx + c &nbsp;(a ≠ 0)</p>
+          <p><b>Scheitelpunktform:</b> f(x) = a(x − d)² + e, Scheitel S(d | e)</p>
+          <ul>
+            <li>a &gt; 0: Parabel nach oben geöffnet, a &lt; 0: nach unten</li>
+            <li>|a| &gt; 1: gestreckt, |a| &lt; 1: gestaucht</li>
+            <li>Nullstellen über Mitternachtsformel: x = (−b ± √(b² − 4ac)) / 2a</li>
+            <li>Diskriminante D = b² − 4ac entscheidet über Anzahl der Nullstellen</li>
+          </ul>
+          <p><b>Beispiel:</b> f(x) = 2x² − 4x + 1</p>
+          <p>⇒ f(x) = 2(x − 1)² − 1, Scheitel S(1 | −1), D = 8 &gt; 0 ⇒ zwei Nullstellen</p>
+          <p class="doc-cursor">|</p>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
