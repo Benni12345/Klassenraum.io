@@ -1,84 +1,106 @@
 import { el } from './dom';
 
-export interface TipLine {
-  text: string;
-  /** Bold title line. */
-  title?: boolean;
-  /** Muted secondary line (labels). */
-  muted?: boolean;
-  /** Warning styling (e.g. can't afford). */
-  warn?: boolean;
-  /** Accent color for values (e.g. cost when affordable). */
+export interface TipStat {
+  label: string;
+  value: string;
   accent?: boolean;
+  warn?: boolean;
+}
+
+/** Rich hover card shown at the cursor. */
+export interface TipCard {
+  title: string;
+  body?: string;
+  stats?: TipStat[];
+  footer?: string;
+  warnFooter?: boolean;
 }
 
 let tip: HTMLDivElement | null = null;
+let onMove: ((ev: MouseEvent) => void) | null = null;
 
 function ensureTip(): HTMLDivElement {
   if (!tip) {
-    tip = el('div', 'kr-tooltip hidden');
+    tip = el('div', 'kr-tip hidden');
     tip.setAttribute('role', 'tooltip');
     document.body.appendChild(tip);
   }
   return tip;
 }
 
-function position(anchor: HTMLElement, box: HTMLDivElement): void {
-  const ar = anchor.getBoundingClientRect();
-  const margin = 8;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+function positionAt(box: HTMLDivElement, x: number, y: number): void {
+  const margin = 10;
+  const offset = 16;
+  let left = x + offset;
+  let top = y + offset;
 
-  // Prefer left of the anchor (shop sits on the right).
-  let left = ar.left - box.offsetWidth - margin;
-  let top = ar.top + ar.height / 2 - box.offsetHeight / 2;
-
-  if (left < margin) {
-    // Not enough room on the left — try above.
-    left = ar.left + ar.width / 2 - box.offsetWidth / 2;
-    top = ar.top - box.offsetHeight - margin;
+  // Flip to the left / above when we'd clip the viewport edge.
+  if (left + box.offsetWidth > window.innerWidth - margin) {
+    left = x - box.offsetWidth - offset;
   }
-  if (top < margin) top = margin;
-  if (top + box.offsetHeight > vh - margin) top = vh - margin - box.offsetHeight;
-  if (left + box.offsetWidth > vw - margin) left = vw - margin - box.offsetWidth;
-  if (left < margin) left = margin;
+  if (top + box.offsetHeight > window.innerHeight - margin) {
+    top = y - box.offsetHeight - offset;
+  }
+  left = Math.max(margin, Math.min(left, window.innerWidth - box.offsetWidth - margin));
+  top = Math.max(margin, Math.min(top, window.innerHeight - box.offsetHeight - margin));
 
   box.style.left = `${Math.round(left)}px`;
   box.style.top = `${Math.round(top)}px`;
 }
 
-function render(lines: TipLine[]): void {
+function render(card: TipCard): void {
   const box = ensureTip();
   box.innerHTML = '';
-  for (const line of lines) {
-    const row = el('div', 'kr-tip-line');
-    if (line.title) row.classList.add('title');
-    if (line.muted) row.classList.add('muted');
-    if (line.warn) row.classList.add('warn');
-    if (line.accent) row.classList.add('accent');
-    row.textContent = line.text;
-    box.appendChild(row);
-  }
-}
 
-function show(anchor: HTMLElement, lines: TipLine[] | null): void {
-  if (!lines?.length) return;
-  const box = ensureTip();
-  render(lines);
-  box.classList.remove('hidden');
-  // Measure once visible, then position.
-  position(anchor, box);
+  box.appendChild(el('div', 'kr-tip-title', card.title));
+  if (card.body) box.appendChild(el('div', 'kr-tip-body', card.body));
+
+  if (card.stats?.length) {
+    const stats = el('div', 'kr-tip-stats');
+    for (const s of card.stats) {
+      const row = el('div', 'kr-tip-stat');
+      row.appendChild(el('span', 'lbl', s.label));
+      const val = el('span', 'val', s.value);
+      if (s.accent) val.classList.add('accent');
+      if (s.warn) val.classList.add('warn');
+      row.appendChild(val);
+      stats.appendChild(row);
+    }
+    box.appendChild(stats);
+  }
+
+  if (card.footer) {
+    const foot = el('div', `kr-tip-footer${card.warnFooter ? ' warn' : ''}`, card.footer);
+    box.appendChild(foot);
+  }
 }
 
 function hide(): void {
   tip?.classList.add('hidden');
+  if (onMove) {
+    document.removeEventListener('mousemove', onMove);
+    onMove = null;
+  }
 }
 
-/** Attach a hover/focus tooltip to `anchor`. `build` is called on each show. */
-export function bindTooltip(anchor: HTMLElement, build: () => TipLine[] | null): void {
-  const onShow = () => show(anchor, build());
-  anchor.addEventListener('mouseenter', onShow);
-  anchor.addEventListener('focus', onShow);
+/**
+ * Show a cursor-following info card on hover. Uses a wrapper pattern so it
+ * still works when the anchor is styled as unaffordable (never `disabled`).
+ */
+export function bindCursorTip(anchor: HTMLElement, build: () => TipCard | null): void {
+  anchor.addEventListener('mouseenter', (ev) => {
+    const card = build();
+    if (!card) return;
+    const box = ensureTip();
+    render(card);
+    box.classList.remove('hidden');
+    positionAt(box, ev.clientX, ev.clientY);
+    onMove = (e) => positionAt(box, e.clientX, e.clientY);
+    document.addEventListener('mousemove', onMove);
+  });
   anchor.addEventListener('mouseleave', hide);
-  anchor.addEventListener('blur', hide);
+}
+
+export function hideCursorTip(): void {
+  hide();
 }

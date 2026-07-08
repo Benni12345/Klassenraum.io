@@ -258,74 +258,119 @@ input {
 .upgrade-btn {
   border: 2px solid var(--ink);
   background: #fff;
-  padding: 4px;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
+  padding: 3px 3px 0;
+  width: 50px;
+  height: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
   position: relative;
 }
 
 .upgrade-btn img {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   object-fit: contain;
+  flex: 1;
 }
 
+.upgrade-btn .upgrade-cost,
 .upgrade-btn .cost {
-  position: absolute;
-  bottom: -2px;
-  right: 0;
-  left: 0;
-  font-size: 9px;
-  background: rgba(245, 239, 220, 0.9);
+  width: 100%;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  padding: 2px 0;
+  background: var(--paper-dark);
+  border-top: 1px solid var(--ink);
 }
 
 .upgrade-btn.cant {
-  opacity: 0.45;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-/* ----------------------------------------------------------------- Tooltip */
+/* ---------------------------------------------------------- Cursor info card */
 
-.kr-tooltip {
+.kr-tip {
   position: fixed;
-  z-index: 25;
-  max-width: 240px;
-  padding: 8px 10px;
-  background: var(--ink);
-  color: var(--paper);
-  border: 2px solid #000;
-  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
+  z-index: 30;
+  width: min(270px, calc(100vw - 20px));
+  padding: 10px 12px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.4);
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.4;
   pointer-events: none;
 }
 
-.kr-tip-line + .kr-tip-line {
-  margin-top: 4px;
-}
-
-.kr-tip-line.title {
-  font-size: 13px;
-  color: var(--gold);
+.kr-tip-title {
+  font-size: 14px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  color: var(--board);
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
 }
 
-.kr-tip-line.muted {
+.kr-tip-body {
   font-weight: 400;
-  color: #b9b2a6;
+  font-size: 12px;
+  color: #5a4f3a;
+  margin-bottom: 8px;
+  font-style: italic;
+}
+
+.kr-tip-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kr-tip-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.kr-tip-stat .lbl {
+  font-weight: 400;
+  color: #6e5f46;
+  flex-shrink: 0;
+}
+
+.kr-tip-stat .val {
+  font-weight: 700;
+  text-align: right;
+}
+
+.kr-tip-stat .val.accent {
+  color: var(--green);
+}
+
+.kr-tip-stat .val.warn {
+  color: var(--red);
+}
+
+.kr-tip-footer {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--paper-line);
   font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
 }
 
-.kr-tip-line.accent {
-  color: #9fd4a8;
-}
-
-.kr-tip-line.warn {
-  color: #f0b0a0;
+.kr-tip-footer.warn {
+  color: var(--red);
 }
 
 .shop-head {
@@ -362,15 +407,16 @@ input {
 
 .gen {
   display: grid;
-  grid-template-columns: 40px 1fr auto;
-  gap: 8px;
+  grid-template-columns: 42px 1fr auto;
+  gap: 10px;
   align-items: center;
   border: 2px solid var(--ink);
   background: #fffdf4;
-  padding: 6px 8px;
+  padding: 8px 10px;
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.2);
   text-align: left;
   width: 100%;
+  min-height: 58px;
 }
 
 .gen:disabled {
@@ -379,18 +425,28 @@ input {
   box-shadow: none;
 }
 
+.gen.cant {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.gen.cant:not(.locked) {
+  opacity: 1;
+}
+
 .gen.locked {
   filter: grayscale(1);
-  opacity: 0.35;
+  opacity: 0.4;
 }
 
 .gen .icon {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
   background: var(--paper-dark);
   border: 2px solid var(--ink);
+  flex-shrink: 0;
 }
 
 .gen .icon img {
@@ -400,32 +456,63 @@ input {
   image-rendering: pixelated;
 }
 
-.gen .name {
+.gen-mid {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gen-name {
+  font-size: 14px;
+  line-height: 1.15;
+}
+
+.gen-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.gen-owned {
+  display: inline-block;
+  background: var(--gold);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  padding: 1px 7px;
   font-size: 13px;
-}
-
-.gen .sub {
-  font-size: 10px;
-  opacity: 0.7;
-  font-weight: 400;
-}
-
-.gen .right {
-  text-align: right;
+  font-weight: 700;
   line-height: 1.2;
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.25);
 }
 
-.gen .count {
+.gen-rate {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.gen-right {
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 64px;
+}
+
+.gen-cost {
   font-size: 16px;
-}
-
-.gen .cost {
-  font-size: 11px;
+  font-weight: 700;
   color: var(--red);
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.gen.afford .cost {
+.gen.afford .gen-cost {
   color: var(--green);
+}
+
+.gen.afford {
+  background: #f8fff4;
 }
 
 /* ------------------------------------------------------------------- Chat */
