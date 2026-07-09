@@ -12,6 +12,9 @@ export function applyStaticTexts(): void {
   id('chat-send').textContent = t('chat.send');
   id('chat-toggle').textContent = t('chat.title');
   id('btn-my-desk').textContent = t('misc.myDesk');
+  id('btn-return-seat').textContent = t('walk.return');
+  id('activity-toggle').textContent = t('activity.title');
+  id('walk-hint').textContent = t('misc.walkHint');
   id('btn-prestige').textContent = t('prestige.button');
   id('btn-leaderboard').title = t('leaderboard.title');
   id('btn-settings').title = t('settings.title');

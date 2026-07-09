@@ -1,4 +1,5 @@
 import type {
+  ActivityEntry,
   AvatarSpec,
   ChatEntry,
   GoalState,
@@ -23,6 +24,8 @@ export type ClientMsg =
   | { t: 'prestige' }
   | { t: 'leaderboard' }
   | { t: 'rename'; name: string; avatar?: AvatarSpec }
+  | { t: 'move'; x: number; y: number }
+  | { t: 'seat' }
   | { t: 'ping'; ts: number };
 
 // ---------------------------------------------------------------------------
@@ -58,6 +61,14 @@ export type ServerMsg =
   | { t: 'goal'; goal: GoalState; completed?: boolean }
   | { t: 'leaderboard'; rows: LeaderboardRow[] }
   | { t: 'error'; code: string }
+  | { t: 'activity'; a: ActivityEntry }
+  | {
+      t: 'pose';
+      id: string;
+      pose: 'seated' | 'walking';
+      pos?: { x: number; y: number };
+      facing?: -1 | 1;
+    }
   | { t: 'pong'; ts: number; now: number };
 
 export function encode(msg: ClientMsg | ServerMsg): string {

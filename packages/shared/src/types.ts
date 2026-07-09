@@ -17,12 +17,29 @@ export interface PlayerPublic {
   stars: number;
   /** 0 = bare desk, 1..9 = highest generator tier owned (drives desk clutter). */
   deskTier: number;
+  /** Indices of the top owned generators (highest tier first). */
+  topGens: number[];
   /** HS on hand (approximate; what a thief could target). */
   bp: number;
   bps: number;
   /** false = disconnected but still at the desk ("Zzz" grace period). */
   online: boolean;
   detention: boolean;
+  pose: 'seated' | 'walking';
+  /** World position while walking; omitted when seated. */
+  pos?: { x: number; y: number };
+  facing?: -1 | 1;
+}
+
+export type ActivityKind = 'click' | 'buy' | 'upgrade' | 'prestige' | 'steal' | 'quiz';
+
+export interface ActivityEntry {
+  id: string;
+  name: string;
+  kind: ActivityKind;
+  /** Optional detail: generator index, upgrade id, victim name, etc. */
+  meta?: string;
+  ts: number;
 }
 
 export interface Buff {

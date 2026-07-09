@@ -1,5 +1,12 @@
-import { SEATS_PER_ROW } from '@shared/balance';
-import type { PlayerPublic } from '@shared/types';
+import type { ActivityEntry, PlayerPublic } from '@shared/types';
+import {
+  classroomWorldH,
+  DESK_W,
+  isWalkable,
+  seatPos,
+  WALK_LANE_X,
+  WALK_SPEED,
+} from '@shared/walk';
 import { t } from '../i18n';
 import { fmt } from '../format';
 import { store } from '../state';
@@ -8,22 +15,21 @@ import { Fx } from './fx';
 import {
   boardSprite,
   deskSprite,
-  DESK_W,
   doorSprite,
   PAL,
   posterSprite,
   studentSprite,
   teacherDeskSprite,
   teacherSprite,
+  walkerSprite,
   windowSprite,
   zzzIcon,
 } from './sprites';
 
+export { seatPos };
 export const WORLD_W = 232;
 const WALL_H = 52;
-const DESK_TOP = 78;
 const CELL_W = 36;
-const ROW_H = 36;
 const GRID_X = 12;
 
 export interface DeskHit {
@@ -32,17 +38,11 @@ export interface DeskHit {
   screenY: number;
 }
 
-export function seatPos(seat: number): { x: number; y: number } {
-  return {
-    x: GRID_X + (seat % SEATS_PER_ROW) * CELL_W,
-    y: DESK_TOP + Math.floor(seat / SEATS_PER_ROW) * ROW_H,
-  };
-}
-
 export class Scene {
   readonly fx = new Fx();
   onDeskClick: ((hit: DeskHit) => void) | null = null;
   onOwnDeskClick: (() => void) | null = null;
+  onWalkingChange: ((walking: boolean) => void) | null = null;
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -51,13 +51,18 @@ export class Scene {
   private camY = 0;
   private viewW = 0;
   private viewH = 0;
-  private hoverSeatPlayer: PlayerPublic | null = null;
+  private hoverPlayer: PlayerPublic | null = null;
   private dragging = false;
   private dragMoved = 0;
   private dragStartY = 0;
   private dragStartCam = 0;
   private lastTime = performance.now();
-  private teacherFrom = { x: 58, y: 40 };
+  private keys = new Set<string>();
+  private walkTarget: { x: number; y: number } | null = null;
+  private displayPos = new Map<string, { x: number; y: number }>();
+  private lastMoveSend = 0;
+  private walkFrame = 0;
+  private wasWalking = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -68,27 +73,32 @@ export class Scene {
 
     store.on('steal', (s) => this.onSteal(s.attacker, s.victim, s.amount, s.caught));
     store.on('emote', ({ id, e }) => {
-      const p = store.roster.get(id);
-      if (!p) return;
-      const pos = seatPos(p.seat);
-      this.fx.emote(pos.x + DESK_W - 6, pos.y - 16, e);
+      const pos = this.entityPos(store.roster.get(id));
+      if (!pos) return;
+      this.fx.emote(pos.x, pos.y - 16, e);
     });
+    store.on('activity', (a) => this.onActivity(a));
+    store.on('pose', () => this.syncWalkUi());
+    store.on('roster', () => this.syncWalkUi());
     store.on('goalDone', () => this.fx.confettiBurst(WORLD_W, this.camY, this.viewH));
 
     requestAnimationFrame(() => this.frame());
   }
 
-  /** World height for the current roster. */
   private worldH(): number {
     let maxSeat = 11;
     for (const p of store.roster.values()) maxSeat = Math.max(maxSeat, p.seat);
-    const rows = Math.floor(maxSeat / SEATS_PER_ROW) + 1;
-    return DESK_TOP + rows * ROW_H + 16;
+    return classroomWorldH(maxSeat);
   }
 
   scrollToOwnDesk(): void {
     const you = store.you;
     if (!you) return;
+    const pub = store.roster.get(you.id);
+    if (pub?.pose === 'walking' && pub.pos) {
+      this.camY = Math.max(0, Math.min(pub.pos.y - this.viewH / 2, this.worldH() - this.viewH));
+      return;
+    }
     const pos = seatPos(you.seat);
     this.camY = Math.max(0, Math.min(pos.y - this.viewH / 2, this.worldH() - this.viewH));
   }
@@ -96,8 +106,14 @@ export class Scene {
   clickFloaterAtOwnDesk(text: string): void {
     const you = store.you;
     if (!you) return;
-    const pos = seatPos(you.seat);
-    this.fx.floater(pos.x + DESK_W / 2, pos.y - 10, text, '#ffe9a3');
+    const pos = this.entityPos(store.roster.get(you.id)) ?? seatPos(you.seat);
+    this.fx.floater(pos.x + (pos === seatPos(you.seat) ? DESK_W / 2 : 0), pos.y - 10, text, '#ffe9a3');
+    store.recentActivity.set(you.id, store.serverNow());
+  }
+
+  returnToSeat(): void {
+    this.walkTarget = null;
+    store.returnToSeat();
   }
 
   // ------------------------------------------------------------------ Input
@@ -113,8 +129,8 @@ export class Scene {
     });
     c.addEventListener('pointermove', (ev) => {
       const world = this.toWorld(ev);
-      this.hoverSeatPlayer = world ? this.playerAt(world.x, world.y) : null;
-      c.style.cursor = this.hoverSeatPlayer ? 'pointer' : 'default';
+      this.hoverPlayer = world ? this.playerAt(world.x, world.y) : null;
+      c.style.cursor = this.hoverPlayer ? 'pointer' : 'default';
       if (this.dragging) {
         const dy = ev.clientY - this.dragStartY;
         this.dragMoved = Math.max(this.dragMoved, Math.abs(dy));
@@ -126,18 +142,37 @@ export class Scene {
       if (this.dragMoved > 5) return;
       const world = this.toWorld(ev);
       if (!world) return;
+
       const hit = this.playerAt(world.x, world.y);
-      if (!hit) return;
-      if (store.you && hit.id === store.you.id) {
-        this.onOwnDeskClick?.();
-      } else {
-        this.onDeskClick?.({ player: hit, screenX: ev.clientX, screenY: ev.clientY });
+      if (hit) {
+        if (store.you && hit.id === store.you.id) {
+          if (hit.pose === 'walking') this.returnToSeat();
+          else this.onOwnDeskClick?.();
+        } else {
+          this.onDeskClick?.({ player: hit, screenX: ev.clientX, screenY: ev.clientY });
+        }
+        return;
+      }
+
+      if (isWalkable(world.x, world.y, this.worldH())) {
+        this.walkTarget = { x: world.x, y: world.y };
+        store.moveTo(world.x, world.y);
       }
     });
     c.addEventListener('wheel', (ev) => {
       ev.preventDefault();
       this.camY = this.clampCam(this.camY + ev.deltaY / this.cssScale());
     }, { passive: false });
+
+    window.addEventListener('keydown', (ev) => {
+      if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyR'].includes(ev.code)) {
+        ev.preventDefault();
+      }
+      this.keys.add(ev.code);
+      if (ev.code === 'KeyR') this.returnToSeat();
+    });
+    window.addEventListener('keyup', (ev) => this.keys.delete(ev.code));
   }
 
   private cssScale(): number {
@@ -155,8 +190,24 @@ export class Scene {
     return { x, y };
   }
 
+  private entityPos(p: PlayerPublic | undefined): { x: number; y: number } | null {
+    if (!p) return null;
+    if (p.pose === 'walking') {
+      const d = this.displayPos.get(p.id) ?? p.pos;
+      if (d) return d;
+    }
+    const sp = seatPos(p.seat);
+    return { x: sp.x + DESK_W / 2, y: sp.y + 10 };
+  }
+
   private playerAt(x: number, y: number): PlayerPublic | null {
     for (const p of store.roster.values()) {
+      if (p.pose === 'walking') {
+        const pos = this.displayPos.get(p.id) ?? p.pos;
+        if (!pos) continue;
+        if (x >= pos.x - 8 && x <= pos.x + 8 && y >= pos.y - 6 && y <= pos.y + 18) return p;
+        continue;
+      }
       const pos = seatPos(p.seat);
       if (x >= pos.x - 2 && x <= pos.x + DESK_W + 2 && y >= pos.y - 8 && y <= pos.y + 31) {
         return p;
@@ -165,7 +216,6 @@ export class Scene {
     return null;
   }
 
-  /** CSS-pixel center of a seat's desk (for tests and DOM overlays). */
   screenPosOfSeat(seat: number): { x: number; y: number } {
     const pos = seatPos(seat);
     const rect = this.canvas.getBoundingClientRect();
@@ -195,6 +245,71 @@ export class Scene {
     this.viewH = h / this.scale;
   }
 
+  private syncWalkUi(): void {
+    const you = store.you;
+    const walking = !!(you && store.roster.get(you.id)?.pose === 'walking');
+    if (walking !== this.wasWalking) {
+      this.wasWalking = walking;
+      this.onWalkingChange?.(walking);
+    }
+  }
+
+  private updateMovement(dt: number, now: number): void {
+    const you = store.you;
+    if (!you) return;
+    const pub = store.roster.get(you.id);
+    if (!pub) return;
+
+    for (const p of store.roster.values()) {
+      if (p.pose !== 'walking' || !p.pos) {
+        this.displayPos.delete(p.id);
+        continue;
+      }
+      const cur = this.displayPos.get(p.id) ?? { ...p.pos };
+      const lerp = p.id === you.id ? 0.55 : 0.35;
+      cur.x += (p.pos.x - cur.x) * lerp;
+      cur.y += (p.pos.y - cur.y) * lerp;
+      this.displayPos.set(p.id, cur);
+    }
+
+    if (pub.pose !== 'walking') return;
+
+    let dx = 0;
+    let dy = 0;
+    if (this.keys.has('ArrowUp') || this.keys.has('KeyW')) dy -= 1;
+    if (this.keys.has('ArrowDown') || this.keys.has('KeyS')) dy += 1;
+    if (this.keys.has('ArrowLeft') || this.keys.has('KeyA')) dx -= 1;
+    if (this.keys.has('ArrowRight') || this.keys.has('KeyD')) dx += 1;
+
+    const pos = this.displayPos.get(you.id) ?? pub.pos ?? { x: WALK_LANE_X[1]!, y: 100 };
+    let tx = pos.x;
+    let ty = pos.y;
+
+    if (this.walkTarget) {
+      const tdx = this.walkTarget.x - pos.x;
+      const tdy = this.walkTarget.y - pos.y;
+      const dist = Math.hypot(tdx, tdy);
+      if (dist < 4) this.walkTarget = null;
+      else {
+        dx += tdx / dist;
+        dy += tdy / dist;
+      }
+    }
+
+    if (dx !== 0 || dy !== 0) {
+      const len = Math.hypot(dx, dy) || 1;
+      tx = pos.x + (dx / len) * WALK_SPEED * dt;
+      ty = pos.y + (dy / len) * WALK_SPEED * dt;
+      if (!isWalkable(tx, ty, this.worldH())) return;
+      this.displayPos.set(you.id, { x: tx, y: ty });
+      this.walkFrame += dt;
+      if (now - this.lastMoveSend > 180) {
+        store.moveTo(tx, ty);
+        this.lastMoveSend = now;
+      }
+    }
+  }
+
   // ------------------------------------------------------------------ Frame
 
   private frame(): void {
@@ -203,6 +318,7 @@ export class Scene {
     this.lastTime = now;
 
     store.frameAdvance();
+    this.updateMovement(dt, now);
     this.fx.update(dt);
     this.draw(now / 1000);
 
@@ -223,23 +339,36 @@ export class Scene {
     const viewBottom = camY + this.viewH;
 
     this.drawRoomShell(viewTop, viewBottom, time);
+    this.drawAisles(viewTop, viewBottom);
     this.drawDesks(viewTop, viewBottom, time);
+    this.drawWalkers(viewTop, viewBottom, time);
     this.drawTeacher(time);
     this.fx.draw(ctx);
+  }
+
+  private drawAisles(viewTop: number, viewBottom: number): void {
+    const { ctx } = this;
+    const worldH = this.worldH();
+    for (const lane of WALK_LANE_X) {
+      if (lane < 0 || lane > WORLD_W) continue;
+      for (let y = WALL_H + 8; y < worldH - 12; y += 2) {
+        if (y < viewTop - 8 || y > viewBottom + 8) continue;
+        ctx.fillStyle = 'rgba(0,0,0,0.04)';
+        ctx.fillRect(lane - 1, y, 3, 1);
+      }
+    }
   }
 
   private drawRoomShell(viewTop: number, viewBottom: number, time: number): void {
     const { ctx } = this;
     const worldH = Math.max(this.worldH(), viewBottom);
 
-    // Floor with plank lines.
     ctx.fillStyle = PAL.floor;
     ctx.fillRect(0, WALL_H, WORLD_W, worldH - WALL_H);
     ctx.fillStyle = PAL.floorLine;
     for (let y = WALL_H + 6; y < worldH; y += 7) {
       if (y > viewTop - 8 && y < viewBottom + 8) ctx.fillRect(0, y, WORLD_W, 1);
     }
-    // Plank joints, pseudo-random but stable.
     for (let y = WALL_H; y < worldH; y += 7) {
       if (y < viewTop - 8 || y > viewBottom + 8) continue;
       for (let k = 0; k < 4; k++) {
@@ -249,13 +378,11 @@ export class Scene {
     }
 
     if (viewTop < WALL_H + 8) {
-      // Wall
       ctx.fillStyle = PAL.wall;
       ctx.fillRect(0, 0, WORLD_W, WALL_H);
       ctx.fillStyle = PAL.wallDark;
       ctx.fillRect(0, WALL_H - 2, WORLD_W, 2);
 
-      // Furniture along the wall
       ctx.drawImage(windowSprite(), 12, 8);
       ctx.drawImage(posterSprite(0), 36, 26);
       ctx.drawImage(boardSprite(140, 42), 46, 4);
@@ -271,8 +398,6 @@ export class Scene {
   private drawClock(cx: number, cy: number): void {
     const { ctx } = this;
     ctx.fillStyle = '#f5efdc';
-    ctx.beginPath();
-    // Pixel circle: draw as diamond-ish blob
     ctx.fillRect(cx - 4, cy - 3, 8, 7);
     ctx.fillRect(cx - 3, cy - 4, 6, 9);
     ctx.fillStyle = PAL.ink;
@@ -294,7 +419,6 @@ export class Scene {
     const ev = store.event;
     const sn = store.serverNow();
 
-    // Line 1: event or title
     let line1 = 'KLASSENRAUM.IO';
     let line1Color: string = PAL.chalk;
     if (ev) {
@@ -307,7 +431,6 @@ export class Scene {
     }
     drawText(ctx, line1.toUpperCase().slice(0, 30), bx + bw / 2, 9, line1Color, { align: 'center' });
 
-    // Line 2: class goal progress bar
     const goal = store.goal;
     const frac = Math.max(0, Math.min(1, goal.progress / goal.target));
     drawText(ctx, t('goal.title'), bx, 19, PAL.chalkDim);
@@ -319,12 +442,10 @@ export class Scene {
     ctx.fillRect(barX, 19, Math.round(barW * frac), 5);
     drawText(ctx, `${Math.floor(frac * 100)}%`, bx + bw, 19, PAL.chalk, { align: 'right' });
 
-    // Line 3: top three by production
     const online = [...store.roster.values()].filter((p) => p.online);
     online.sort((a, b) => b.bps - a.bps);
     const parts = online.slice(0, 3).map((p, i) => `${i + 1}.${p.name.toUpperCase().slice(0, 7)}`);
     drawText(ctx, parts.join(' '), bx, 30, PAL.chalk);
-    // Goal level chalk note
     drawText(ctx, `LVL ${goal.level + 1}`, bx + bw, 30, PAL.chalkDim, { align: 'right' });
   }
 
@@ -332,27 +453,33 @@ export class Scene {
     const { ctx } = this;
     const players = [...store.roster.values()].sort((a, b) => a.seat - b.seat);
     const you = store.you;
+    const sn = store.serverNow();
 
     for (const p of players) {
       const pos = seatPos(p.seat);
       if (pos.y + 30 < viewTop || pos.y - 12 > viewBottom) continue;
       const isYou = you?.id === p.id;
       const sleeping = !p.online;
+      const away = p.pose === 'walking';
 
-      ctx.globalAlpha = sleeping ? 0.55 : 1;
-
-      // Student behind the desk (we see their back; desk is closer to the board).
-      ctx.drawImage(studentSprite(p.avatar), pos.x + 7, pos.y + 6);
       ctx.drawImage(deskSprite(p.deskTier), pos.x, pos.y - 4);
 
-      // Detention marker
+      if (!away) {
+        ctx.globalAlpha = sleeping ? 0.55 : 1;
+        const bob = this.idleBob(p, time, sn);
+        ctx.drawImage(studentSprite(p.avatar), pos.x + 7, pos.y + 6 + bob);
+        if (this.isActivelyWorking(p, sn)) {
+          this.drawScribble(pos.x + DESK_W - 4, pos.y + 2 + bob, time);
+        }
+        ctx.globalAlpha = 1;
+      } else {
+        drawText(ctx, '—', pos.x + DESK_W / 2, pos.y + 10, '#8d94a0', { align: 'center' });
+      }
+
       if (p.detention) {
         drawText(ctx, '!', pos.x + DESK_W + 1, pos.y + 2, '#e04a3a', { shadow: '#5a1a12' });
       }
 
-      ctx.globalAlpha = 1;
-
-      // Name caption below the student, like a class photo.
       const label = p.name.toUpperCase().slice(0, 9) + (p.grade > 0 ? `★${p.grade}` : '');
       const nameColor = isYou ? '#ffd869' : sleeping ? '#8d94a0' : '#fdfaf2';
       drawText(ctx, label, pos.x + DESK_W / 2, pos.y + 24, nameColor, {
@@ -360,8 +487,7 @@ export class Scene {
         shadow: 'rgba(0,0,0,0.45)',
       });
 
-      if (isYou) {
-        // Bobbing marker above own desk
+      if (isYou && !away) {
         const bob = Math.round(Math.sin(time * 3) * 1.5);
         ctx.fillStyle = '#ffd869';
         const mx = pos.x + DESK_W / 2;
@@ -376,13 +502,61 @@ export class Scene {
         ctx.drawImage(zzzIcon, pos.x + DESK_W - 5, pos.y + 4 + bob, 6, 10);
       }
 
-      // Hover highlight
-      if (this.hoverSeatPlayer?.id === p.id && !isYou) {
+      if (this.hoverPlayer?.id === p.id && !isYou) {
         ctx.strokeStyle = 'rgba(255,255,255,0.8)';
         ctx.lineWidth = 1;
-        ctx.strokeRect(pos.x - 1.5, pos.y - 5.5, DESK_W + 3, 36);
+        const box = away
+          ? { x: pos.x - 1.5, y: pos.y - 5.5, w: DESK_W + 3, h: 36 }
+          : { x: pos.x - 1.5, y: pos.y - 5.5, w: DESK_W + 3, h: 36 };
+        ctx.strokeRect(box.x, box.y, box.w, box.h);
       }
     }
+  }
+
+  private drawWalkers(viewTop: number, viewBottom: number, time: number): void {
+    const { ctx } = this;
+    const you = store.you;
+    const walkers = [...store.roster.values()]
+      .filter((p) => p.pose === 'walking' && p.online)
+      .sort((a, b) => (this.displayPos.get(a.id)?.y ?? a.pos?.y ?? 0) - (this.displayPos.get(b.id)?.y ?? b.pos?.y ?? 0));
+
+    for (const p of walkers) {
+      const pos = this.displayPos.get(p.id) ?? p.pos;
+      if (!pos || pos.y + 20 < viewTop || pos.y - 12 > viewBottom) continue;
+      const frame = Math.floor((time + p.seat) * 6) % 2;
+      const facing = p.facing ?? 1;
+      const isYou = you?.id === p.id;
+      ctx.drawImage(walkerSprite(p.avatar, frame, facing), Math.round(pos.x - 6), Math.round(pos.y));
+      const label = p.name.toUpperCase().slice(0, 9);
+      drawText(ctx, label, pos.x, pos.y + 18, isYou ? '#ffd869' : '#fdfaf2', {
+        align: 'center',
+        shadow: 'rgba(0,0,0,0.45)',
+      });
+      if (this.hoverPlayer?.id === p.id) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.strokeRect(pos.x - 8, pos.y - 2, 16, 22);
+      }
+    }
+  }
+
+  private idleBob(p: PlayerPublic, time: number, sn: number): number {
+    const recent = store.recentActivity.get(p.id) ?? 0;
+    const active = sn - recent < 3_000;
+    const speed = active ? 4 : 1.5 + Math.min(3, p.bps / 50);
+    return Math.round(Math.sin(time * speed + p.seat) * (active ? 2 : 1));
+  }
+
+  private isActivelyWorking(p: PlayerPublic, sn: number): boolean {
+    const recent = store.recentActivity.get(p.id) ?? 0;
+    return sn - recent < 2_500;
+  }
+
+  private drawScribble(x: number, y: number, time: number): void {
+    const { ctx } = this;
+    ctx.fillStyle = '#4a6bd4';
+    const phase = Math.floor(time * 8) % 3;
+    ctx.fillRect(x, y + phase, 2, 1);
+    ctx.fillRect(x + 2, y + ((phase + 1) % 3), 2, 1);
   }
 
   private drawTeacher(time: number): void {
@@ -399,39 +573,42 @@ export class Scene {
       const y = d < len ? topY + d : bottomY - (d - len);
       const frame = Math.floor(elapsed * 4) % 2;
       ctx.drawImage(teacherSprite(frame), Math.round(aisleX), Math.round(y));
-      // Danger aura
       ctx.strokeStyle = 'rgba(224,74,58,0.35)';
       ctx.strokeRect(Math.round(aisleX) - 6.5, Math.round(y) - 4.5, 22, 26);
     } else {
-      // Idle beside the teacher desk
       ctx.drawImage(teacherSprite(0), 52, 44);
       void time;
     }
   }
 
-  // --------------------------------------------------------------------- FX
+  private onActivity(a: ActivityEntry): void {
+    const p = store.roster.get(a.id);
+    if (!p) return;
+    const pos = this.entityPos(p);
+    if (!pos) return;
+    this.fx.activity(pos.x, pos.y - 14, a.kind, a.meta);
+    store.recentActivity.set(a.id, a.ts);
+  }
 
   private onSteal(attackerId: string, victimId: string, amount: number, caught: boolean): void {
     const attacker = store.roster.get(attackerId);
     const victim = store.roster.get(victimId);
     if (!attacker || !victim) return;
-    const a = seatPos(attacker.seat);
-    const v = seatPos(victim.seat);
+    const a = this.entityPos(attacker) ?? seatPos(attacker.seat);
+    const v = this.entityPos(victim) ?? seatPos(victim.seat);
     const you = store.you;
 
     if (caught) {
-      // Plane arcs sadly toward the teacher's desk.
-      this.fx.plane(a.x + DESK_W / 2, a.y, 30, 56, () => {
-        this.fx.floater(a.x + DESK_W / 2, a.y - 8, '!!!', '#e04a3a');
+      this.fx.plane(a.x, a.y, 30, 56, () => {
+        this.fx.floater(a.x, a.y - 8, '!!!', '#e04a3a');
       });
       return;
     }
 
-    this.fx.plane(a.x + DESK_W / 2, a.y, v.x + DESK_W / 2, v.y, () => {
-      this.fx.floater(v.x + DESK_W / 2, v.y - 8, `-${fmt(amount)}`, '#ff9a8a');
-      this.fx.floater(a.x + DESK_W / 2, a.y - 8, `+${fmt(amount)}`, '#a8e8a0');
+    this.fx.plane(a.x, a.y, v.x, v.y, () => {
+      this.fx.floater(v.x, v.y - 8, `-${fmt(amount)}`, '#ff9a8a');
+      this.fx.floater(a.x, a.y - 8, `+${fmt(amount)}`, '#a8e8a0');
       if (you && victimId === you.id) {
-        // Local prediction of the loss (authoritative 'you' follows).
         you.bp = Math.max(0, you.bp - amount);
       }
     });
