@@ -10,8 +10,8 @@ import {
   DETENTION_MS,
   deskTier,
   EMOTE_COUNT,
-  EVENT_MAX_GAP_MS,
   EVENT_MIN_GAP_MS,
+  EVENT_MAX_GAP_MS,
   GENERATORS,
   GOAL_BUFF_MS,
   GOAL_BUFF_MULT,
@@ -33,9 +33,11 @@ import {
   stealAmount,
   SUB_BUFF_MS,
   SUB_BUFF_MULT,
+  topGens,
   UPGRADE_BY_ID,
 } from '@shared/balance.js';
 import type {
+  ActivityKind,
   AvatarSpec,
   Buff,
   ChatEntry,
@@ -45,6 +47,14 @@ import type {
   RoomEvent,
 } from '@shared/types.js';
 import type { ServerMsg, TickTuple } from '@shared/protocol.js';
+import {
+  classroomWorldH,
+  DESK_W,
+  nearestWalkLane,
+  seatPos,
+  snapWalkTarget,
+  WALK_MAX_STEP,
+} from '@shared/walk.js';
 import type { Db, PlayerRow } from './db.js';
 
 export interface Outbox {
@@ -63,6 +73,11 @@ interface PlayerState extends PlayerRow {
   clickWinCount: number;
   quizAnswered: boolean;
   dirty: boolean;
+  pose: 'seated' | 'walking';
+  posX: number;
+  posY: number;
+  facing: -1 | 1;
+  lastActivityAt: number;
 }
 
 interface ActiveQuiz {
@@ -201,6 +216,11 @@ export class Room {
       clickWinCount: 0,
       quizAnswered: false,
       dirty: true,
+      pose: 'seated',
+      posX: 0,
+      posY: 0,
+      facing: 1,
+      lastActivityAt: 0,
     };
     this.players.set(p.id, p);
     return p;
@@ -212,6 +232,7 @@ export class Room {
     const now = this.now();
     this.settle(p, now);
     p.online = false;
+    p.pose = 'seated';
     p.sleepUntil = now + SEAT_GRACE_MS;
     p.lastSeen = now;
     this.savePlayer(p);
@@ -280,6 +301,7 @@ export class Room {
     const power = clickPower(this.effectiveBps(p, now), clickMult(p.upgrades));
     this.earn(p, power * allowed);
     p.clicks += allowed;
+    if (allowed > 0) this.emitActivity(p, 'click');
   }
 
   buy(playerId: string, gen: number, qty: number): void {
@@ -297,7 +319,9 @@ export class Room {
     p.bp -= cost;
     p.gens[gen] = (p.gens[gen] ?? 0) + q;
     p.dirty = true;
+    this.emitActivity(p, 'buy', String(gen));
     this.sendYou(p);
+    this.out.broadcast({ t: 'roster', p: this.publicOf(p) });
   }
 
   buyUpgrade(playerId: string, id: string): void {
@@ -317,6 +341,7 @@ export class Room {
     p.bp -= u.cost;
     p.upgrades.push(id);
     p.dirty = true;
+    this.emitActivity(p, 'upgrade', id);
     this.sendYou(p);
   }
 
@@ -339,6 +364,7 @@ export class Room {
     p.buffs = [];
     p.dirty = true;
     this.savePlayer(p);
+    this.emitActivity(p, 'prestige');
     this.sendYou(p);
     this.out.broadcast({ t: 'roster', p: this.publicOf(p) });
   }
@@ -349,6 +375,10 @@ export class Room {
     const now = this.now();
     if (p.detentionUntil > now) {
       this.out.send(p.id, { t: 'error', code: 'detention' });
+      return;
+    }
+    if (p.pose !== 'seated') {
+      this.out.send(p.id, { t: 'error', code: 'walking' });
       return;
     }
     if (now - p.lastStealAt < STEAL_COOLDOWN_MS) {
@@ -385,8 +415,48 @@ export class Room {
       amount: Math.round(amount * 10) / 10,
       caught: false,
     });
+    this.emitActivity(p, 'steal', victim.name);
     this.sendYou(p);
     this.sendYou(victim);
+  }
+
+  move(playerId: string, x: number, y: number): void {
+    const p = this.online(playerId);
+    if (!p) return;
+    const now = this.now();
+    if (p.detentionUntil > now) return;
+    const maxSeat = Math.max(11, ...[...this.players.values()].map((pp) => pp.seat));
+    const worldH = classroomWorldH(maxSeat);
+    const target = snapWalkTarget(Number(x), Number(y), worldH);
+    if (!target) return;
+
+    if (p.pose === 'seated') {
+      const sp = seatPos(p.seat);
+      p.pose = 'walking';
+      p.posX = nearestWalkLane(sp.x + DESK_W / 2);
+      p.posY = sp.y + 18;
+    }
+
+    const dx = target.x - p.posX;
+    const dy = target.y - p.posY;
+    const dist = Math.hypot(dx, dy);
+    if (dist > WALK_MAX_STEP) {
+      const t = WALK_MAX_STEP / dist;
+      p.posX = nearestWalkLane(p.posX + dx * t);
+      p.posY = p.posY + dy * t;
+    } else {
+      p.posX = target.x;
+      p.posY = target.y;
+    }
+    if (Math.abs(dx) > 0.5) p.facing = dx >= 0 ? 1 : -1;
+    this.broadcastPose(p);
+  }
+
+  returnToSeat(playerId: string): void {
+    const p = this.online(playerId);
+    if (!p || p.pose === 'seated') return;
+    p.pose = 'seated';
+    this.broadcastPose(p);
   }
 
   chatMessage(playerId: string, text: string): void {
@@ -423,6 +493,7 @@ export class Room {
       this.settle(p, now);
       this.earn(p, quizReward(this.effectiveBps(p, now)));
       this.addBuff(p, 'quiz', 'buff.quiz', QUIZ_BUFF_MULT, QUIZ_BUFF_MS);
+      this.emitActivity(p, 'quiz', 'ok');
     }
   }
 
@@ -583,10 +654,14 @@ export class Room {
       grade: p.grade,
       stars: p.stars,
       deskTier: deskTier(p.gens),
+      topGens: topGens(p.gens),
       bp: round1(p.bp),
       bps: round2(this.effectiveBps(p, now)),
       online: p.online,
       detention: p.detentionUntil > now,
+      pose: p.pose,
+      pos: p.pose === 'walking' ? { x: round1(p.posX), y: round1(p.posY) } : undefined,
+      facing: p.pose === 'walking' ? p.facing : undefined,
     };
   }
 
@@ -663,6 +738,27 @@ export class Room {
   private online(playerId: string): PlayerState | null {
     const p = this.players.get(playerId);
     return p && p.online ? p : null;
+  }
+
+  private emitActivity(p: PlayerState, kind: ActivityKind, meta?: string): void {
+    const now = this.now();
+    if (kind === 'click' && now - p.lastActivityAt < 2_000) return;
+    p.lastActivityAt = now;
+    this.out.broadcast({
+      t: 'activity',
+      a: { id: p.id, name: p.name, kind, meta, ts: now },
+    });
+  }
+
+  private broadcastPose(p: PlayerState): void {
+    this.out.broadcast({
+      t: 'pose',
+      id: p.id,
+      pose: p.pose,
+      pos: p.pose === 'walking' ? { x: round1(p.posX), y: round1(p.posY) } : undefined,
+      facing: p.facing,
+    });
+    this.out.broadcast({ t: 'roster', p: this.publicOf(p) });
   }
 }
 

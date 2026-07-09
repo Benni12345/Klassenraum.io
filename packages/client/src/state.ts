@@ -9,6 +9,7 @@ import {
 } from '@shared/balance';
 import type { ServerMsg } from '@shared/protocol';
 import type {
+  ActivityEntry,
   ChatEntry,
   GoalState,
   LeaderboardRow,
@@ -31,6 +32,8 @@ interface Events {
   roster: void;
   steal: StealFx;
   emote: { id: string; e: number };
+  activity: ActivityEntry;
+  pose: { id: string };
   chat: ChatEntry;
   event: RoomEvent | null;
   quizResult: { answer: number; winners: string[] };
@@ -50,6 +53,9 @@ class Store {
   event: RoomEvent | null = null;
   goal: GoalState = { level: 0, progress: 0, target: 50_000 };
   chatLog: ChatEntry[] = [];
+  activityLog: ActivityEntry[] = [];
+  /** Per-player last activity timestamp for idle desk animations. */
+  recentActivity = new Map<string, number>();
   status: NetStatus = 'connecting';
   quizAnsweredAt = 0;
 
@@ -198,6 +204,14 @@ class Store {
     this.net.send({ t: 'rename', name });
   }
 
+  moveTo(x: number, y: number): void {
+    this.net.send({ t: 'move', x, y });
+  }
+
+  returnToSeat(): void {
+    this.net.send({ t: 'seat' });
+  }
+
   requestLeaderboard(): void {
     this.net.send({ t: 'leaderboard' });
   }
@@ -214,7 +228,7 @@ class Store {
         this.timeOffset = msg.now - Date.now();
         this.you = msg.you;
         this.roster.clear();
-        for (const p of msg.roster) this.roster.set(p.id, p);
+        for (const p of msg.roster) this.roster.set(p.id, normalizePublic(p));
         this.event = msg.event;
         this.goal = msg.goal;
         this.chatLog = msg.chat;
@@ -232,7 +246,7 @@ class Store {
         this.emit('change', undefined);
         break;
       case 'join': {
-        this.roster.set(msg.p.id, msg.p);
+        this.roster.set(msg.p.id, normalizePublic(msg.p));
         this.emit('roster', undefined);
         this.emit('change', undefined);
         break;
@@ -249,7 +263,7 @@ class Store {
         this.emit('change', undefined);
         break;
       case 'roster': {
-        this.roster.set(msg.p.id, msg.p);
+        this.roster.set(msg.p.id, normalizePublic(msg.p));
         this.emit('roster', undefined);
         this.emit('change', undefined);
         break;
@@ -284,6 +298,24 @@ class Store {
       case 'emote':
         this.emit('emote', { id: msg.id, e: msg.e });
         break;
+      case 'activity': {
+        this.activityLog.push(msg.a);
+        if (this.activityLog.length > 30) this.activityLog.shift();
+        this.recentActivity.set(msg.a.id, msg.a.ts);
+        this.emit('activity', msg.a);
+        break;
+      }
+      case 'pose': {
+        const p = this.roster.get(msg.id);
+        if (p) {
+          p.pose = msg.pose;
+          p.pos = msg.pos;
+          p.facing = msg.facing;
+        }
+        this.emit('pose', { id: msg.id });
+        this.emit('roster', undefined);
+        break;
+      }
       case 'event':
         this.event = msg.ev;
         this.emit('event', msg.ev);
@@ -308,6 +340,14 @@ class Store {
         break;
     }
   }
+}
+
+function normalizePublic(p: PlayerPublic): PlayerPublic {
+  return {
+    ...p,
+    topGens: p.topGens ?? [],
+    pose: p.pose ?? 'seated',
+  };
 }
 
 export const store = new Store();

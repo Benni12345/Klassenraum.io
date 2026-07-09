@@ -167,6 +167,12 @@ export class Net implements Outbox {
       case 'rename':
         if (typeof msg.name === 'string') this.room.rename(id, msg.name, msg.avatar);
         return;
+      case 'move':
+        this.room.move(id, Number(msg.x), Number(msg.y));
+        return;
+      case 'seat':
+        this.room.returnToSeat(id);
+        return;
       default:
         return;
     }

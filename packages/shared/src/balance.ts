@@ -169,6 +169,15 @@ export function deskTier(gens: readonly number[]): number {
   return 0;
 }
 
+/** Indices of the highest owned generators (for desk peek). */
+export function topGens(gens: readonly number[], max = 3): number[] {
+  const out: number[] = [];
+  for (let gi = GENERATORS.length - 1; gi >= 0 && out.length < max; gi--) {
+    if ((gens[gi] ?? 0) > 0) out.push(gi);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Prestige ("Versetzung")
 

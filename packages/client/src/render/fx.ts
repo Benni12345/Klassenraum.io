@@ -1,4 +1,5 @@
 import { drawText } from './font';
+import type { ActivityKind } from '@shared/types';
 import { emoteSprites, planeSprite } from './sprites';
 
 interface Floater {
@@ -37,6 +38,24 @@ interface Confetto {
   age: number;
 }
 
+interface ActBubble {
+  x: number;
+  y: number;
+  kind: ActivityKind;
+  meta?: string;
+  age: number;
+  ttl: number;
+}
+
+const ACT_ICON: Record<ActivityKind, string> = {
+  click: '✏',
+  buy: '+',
+  upgrade: '↑',
+  prestige: '★',
+  steal: '✈',
+  quiz: '✓',
+};
+
 const CONFETTI_COLORS = ['#c94f4f', '#4a6bd4', '#3f9e4d', '#e8b23a', '#e88ad4', '#2fa3a3'];
 
 /** Transient visual effects in world coordinates. */
@@ -44,6 +63,7 @@ export class Fx {
   private floaters: Floater[] = [];
   private planes: Plane[] = [];
   private bubbles: Bubble[] = [];
+  private actBubbles: ActBubble[] = [];
   private confetti: Confetto[] = [];
 
   floater(x: number, y: number, text: string, color: string): void {
@@ -58,6 +78,13 @@ export class Fx {
   emote(x: number, y: number, e: number): void {
     this.bubbles = this.bubbles.filter((b) => Math.abs(b.x - x) > 2 || Math.abs(b.y - y) > 2);
     this.bubbles.push({ x, y, e, age: 0, ttl: 3 });
+  }
+
+  activity(x: number, y: number, kind: ActivityKind, meta?: string): void {
+    this.actBubbles = this.actBubbles.filter(
+      (b) => Math.abs(b.x - x) > 2 || Math.abs(b.y - y) > 2,
+    );
+    this.actBubbles.push({ x, y, kind, meta, age: 0, ttl: 3.5 });
   }
 
   confettiBurst(width: number, camY: number, viewH: number): void {
@@ -94,6 +121,9 @@ export class Fx {
 
     for (const b of this.bubbles) b.age += dt;
     this.bubbles = this.bubbles.filter((b) => b.age < b.ttl);
+
+    for (const a of this.actBubbles) a.age += dt;
+    this.actBubbles = this.actBubbles.filter((a) => a.age < a.ttl);
 
     for (const c of this.confetti) {
       c.age += dt;
@@ -144,6 +174,25 @@ export class Fx {
       if (fade < 0.4) {
         ctx.fillStyle = `rgba(215,228,208,${1 - fade / 0.4})`;
         ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+      }
+    }
+
+    for (const a of this.actBubbles) {
+      const bob = Math.round(Math.sin(a.age * 5) * 1.2);
+      const x = Math.round(a.x);
+      const y = Math.round(a.y + bob);
+      const icon = ACT_ICON[a.kind] ?? '·';
+      const w = 14;
+      const h = 10;
+      ctx.fillStyle = 'rgba(38,34,28,0.88)';
+      ctx.fillRect(x - w / 2 - 1, y - 1, w + 2, h + 2);
+      ctx.fillStyle = '#f5efdc';
+      ctx.fillRect(x - w / 2, y, w, h);
+      drawText(ctx, icon, x, y + 1, '#26221c', { align: 'center' });
+      const fade = a.ttl - a.age;
+      if (fade < 0.5) {
+        ctx.fillStyle = `rgba(215,228,208,${1 - fade / 0.5})`;
+        ctx.fillRect(x - w / 2 - 1, y - 1, w + 2, h + 2);
       }
     }
 
