@@ -1,4 +1,4 @@
-import { stealAmount, STEAL_COOLDOWN_MS } from '@shared/balance';
+import { GENERATORS, stealAmount, STEAL_COOLDOWN_MS } from '@shared/balance';
 import { fmt, fmtDuration } from '../format';
 import { gradeLabel, t } from '../i18n';
 import type { DeskHit } from '../render/scene';
@@ -12,26 +12,39 @@ export function closePopover(): void {
   cleanup = null;
 }
 
-/** Popover shown when clicking a classmate's desk: inspect + throw airplane. */
+type Tab = 'overview' | 'gens' | 'steal';
+
+/** Popover when clicking a classmate: peek + steal. */
 export function showDeskPopover(hit: DeskHit): void {
   closePopover();
   const root = id('popover-root');
-  const pop = el('div', 'popover');
+  const pop = el('div', 'popover wide');
   const targetId = hit.player.id;
+  let tab: Tab = 'overview';
 
-  const name = el('div', 'pname');
-  const sub = el('div', 'psub');
-  const btn = el('button', 'btn');
-  const warn = el('div', 'warn');
-  pop.appendChild(name);
-  pop.appendChild(sub);
-  pop.appendChild(btn);
-  pop.appendChild(warn);
+  const tabs = el('div', 'popover-tabs');
+  const tabOverview = el('button', 'tab on');
+  const tabGens = el('button', 'tab');
+  const tabSteal = el('button', 'tab');
+  tabOverview.textContent = t('peek.tab.overview');
+  tabGens.textContent = t('peek.tab.gens');
+  tabSteal.textContent = t('peek.tab.steal');
+  tabs.append(tabOverview, tabGens, tabSteal);
 
-  btn.onclick = () => {
-    store.steal(targetId);
-    closePopover();
+  const body = el('div', 'popover-body');
+  pop.appendChild(tabs);
+  pop.appendChild(body);
+
+  const setTab = (next: Tab) => {
+    tab = next;
+    tabOverview.classList.toggle('on', tab === 'overview');
+    tabGens.classList.toggle('on', tab === 'gens');
+    tabSteal.classList.toggle('on', tab === 'steal');
+    refresh();
   };
+  tabOverview.onclick = () => setTab('overview');
+  tabGens.onclick = () => setTab('gens');
+  tabSteal.onclick = () => setTab('steal');
 
   const refresh = () => {
     const p = store.roster.get(targetId);
@@ -40,14 +53,60 @@ export function showDeskPopover(hit: DeskHit): void {
       closePopover();
       return;
     }
-    name.textContent = `${p.name} — ${gradeLabel(p.grade)}${p.stars > 0 ? ` ★${p.stars}` : ''}`;
-    sub.textContent = `${fmt(p.bp)} ${t('unit')} ${t('misc.onHand')}${p.online ? '' : ` · ${t('misc.sleeping')}`}`;
+    body.replaceChildren();
+
+    if (tab === 'overview') {
+      const title = el('div', 'pname');
+      title.textContent = `${p.name} — ${gradeLabel(p.grade)}${p.stars > 0 ? ` ★${p.stars}` : ''}`;
+      const sub = el('div', 'psub');
+      sub.textContent = `${fmt(p.bps)} ${t('unit')}/s · ${fmt(p.bp)} ${t('misc.onHand')}`;
+      const status = el('div', 'peek-line');
+      if (!p.online) status.textContent = t('misc.sleeping');
+      else if (p.pose === 'walking') status.textContent = t('peek.walking');
+      else if (p.detention) status.textContent = t('buff.detention');
+      else status.textContent = t('peek.atDesk');
+      const tier = el('div', 'peek-line');
+      tier.textContent = t('peek.deskTier', { n: p.deskTier });
+      body.append(title, sub, status, tier);
+      return;
+    }
+
+    if (tab === 'gens') {
+      const title = el('div', 'pname');
+      title.textContent = t('peek.gensTitle');
+      body.appendChild(title);
+      if (p.topGens.length === 0) {
+        const empty = el('div', 'peek-line');
+        empty.textContent = t('peek.noGens');
+        body.appendChild(empty);
+        return;
+      }
+      for (const gi of p.topGens) {
+        const g = GENERATORS[gi];
+        if (!g) continue;
+        const row = el('div', 'peek-gen');
+        row.textContent = t(`gen.${g.id}.name`);
+        body.appendChild(row);
+      }
+      return;
+    }
+
+    const warn = el('div', 'warn');
+    const btn = el('button', 'btn');
+    btn.onclick = () => {
+      store.steal(targetId);
+      closePopover();
+    };
 
     const sn = store.serverNow();
     const cooldownLeft = you.stealReadyAt - sn;
+    const youPub = store.roster.get(you.id);
     if (!p.online) {
       btn.disabled = true;
       btn.textContent = t('steal.sleeping');
+    } else if (youPub?.pose === 'walking') {
+      btn.disabled = true;
+      btn.textContent = t('steal.mustSit');
     } else if (you.detentionUntil > sn) {
       btn.disabled = true;
       btn.textContent = t('err.detention');
@@ -61,14 +120,16 @@ export function showDeskPopover(hit: DeskHit): void {
       })})`;
     }
     warn.textContent = store.event?.kind === 'patrol' ? t('steal.risky') : '';
+    body.append(btn, warn);
   };
+
   refresh();
   const timer = setInterval(refresh, 300);
 
   root.appendChild(pop);
-  const w = 230;
+  const w = 250;
   const x = Math.max(8, Math.min(hit.screenX - w / 2, window.innerWidth - w - 8));
-  const y = Math.max(8, Math.min(hit.screenY + 12, window.innerHeight - 140));
+  const y = Math.max(8, Math.min(hit.screenY + 12, window.innerHeight - 180));
   pop.style.left = `${x}px`;
   pop.style.top = `${y}px`;
 
@@ -84,5 +145,4 @@ export function showDeskPopover(hit: DeskHit): void {
   };
 }
 
-// Re-exported so main.ts can mention the cooldown in ui copy if needed.
 export { STEAL_COOLDOWN_MS };

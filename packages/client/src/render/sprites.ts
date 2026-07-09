@@ -129,6 +129,58 @@ export function studentSprite(a: AvatarSpec): HTMLCanvasElement {
 }
 
 // ---------------------------------------------------------------------------
+// Walker (side view, facing left/right), 2 frames
+
+const WALK_HEAD_SIDE = [
+  '....####....',
+  '...######...',
+  '...#o##o#...',
+  '...######...',
+  '....####....',
+];
+
+const WALK_BODY_SIDE = [
+  '..########..',
+  '.##########.',
+  '.##########.',
+  '.##########.',
+  '..########..',
+];
+
+const WALK_LEGS: [string, string][] = [
+  ['...##...##..', '..##....##..'],
+  ['..##....##..', '...##...##..'],
+];
+
+const walkerCache = new Map<string, HTMLCanvasElement>();
+
+/** 12x16 side-view student for aisle walking. */
+export function walkerSprite(a: AvatarSpec, frame: number, facing: -1 | 1): HTMLCanvasElement {
+  const key = `${a.skin}-${a.hair}-${a.hairColor}-${a.shirt}-${frame}-${facing}`;
+  const hit = walkerCache.get(key);
+  if (hit) return hit;
+  const [c, ctx] = canvas(12, 16);
+  const skin = SKINS[a.skin] ?? SKINS[0];
+  const hairC = HAIR_COLORS[a.hairColor] ?? HAIR_COLORS[0];
+  const shirt = SHIRTS[a.shirt] ?? SHIRTS[0];
+  const f = frame & 1;
+  ctx.save();
+  if (facing < 0) {
+    ctx.translate(12, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(px(WALK_HEAD_SIDE, { '#': skin, o: PAL.ink }), 0, 1);
+  ctx.drawImage(px(HAIR_STYLES[a.hair]!.slice(0, 4), { '#': hairC }), 0, 0);
+  ctx.drawImage(px(WALK_BODY_SIDE, { '#': shirt }), 0, 7);
+  const legs = WALK_LEGS[f]!;
+  ctx.drawImage(px([legs[0]!], { '#': PAL.ink }), 0, 13);
+  ctx.drawImage(px([legs[1]!], { '#': PAL.ink }), 0, 14);
+  ctx.restore();
+  walkerCache.set(key, c);
+  return c;
+}
+
+// ---------------------------------------------------------------------------
 // Teacher (front view, facing the class), 2 walk frames
 
 const TEACHER_FRAMES = [0, 1].map((f) =>

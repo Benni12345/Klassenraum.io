@@ -4,6 +4,7 @@ import { gradeLabel, t } from './i18n';
 import { Scene } from './render/scene';
 import { brainIcon, gearIcon, iconDataUrl, trophyIcon } from './render/sprites';
 import { store } from './state';
+import { initActivityFeed } from './ui/activity';
 import { initBoss } from './ui/boss';
 import { initChat } from './ui/chat';
 import { el, id } from './ui/dom';
@@ -37,12 +38,17 @@ const scene = new Scene(id<HTMLCanvasElement>('scene'));
 initHud();
 initShop();
 initChat();
+initActivityFeed();
+id('walk-hint').textContent = t('misc.walkHint');
 
 // ----------------------------------------------------------------- Clicking
 
 function doClick(): void {
   const gain = store.click();
-  if (gain > 0) scene.clickFloaterAtOwnDesk(`+${fmt(gain)}`);
+  if (gain > 0) {
+    scene.clickFloaterAtOwnDesk(`+${fmt(gain)}`);
+    if (store.you) store.recentActivity.set(store.you.id, store.serverNow());
+  }
 }
 
 id('btn-click').addEventListener('click', doClick);
@@ -60,6 +66,10 @@ document.addEventListener('keydown', (ev) => {
 // ------------------------------------------------------------------ Buttons
 
 id('btn-my-desk').addEventListener('click', () => scene.scrollToOwnDesk());
+id('btn-return-seat').addEventListener('click', () => scene.returnToSeat());
+scene.onWalkingChange = (walking) => {
+  id('btn-return-seat').classList.toggle('hidden', !walking);
+};
 id('btn-prestige').addEventListener('click', () => prestigeModal());
 id('btn-leaderboard').addEventListener('click', () => leaderboardModal());
 id('btn-settings').addEventListener('click', () => settingsModal());

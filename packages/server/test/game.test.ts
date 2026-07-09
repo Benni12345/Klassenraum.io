@@ -284,3 +284,36 @@ describe('name sanitization', () => {
     expect(sanitizeName('a'.repeat(40))!.length).toBe(16);
   });
 });
+
+describe('interaction', () => {
+  it('broadcasts buy activity and top generators on roster', () => {
+    const { room, broadcasts } = setup();
+    const a = room.hello(undefined, 'Anna', undefined);
+    room.click(a.playerId, 25);
+    room.buy(a.playerId, 0, 1);
+    const activities = broadcasts.filter((m) => m.t === 'activity');
+    const buyAct = activities.find((m) => m.t === 'activity' && m.a.kind === 'buy');
+    expect(buyAct?.t).toBe('activity');
+    if (buyAct?.t === 'activity') {
+      expect(buyAct.a.name).toBe('Anna');
+    }
+    const pub = room.roster().find((p) => p.id === a.playerId)!;
+    expect(pub.topGens).toEqual([0]);
+    expect(pub.pose).toBe('seated');
+  });
+
+  it('allows aisle walking and blocks stealing while away', () => {
+    const { room, sent } = setup();
+    const a = room.hello(undefined, 'Anna', undefined);
+    const b = room.hello(undefined, 'Ben', undefined);
+    for (let i = 0; i < 8; i++) room.move(a.playerId, 110, 120);
+    const pub = room.roster().find((p) => p.id === a.playerId)!;
+    expect(pub.pose).toBe('walking');
+    expect(pub.pos).toBeDefined();
+    expect(pub.pos!.x).toBeGreaterThanOrEqual(30);
+    room.steal(a.playerId, b.playerId);
+    expect(sent.get(a.playerId)?.some((m) => m.t === 'error' && m.code === 'walking')).toBe(true);
+    room.returnToSeat(a.playerId);
+    expect(room.roster().find((p) => p.id === a.playerId)!.pose).toBe('seated');
+  });
+});
