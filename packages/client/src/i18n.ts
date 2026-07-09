@@ -108,6 +108,8 @@ const de: Dict = {
   'join.hairColor': 'Haarfarbe',
   'join.shirt': 'Shirt',
 
+  'ads.label': 'Werbung',
+
   'settings.title': 'Einstellungen',
   'settings.lang': 'Sprache',
   'settings.stats': 'Statistik',
@@ -250,6 +252,8 @@ const en: Dict = {
   'join.hair': 'Hair',
   'join.hairColor': 'Hair color',
   'join.shirt': 'Shirt',
+
+  'ads.label': 'Ad',
 
   'settings.title': 'Settings',
   'settings.lang': 'Language',
