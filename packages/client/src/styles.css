@@ -215,31 +215,6 @@ input {
   gap: 10px;
 }
 
-/* ------------------------------------------------------------------- Ads */
-
-#ad-slot {
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 2px dashed var(--paper-line);
-  text-align: center;
-  min-height: 90px;
-  overflow: hidden;
-}
-
-#ad-slot .ad-label {
-  display: block;
-  font-size: 9px;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: #8a7d66;
-  margin-bottom: 6px;
-}
-
-#ad-slot .adsbygoogle {
-  min-height: 90px;
-}
-
 #btn-click {
   background: var(--gold);
   border: 3px solid var(--ink);

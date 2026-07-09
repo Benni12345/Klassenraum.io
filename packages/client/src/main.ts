@@ -1,5 +1,4 @@
 import './styles.css';
-import { initAds } from './ads';
 import { fmt } from './format';
 import { gradeLabel, t } from './i18n';
 import { Scene } from './render/scene';
@@ -24,7 +23,6 @@ import { applyStaticTexts } from './ui/texts';
 
 applyStaticTexts();
 initBoss();
-void initAds();
 
 // Pixel icons for the DOM chrome.
 id<HTMLImageElement>('hud-brain').src = iconDataUrl(brainIcon, 6);
