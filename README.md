@@ -49,6 +49,26 @@ connects via `wss://` on the same origin automatically.
 
 A `Dockerfile` is included (`docker build -t klassenraum . && docker run -p 8080:8080 -v kr-data:/data klassenraum`).
 
+### Fly.io
+
+The server stores player data in SQLite at `/data/klassenraum.db`. Fly machines use
+ephemeral disks by default, so you must attach a persistent volume or every deploy
+wipes the database.
+
+One-time setup (in the app's primary region, `ams`):
+
+```bash
+fly volumes create klassenraum_data --region ams --size 1
+```
+
+`fly.toml` already mounts that volume at `/data`. Then deploy as usual:
+
+```bash
+fly deploy
+```
+
+Keep a single machine for this app — Fly volumes attach to one machine per volume.
+
 ## Tests
 
 ```bash

@@ -1,6 +1,12 @@
 app = "klassenraum-io"
 primary_region = "ams"
 
+# SQLite lives at /data/klassenraum.db (see Dockerfile). Without this mount,
+# every deploy/restart gets a fresh ephemeral disk and the database is empty.
+[mounts]
+source = "klassenraum_data"
+destination = "/data"
+
 [http_service]
 auto_start_machines = true
 auto_stop_machines = true
