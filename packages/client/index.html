@@ -11,10 +11,16 @@
     <div id="app">
       <header id="hud">
         <div class="hud-left">
-          <img id="hud-brain" class="pix" alt="" width="36" height="36" />
-          <div class="hud-bp">
-            <div id="bp-value">0</div>
-            <div id="bps-value"></div>
+          <div id="bp-panel" class="bp-panel">
+            <img id="hud-brain" class="pix hud-brain" alt="" width="40" height="40" />
+            <div class="hud-bp">
+              <div class="bp-main">
+                <span id="bp-value">0</span>
+                <span id="bp-unit" class="bp-unit">HS</span>
+              </div>
+              <div id="bps-value" class="bps-line"></div>
+            </div>
+            <div id="bp-floats" class="bp-floats" aria-hidden="true"></div>
           </div>
         </div>
         <div id="event-banner" class="hidden">

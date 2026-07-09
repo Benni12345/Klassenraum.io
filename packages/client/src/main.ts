@@ -7,7 +7,7 @@ import { store } from './state';
 import { initBoss } from './ui/boss';
 import { initChat } from './ui/chat';
 import { el, id } from './ui/dom';
-import { initHud } from './ui/hud';
+import { hudGainBurst, initHud } from './ui/hud';
 import {
   closeModal,
   joinModal,
@@ -42,7 +42,10 @@ initChat();
 
 function doClick(): void {
   const gain = store.click();
-  if (gain > 0) scene.clickFloaterAtOwnDesk(`+${fmt(gain)}`);
+  if (gain > 0) {
+    scene.clickFloaterAtOwnDesk(`+${fmt(gain)}`);
+    hudGainBurst(gain);
+  }
 }
 
 id('btn-click').addEventListener('click', doClick);
@@ -91,6 +94,7 @@ store.on('offline', (o) => {
   const mins = Math.floor((o.ms % 3_600_000) / 60_000);
   const dur = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   toast(t('offline.toast', { v: fmt(o.bp), t: dur }), 'gold');
+  if (o.bp > 0) hudGainBurst(o.bp);
 });
 
 store.on('steal', (s) => {
@@ -104,6 +108,7 @@ store.on('steal', (s) => {
   } else if (s.attacker === you.id && !s.caught) {
     const victim = store.roster.get(s.victim)?.name ?? '?';
     toast(t('steal.success', { v: fmt(s.amount), b: victim }), 'gold');
+    hudGainBurst(s.amount);
   }
 });
 

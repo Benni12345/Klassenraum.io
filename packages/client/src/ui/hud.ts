@@ -5,6 +5,10 @@ import { el, id } from './dom';
 
 let quizSent = false;
 
+let displayBp = 0;
+let lastTargetBp = 0;
+let lastGainFx = 0;
+
 export function initHud(): void {
   store.on('event', () => {
     quizSent = false;
@@ -12,6 +16,8 @@ export function initHud(): void {
   });
   store.on('you', renderStatic);
   store.on('joined', () => {
+    displayBp = store.you?.bp ?? 0;
+    lastTargetBp = displayBp;
     renderStatic();
     renderEventBanner();
   });
@@ -22,6 +28,13 @@ export function initHud(): void {
   });
 
   setInterval(tick, 150);
+  requestAnimationFrame(animateBp);
+}
+
+/** Brief pulse + floating gain text on the balance panel. */
+export function hudGainBurst(amount: number): void {
+  if (amount <= 0) return;
+  triggerGainVisual(amount, true);
 }
 
 function submitQuiz(): void {
@@ -41,6 +54,8 @@ function renderStatic(): void {
   badge.textContent = `${gradeLabel(you.grade)} ★${you.stars}`;
   badge.title = `${t('misc.stars')}: ${you.stars} (+${you.stars * 10}%)`;
 
+  id('bp-unit').textContent = t('unit');
+
   const pb = id('btn-prestige');
   if (you.starsIfGraduate >= 1) {
     pb.classList.remove('hidden');
@@ -50,11 +65,59 @@ function renderStatic(): void {
   }
 }
 
+function animateBp(): void {
+  const you = store.you;
+  if (you) {
+    const target = you.bp;
+    const diff = target - displayBp;
+
+    if (Math.abs(diff) < 0.5) {
+      displayBp = target;
+    } else {
+      const speed = Math.max(0.1, Math.min(0.4, Math.abs(diff) / Math.max(target * 0.02, 50)));
+      displayBp += diff * speed;
+    }
+
+    id('bp-value').textContent = fmt(displayBp);
+
+    const jump = target - lastTargetBp;
+    const passive = you.bps * (1 / 60);
+    if (jump > Math.max(passive * 8, 2)) {
+      maybeGainFx(jump);
+    }
+    lastTargetBp = target;
+  }
+
+  requestAnimationFrame(animateBp);
+}
+
+function maybeGainFx(amount: number): void {
+  const now = performance.now();
+  if (now - lastGainFx < 250) return;
+  triggerGainVisual(amount, false);
+}
+
+function triggerGainVisual(amount: number, showFloat: boolean): void {
+  lastGainFx = performance.now();
+
+  const panel = id('bp-panel');
+  panel.classList.remove('gain');
+  void panel.offsetWidth;
+  panel.classList.add('gain');
+
+  if (showFloat) {
+    const floats = id('bp-floats');
+    const node = el('span', 'bp-float');
+    node.textContent = `+${fmt(amount)}`;
+    floats.appendChild(node);
+    setTimeout(() => node.remove(), 1300);
+  }
+}
+
 function tick(): void {
   const you = store.you;
   if (!you) return;
 
-  id('bp-value').textContent = `${fmt(you.bp)} ${t('unit')}`;
   id('bps-value').textContent = `${t('hud.perSec', { v: fmt(you.bps) })} · ${t('hud.click', {
     v: fmt(you.clickPower),
   })}`;
