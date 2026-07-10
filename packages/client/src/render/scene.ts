@@ -47,7 +47,8 @@ export class Scene {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private scale = 3;
-  private offsetX = 0;
+  /** Horizontal inset (world units) centering the fixed-width classroom. */
+  private contentOffsetX = 0;
   private camY = 0;
   private viewW = 0;
   private viewH = 0;
@@ -73,7 +74,7 @@ export class Scene {
       const pos = seatPos(p.seat);
       this.fx.emote(pos.x + DESK_W - 6, pos.y - 16, e);
     });
-    store.on('goalDone', () => this.fx.confettiBurst(WORLD_W, this.camY, this.viewH));
+    store.on('goalDone', () => this.fx.confettiBurst(this.viewW, this.camY, this.viewH));
 
     requestAnimationFrame(() => this.frame());
   }
@@ -149,7 +150,7 @@ export class Scene {
     const dpr = window.devicePixelRatio || 1;
     const px = (ev.clientX - rect.left) * dpr;
     const py = (ev.clientY - rect.top) * dpr;
-    const x = (px - this.offsetX) / this.scale;
+    const x = px / this.scale - this.contentOffsetX;
     const y = py / this.scale + this.camY;
     if (x < 0 || x > WORLD_W) return null;
     return { x, y };
@@ -171,7 +172,7 @@ export class Scene {
     const rect = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     return {
-      x: rect.left + (this.offsetX + (pos.x + DESK_W / 2) * this.scale) / dpr,
+      x: rect.left + ((this.contentOffsetX + pos.x + DESK_W / 2) * this.scale) / dpr,
       y: rect.top + ((pos.y + 4 - this.camY) * this.scale) / dpr,
     };
   }
@@ -190,9 +191,9 @@ export class Scene {
     this.canvas.style.width = `${wrap.clientWidth}px`;
     this.canvas.style.height = `${wrap.clientHeight}px`;
     this.scale = Math.max(2, Math.floor(w / WORLD_W));
-    this.offsetX = Math.floor((w - WORLD_W * this.scale) / 2);
     this.viewW = w / this.scale;
     this.viewH = h / this.scale;
+    this.contentOffsetX = (this.viewW - WORLD_W) / 2;
   }
 
   // ------------------------------------------------------------------ Frame
@@ -217,45 +218,51 @@ export class Scene {
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#211d18';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.setTransform(this.scale, 0, 0, this.scale, this.offsetX, -camY * this.scale);
+    ctx.setTransform(this.scale, 0, 0, this.scale, 0, -camY * this.scale);
 
     const viewTop = camY;
     const viewBottom = camY + this.viewH;
 
     this.drawRoomShell(viewTop, viewBottom, time);
+    ctx.save();
+    ctx.translate(this.contentOffsetX, 0);
     this.drawDesks(viewTop, viewBottom, time);
     this.drawTeacher(time);
     this.fx.draw(ctx);
+    ctx.restore();
   }
 
   private drawRoomShell(viewTop: number, viewBottom: number, time: number): void {
     const { ctx } = this;
     const worldH = Math.max(this.worldH(), viewBottom);
+    const viewW = this.viewW;
 
-    // Floor with plank lines.
+    // Floor with plank lines — extend across the full viewport width.
     ctx.fillStyle = PAL.floor;
-    ctx.fillRect(0, WALL_H, WORLD_W, worldH - WALL_H);
+    ctx.fillRect(0, WALL_H, viewW, worldH - WALL_H);
     ctx.fillStyle = PAL.floorLine;
     for (let y = WALL_H + 6; y < worldH; y += 7) {
-      if (y > viewTop - 8 && y < viewBottom + 8) ctx.fillRect(0, y, WORLD_W, 1);
+      if (y > viewTop - 8 && y < viewBottom + 8) ctx.fillRect(0, y, viewW, 1);
     }
     // Plank joints, pseudo-random but stable.
     for (let y = WALL_H; y < worldH; y += 7) {
       if (y < viewTop - 8 || y > viewBottom + 8) continue;
       for (let k = 0; k < 4; k++) {
-        const jx = ((y * 37 + k * 61) % WORLD_W + WORLD_W) % WORLD_W;
+        const jx = ((y * 37 + k * 61) % viewW + viewW) % viewW;
         ctx.fillRect(jx, y + 1, 1, 5);
       }
     }
 
     if (viewTop < WALL_H + 8) {
-      // Wall
+      // Wall — extend across the full viewport width.
       ctx.fillStyle = PAL.wall;
-      ctx.fillRect(0, 0, WORLD_W, WALL_H);
+      ctx.fillRect(0, 0, viewW, WALL_H);
       ctx.fillStyle = PAL.wallDark;
-      ctx.fillRect(0, WALL_H - 2, WORLD_W, 2);
+      ctx.fillRect(0, WALL_H - 2, viewW, 2);
 
-      // Furniture along the wall
+      // Classroom furniture stays within the fixed world width, centered.
+      ctx.save();
+      ctx.translate(this.contentOffsetX, 0);
       ctx.drawImage(windowSprite(), 12, 8);
       ctx.drawImage(posterSprite(0), 36, 26);
       ctx.drawImage(boardSprite(140, 42), 46, 4);
@@ -263,8 +270,8 @@ export class Scene {
       ctx.drawImage(posterSprite(1), 192, 8);
       this.drawClock(220, 12);
       ctx.drawImage(teacherDeskSprite(), 12, 52);
-
       this.drawBoardContent(time);
+      ctx.restore();
     }
   }
 
