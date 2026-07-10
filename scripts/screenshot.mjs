@@ -32,7 +32,7 @@ await page.goto(baseUrl);
 await page.waitForSelector('.modal input[type="text"]', { timeout: 5000 });
 await page.fill('.modal input[type="text"]', 'Du');
 await page.screenshot({ path: `${outDir}/join.png` });
-await page.click('.modal .btn.gold');
+await page.click('.modal .actions .btn.gold');
 await page.waitForSelector('.modal', { state: 'detached', timeout: 5000 });
 await page.waitForTimeout(2000);
 
