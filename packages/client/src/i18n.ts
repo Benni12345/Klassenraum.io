@@ -141,6 +141,13 @@ const de: Dict = {
   'misc.stars': 'Goldsterne',
   'misc.onHand': 'auf der Hand',
 
+  'footer.tagline':
+    'Klassenraum.io — kostenloses Multiplayer-Idle-Game. Alle sitzen im selben Klassenraum.',
+  'footer.about': 'Über uns',
+  'footer.guide': 'Spielanleitung',
+  'footer.privacy': 'Datenschutz',
+  'footer.impressum': 'Impressum',
+
   'boss.title': 'Mathe – Notizen',
   'boss.hint': 'Esc zum Zurückkehren',
 };
@@ -283,6 +290,13 @@ const en: Dict = {
   'misc.sleeping': 'sleeping',
   'misc.stars': 'Gold stars',
   'misc.onHand': 'on hand',
+
+  'footer.tagline':
+    'Klassenraum.io — free multiplayer idle game. Everyone shares one classroom.',
+  'footer.about': 'About',
+  'footer.guide': 'How to play',
+  'footer.privacy': 'Privacy',
+  'footer.impressum': 'Legal notice',
 
   'boss.title': 'Math – Notes',
   'boss.hint': 'Esc to return',

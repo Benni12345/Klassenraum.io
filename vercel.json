@@ -14,6 +14,18 @@
       "handle": "filesystem"
     },
     {
+      "src": "/ads.txt",
+      "dest": "/ads.txt"
+    },
+    {
+      "src": "/(about|guide|privacy|impressum)\\.html",
+      "dest": "/$1.html"
+    },
+    {
+      "src": "/pages.css",
+      "dest": "/pages.css"
+    },
+    {
       "src": "/.*",
       "dest": "/index.html"
     }

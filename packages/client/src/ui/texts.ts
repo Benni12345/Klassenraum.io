@@ -18,4 +18,9 @@ export function applyStaticTexts(): void {
   id('quiz-submit').textContent = t('event.quiz.submit');
   id<HTMLInputElement>('quiz-input').placeholder = t('event.quiz.prompt');
   id('conn-banner').textContent = t('conn.lost');
+  id('footer-tagline').textContent = t('footer.tagline');
+  id('footer-about').textContent = t('footer.about');
+  id('footer-guide').textContent = t('footer.guide');
+  id('footer-privacy').textContent = t('footer.privacy');
+  id('footer-impressum').textContent = t('footer.impressum');
 }
