@@ -1,8 +1,9 @@
-import { t } from '../i18n';
+import { getLocale, t } from '../i18n';
 import { id } from './dom';
 
 /** (Re)applies all static UI labels; called at boot and on language change. */
 export function applyStaticTexts(): void {
+  document.documentElement.lang = getLocale();
   id('click-label').textContent = t('shop.click');
   id('shop-title').textContent = t('shop.title');
   id('upgrades-title').textContent = t('shop.upgrades');

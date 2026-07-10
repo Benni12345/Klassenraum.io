@@ -1,5 +1,8 @@
 export type Locale = 'de' | 'en';
 
+export const DEFAULT_LOCALE: Locale = 'en';
+export const LOCALES: readonly Locale[] = ['en', 'de'];
+
 type Dict = Record<string, string>;
 
 const de: Dict = {
@@ -304,7 +307,8 @@ const en: Dict = {
 
 const DICTS: Record<Locale, Dict> = { de, en };
 
-let locale: Locale = (localStorage.getItem('kr_lang') as Locale) || 'de';
+let locale: Locale =
+  (localStorage.getItem('kr_lang') as Locale) || DEFAULT_LOCALE;
 
 export function getLocale(): Locale {
   return locale;
@@ -313,10 +317,11 @@ export function getLocale(): Locale {
 export function setLocale(l: Locale): void {
   locale = l;
   localStorage.setItem('kr_lang', l);
+  document.documentElement.lang = l;
 }
 
 export function t(key: string, params?: Record<string, string | number>): string {
-  let s = DICTS[locale][key] ?? DICTS.de[key] ?? key;
+  let s = DICTS[locale][key] ?? DICTS[DEFAULT_LOCALE][key] ?? key;
   if (params) {
     for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, String(v));
   }
