@@ -106,17 +106,20 @@ export function createCrazyGamesPlatform(): Platform {
       void sdk()
         .banner.requestBanner({ id: containerId, width: 300, height: 250 })
         .catch(() => {
-          /* unfilled / cooldown — game continues normally */
+          /* unfilled, cooldown, or disabled during Basic Launch */
         });
     },
 
     hideModalBanner() {
       if (!bannerId) return;
-      const id = bannerId;
+      // Do not call SDK clearBanner/clearAllBanners — disabled during Basic Launch
+      // and the modal DOM is destroyed on close anyway.
+      const slot = document.getElementById(bannerId);
+      if (slot) {
+        slot.replaceChildren();
+        slot.style.display = 'none';
+      }
       bannerId = null;
-      const banner = sdk().banner;
-      if (banner.clearBanner) banner.clearBanner(id);
-      else banner.clearAllBanners?.();
     },
   };
 }

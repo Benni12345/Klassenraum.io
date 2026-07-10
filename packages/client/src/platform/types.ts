@@ -21,8 +21,6 @@ export interface CrazyGamesSDK {
   };
   banner: {
     requestBanner(opts: { id: string; width: number; height: number }): Promise<void>;
-    clearBanner?(containerId: string): void;
-    clearAllBanners?(): void;
   };
 }
 
