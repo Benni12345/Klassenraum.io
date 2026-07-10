@@ -12,6 +12,7 @@
     "build": "npm run build --workspace=@klassenraum/shared --if-present && npm run build --workspace=@klassenraum/client && npm run build --workspace=@klassenraum/server",
     "build:client": "npm run build --workspace=@klassenraum/client",
     "build:crazygames": "VITE_CRAZYGAMES=true VITE_WS_URL=wss://klassenraum-io.fly.dev/ws npm run build:client",
+    "marketing": "node scripts/marketing/generate.mjs",
     "vercel-build": "npm run build:client",
     "start": "node packages/server/dist/index.cjs",
     "test": "vitest run",

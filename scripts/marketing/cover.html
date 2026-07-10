@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Klassenraum.io Cover</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Courier New', Courier, monospace;
+      }
+
+      .cover {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(180deg, #1a1612 0%, #211d18 35%, #264b39 100%);
+        overflow: hidden;
+      }
+
+      .board {
+        position: absolute;
+        inset: 8% 6% 22% 6%;
+        background: #2f5d46;
+        border: 6px solid #1e3d2d;
+        box-shadow:
+          inset 0 0 0 4px #3f7a5a,
+          0 12px 40px rgba(0, 0, 0, 0.45);
+        border-radius: 4px;
+      }
+
+      .board::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 38px,
+          rgba(255, 255, 255, 0.03) 38px,
+          rgba(255, 255, 255, 0.03) 40px
+        );
+      }
+
+      .desks {
+        position: absolute;
+        left: 50%;
+        bottom: 10%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 2.5%;
+        align-items: flex-end;
+        width: 78%;
+        justify-content: center;
+      }
+
+      .desk {
+        width: 11%;
+        aspect-ratio: 1 / 0.72;
+        background: #c9a56c;
+        border: 3px solid #8b6a3e;
+        box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35);
+        position: relative;
+      }
+
+      .desk::after {
+        content: '';
+        position: absolute;
+        left: 15%;
+        right: 15%;
+        top: 18%;
+        height: 35%;
+        background: #f5efdc;
+        border: 2px solid #d8cdb2;
+      }
+
+      .student {
+        position: absolute;
+        left: 50%;
+        top: -38%;
+        transform: translateX(-50%);
+        width: 55%;
+        aspect-ratio: 1;
+        background: #f0c9a0;
+        border: 3px solid #26221c;
+        box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+      }
+
+      .student.hair-brown {
+        background: linear-gradient(180deg, #5b3a1e 0 28%, #f0c9a0 28%);
+      }
+
+      .student.hair-blonde {
+        background: linear-gradient(180deg, #e7c04f 0 28%, #f0c9a0 28%);
+      }
+
+      .student.shirt-red {
+        box-shadow:
+          inset 0 -42% 0 #c94f4f,
+          2px 2px 0 rgba(0, 0, 0, 0.3);
+      }
+
+      .student.shirt-blue {
+        box-shadow:
+          inset 0 -42% 0 #4a6bd4,
+          2px 2px 0 rgba(0, 0, 0, 0.3);
+      }
+
+      .plane {
+        position: absolute;
+        width: 7%;
+        aspect-ratio: 1.4;
+        background: #f5efdc;
+        clip-path: polygon(0 50%, 100% 0, 100% 100%);
+        filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.35));
+        animation: fly 3s ease-in-out infinite;
+      }
+
+      .plane.one {
+        top: 42%;
+        left: 28%;
+      }
+
+      .plane.two {
+        top: 55%;
+        right: 24%;
+        animation-delay: 1.2s;
+        transform: scaleX(-1);
+      }
+
+      @keyframes fly {
+        0%,
+        100% {
+          translate: 0 0;
+        }
+        50% {
+          translate: 18px -12px;
+        }
+      }
+
+      .brain {
+        position: absolute;
+        right: 10%;
+        top: 12%;
+        width: 14%;
+        aspect-ratio: 1;
+        background: #e88ad4;
+        border: 4px solid #26221c;
+        border-radius: 45% 45% 40% 40%;
+        box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35);
+      }
+
+      .brain::before,
+      .brain::after {
+        content: '';
+        position: absolute;
+        background: #c45fb8;
+        border: 2px solid #26221c;
+        border-radius: 50%;
+      }
+
+      .brain::before {
+        width: 28%;
+        height: 28%;
+        left: 18%;
+        top: 28%;
+      }
+
+      .brain::after {
+        width: 22%;
+        height: 22%;
+        right: 20%;
+        top: 42%;
+      }
+
+      .title-wrap {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -58%);
+        text-align: center;
+        width: 92%;
+        z-index: 2;
+      }
+
+      .title {
+        color: #e8b23a;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-shadow:
+          4px 4px 0 #b8892a,
+          0 0 40px rgba(232, 178, 58, 0.35);
+        line-height: 0.95;
+        text-transform: uppercase;
+      }
+
+      .tagline {
+        color: #eef3ea;
+        font-weight: 700;
+        margin-top: 0.35em;
+        text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+        opacity: 0.95;
+      }
+
+      .badges {
+        position: absolute;
+        left: 50%;
+        bottom: 4%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0.6em;
+        z-index: 3;
+      }
+
+      .badge {
+        background: rgba(38, 34, 28, 0.82);
+        color: #f5efdc;
+        border: 2px solid #e8b23a;
+        padding: 0.35em 0.8em;
+        font-weight: 700;
+        box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.35);
+      }
+
+      /* Layout variants set by query param */
+      body[data-layout='landscape'] .title {
+        font-size: 7.2vw;
+      }
+      body[data-layout='landscape'] .tagline {
+        font-size: 2.1vw;
+      }
+      body[data-layout='landscape'] .badge {
+        font-size: 1.35vw;
+      }
+
+      body[data-layout='portrait'] .board {
+        inset: 10% 8% 24% 8%;
+      }
+      body[data-layout='portrait'] .title {
+        font-size: 11vw;
+      }
+      body[data-layout='portrait'] .tagline {
+        font-size: 3.4vw;
+      }
+      body[data-layout='portrait'] .badge {
+        font-size: 2.4vw;
+      }
+      body[data-layout='portrait'] .desks {
+        width: 86%;
+        bottom: 12%;
+      }
+
+      body[data-layout='square'] .board {
+        inset: 10% 8% 26% 8%;
+      }
+      body[data-layout='square'] .title {
+        font-size: 10.5vw;
+      }
+      body[data-layout='square'] .tagline {
+        font-size: 3.1vw;
+      }
+      body[data-layout='square'] .badge {
+        font-size: 2.3vw;
+      }
+    </style>
+  </head>
+  <body data-layout="landscape">
+    <div class="cover">
+      <div class="board"></div>
+      <div class="brain"></div>
+      <div class="plane one"></div>
+      <div class="plane two"></div>
+      <div class="desks">
+        <div class="desk"><div class="student hair-brown shirt-red"></div></div>
+        <div class="desk"><div class="student hair-blonde shirt-blue"></div></div>
+        <div class="desk"><div class="student hair-brown shirt-blue"></div></div>
+        <div class="desk"><div class="student hair-blonde shirt-red"></div></div>
+        <div class="desk"><div class="student hair-brown shirt-red"></div></div>
+      </div>
+      <div class="title-wrap">
+        <div class="title">Klassenraum.io</div>
+        <div class="tagline">Multiplayer Idle Classroom</div>
+      </div>
+      <div class="badges">
+        <span class="badge">IDLE</span>
+        <span class="badge">MULTIPLAYER</span>
+        <span class="badge">STEAL</span>
+      </div>
+    </div>
+    <script>
+      const p = new URLSearchParams(location.search);
+      document.body.dataset.layout = p.get('layout') || 'landscape';
+    </script>
+  </body>
+</html>
