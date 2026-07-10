@@ -3,6 +3,14 @@ import type { AvatarSpec } from '@shared/types';
 
 export type NetStatus = 'connecting' | 'open' | 'reconnecting' | 'replaced';
 
+/** Same-origin in dev/self-host; set VITE_WS_URL for CrazyGames (client on CDN, server elsewhere). */
+function wsEndpoint(): string {
+  const configured = import.meta.env.VITE_WS_URL;
+  if (configured) return configured;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${proto}://${location.host}/ws`;
+}
+
 interface NetHooks {
   onMessage(msg: ServerMsg): void;
   onStatus(status: NetStatus): void;
@@ -32,8 +40,7 @@ export class Net {
 
   private open(): void {
     this.hooks.onStatus(this.ws ? 'reconnecting' : 'connecting');
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/ws`);
+    const ws = new WebSocket(wsEndpoint());
     this.ws = ws;
 
     ws.onopen = () => {
