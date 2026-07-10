@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Klassenraum.io</title>
-    <meta name="description" content="Multiplayer-Idle-Game: alle Spieler in einem Klassenraum." />
+    <meta
+      name="description"
+      content="Klassenraum.io — kostenloses Multiplayer-Idle-Game im Browser. Sammle Hirnschmalz, kaufe Schul-Upgrades und spiele mit anderen im selben Klassenraum."
+    />
     <link rel="icon" id="favicon" href="" />
     <script
       async
@@ -13,6 +16,21 @@
     ></script>
   </head>
   <body>
+    <noscript>
+      <div style="max-width: 720px; margin: 2rem auto; padding: 1rem; font-family: sans-serif">
+        <h1>Klassenraum.io</h1>
+        <p>
+          Klassenraum.io ist ein kostenloses Multiplayer-Idle-Game im Browser. Alle Spieler
+          teilen sich einen Klassenraum, sammeln Hirnschmalz und steigen gemeinsam auf.
+        </p>
+        <p>
+          <a href="/about.html">Über das Spiel</a> ·
+          <a href="/guide.html">Spielanleitung</a> ·
+          <a href="/privacy.html">Datenschutz</a>
+        </p>
+        <p>JavaScript muss aktiviert sein, um zu spielen.</p>
+      </div>
+    </noscript>
     <div id="app">
       <header id="hud">
         <div class="hud-left">
@@ -77,6 +95,16 @@
           <div id="gen-list"></div>
         </aside>
       </main>
+
+      <footer id="site-footer">
+        <p id="footer-tagline"></p>
+        <nav id="footer-nav" aria-label="Site">
+          <a href="/about.html" id="footer-about"></a>
+          <a href="/guide.html" id="footer-guide"></a>
+          <a href="/privacy.html" id="footer-privacy"></a>
+          <a href="/impressum.html" id="footer-impressum"></a>
+        </nav>
+      </footer>
     </div>
 
     <div id="popover-root"></div>
