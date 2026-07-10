@@ -231,6 +231,11 @@ export const PATROL_MS = 45_000;
 export const SUB_BUFF_MULT = 2;
 export const SUB_BUFF_MS = 180_000;
 
+/** Rewarded-ad production boost (CrazyGames). */
+export const AD_BUFF_MULT = 2;
+export const AD_BUFF_MS = 5 * 60_000;
+export const AD_REWARD_COOLDOWN_MS = 15 * 60_000;
+
 // ---------------------------------------------------------------------------
 // Misc rules
 

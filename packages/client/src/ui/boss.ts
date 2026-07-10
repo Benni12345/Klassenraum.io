@@ -1,5 +1,7 @@
 import { brainIcon, iconDataUrl, px } from '../render/sprites';
 import { t } from '../i18n';
+import { platform } from '../platform';
+import { store } from '../state';
 import { id } from './dom';
 
 const DOC_ICON = px(
@@ -32,10 +34,12 @@ export function toggleBoss(force?: boolean): void {
   id('boss-overlay').classList.toggle('hidden', !bossActive);
   id('app').style.visibility = bossActive ? 'hidden' : 'visible';
   if (bossActive) {
+    platform.onGameplayStop();
     document.title = t('boss.title');
     id('boss-doc-title').textContent = t('boss.title');
     setFavicon(bossIcon);
   } else {
+    if (store.you && store.status === 'open') platform.onGameplayStart();
     document.title = gameTitle;
     setFavicon(gameIcon);
   }

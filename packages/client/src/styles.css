@@ -680,6 +680,18 @@ input {
   padding: 16px;
 }
 
+.cg-banner-slot {
+  margin: 12px auto 0;
+  min-height: 250px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.ad-reward-row {
+  justify-content: center;
+}
+
 .modal h2 {
   margin: 0 0 10px;
   font-size: 16px;

@@ -167,6 +167,9 @@ export class Net implements Outbox {
       case 'rename':
         if (typeof msg.name === 'string') this.room.rename(id, msg.name, msg.avatar);
         return;
+      case 'adBoost':
+        this.room.adBoost(id);
+        return;
       default:
         return;
     }
