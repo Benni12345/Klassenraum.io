@@ -202,6 +202,10 @@ class Store {
     this.net.send({ t: 'leaderboard' });
   }
 
+  claimAdBoost(): void {
+    this.net.send({ t: 'adBoost' });
+  }
+
   ping(): void {
     this.net.send({ t: 'ping', ts: Date.now() });
   }

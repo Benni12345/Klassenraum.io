@@ -3,6 +3,7 @@ import type { AvatarSpec, LeaderboardRow } from '@shared/types';
 import { fmt } from '../format';
 import { gradeLabel, t } from '../i18n';
 import { iconDataUrl, studentSprite } from '../render/sprites';
+import { platform } from '../platform';
 import { store } from '../state';
 import { el, id } from './dom';
 import { buildLangSelector } from './langSelector';
@@ -24,12 +25,18 @@ export function toast(text: string, kind: 'info' | 'gold' | 'bad' = 'info'): voi
 function openModal(
   build: (box: HTMLElement, close: () => void) => void,
   dismissable = true,
+  opts?: { banner?: boolean },
 ): () => void {
   const root = modalRoot();
   root.innerHTML = '';
+  const wasPlaying = store.you !== null && store.status === 'open';
+  if (wasPlaying) platform.onGameplayStop();
+
   const box = el('div', 'modal');
   const close = () => {
     if (box.parentElement) root.innerHTML = '';
+    platform.hideModalBanner();
+    if (wasPlaying) platform.onGameplayStart();
   };
   if (dismissable) {
     root.onclick = (ev) => {
@@ -39,6 +46,12 @@ function openModal(
     root.onclick = null;
   }
   build(box, close);
+  if (opts?.banner && platform.enabled) {
+    const banner = el('div', 'cg-banner-slot');
+    banner.id = 'cg-modal-banner';
+    box.appendChild(banner);
+    platform.showModalBanner('cg-modal-banner');
+  }
   root.appendChild(box);
   return close;
 }
@@ -187,7 +200,7 @@ export function leaderboardModal(): void {
     lbTbody = el('tbody');
     table.appendChild(lbTbody);
     box.appendChild(table);
-  });
+  }, true, { banner: true });
 }
 
 store.on('leaderboard', (rows: LeaderboardRow[]) => {
@@ -255,12 +268,28 @@ export function settingsModal(): void {
 
     box.appendChild(el('p', '', t('settings.boss')));
 
+    if (platform.enabled) {
+      const adRow = el('div', 'row ad-reward-row');
+      const adBtn = el('button', 'btn gold', `▶ ${t('settings.adBoost')}`);
+      adBtn.onclick = async () => {
+        const ok = await platform.requestRewardedAd();
+        if (ok) {
+          store.claimAdBoost();
+          toast(t('settings.adBoostDone'), 'gold');
+        } else {
+          toast(t('settings.adBoostFail'), 'info');
+        }
+      };
+      adRow.appendChild(adBtn);
+      box.appendChild(adRow);
+    }
+
     const actions = el('div', 'actions');
     const ok = el('button', 'btn', 'OK');
     ok.onclick = close;
     actions.appendChild(ok);
     box.appendChild(actions);
-  });
+  }, true, { banner: true });
 }
 
 // ------------------------------------------------------- Connection replace

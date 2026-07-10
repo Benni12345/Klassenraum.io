@@ -129,6 +129,7 @@ const de: Dict = {
 
   'err.poor': 'Nicht genug Hirnschmalz!',
   'err.cooldown': 'Papierflieger noch nicht bereit!',
+  'err.adCooldown': 'Bonus-Werbung noch in Abklingzeit.',
   'err.detention': 'Du sitzt nach!',
   'err.target': 'Ziel nicht verfügbar.',
   'err.prestige': 'Noch nicht genug für eine Versetzung.',
@@ -137,6 +138,10 @@ const de: Dict = {
   'buff.sub': 'Vertretungsstunde ×2',
   'buff.goal': 'Hausaufgabenfrei ×3',
   'buff.detention': 'Nachsitzen ×0,25',
+  'buff.ad': 'Werbung ×2',
+  'settings.adBoost': '5 Min. ×2 Produktion (Werbung)',
+  'settings.adBoostDone': 'Bonus aktiv — 5 Minuten doppelte Produktion!',
+  'settings.adBoostFail': 'Gerade keine Werbung verfügbar.',
 
   'misc.myDesk': 'Mein Platz',
   'misc.you': 'Du',
@@ -279,6 +284,7 @@ const en: Dict = {
 
   'err.poor': 'Not enough brainpower!',
   'err.cooldown': 'Paper airplane not ready yet!',
+  'err.adCooldown': 'Ad bonus is still on cooldown.',
   'err.detention': "You're in detention!",
   'err.target': 'Target unavailable.',
   'err.prestige': 'Not enough for a promotion yet.',
@@ -287,6 +293,10 @@ const en: Dict = {
   'buff.sub': 'Substitute ×2',
   'buff.goal': 'No homework ×3',
   'buff.detention': 'Detention ×0.25',
+  'buff.ad': 'Ad boost ×2',
+  'settings.adBoost': '5 min ×2 production (ad)',
+  'settings.adBoostDone': 'Bonus active — double production for 5 minutes!',
+  'settings.adBoostFail': 'No ad available right now.',
 
   'misc.myDesk': 'My desk',
   'misc.you': 'You',

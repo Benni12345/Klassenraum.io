@@ -18,6 +18,9 @@ import {
   goalTarget,
   NAME_MAX,
   NAME_MIN,
+  AD_BUFF_MS,
+  AD_BUFF_MULT,
+  AD_REWARD_COOLDOWN_MS,
   OFFLINE_CAP_MS,
   PATROL_CATCH_CHANCE,
   PATROL_MS,
@@ -63,6 +66,7 @@ interface PlayerState extends PlayerRow {
   clickWinCount: number;
   quizAnswered: boolean;
   dirty: boolean;
+  lastAdRewardAt: number;
 }
 
 interface ActiveQuiz {
@@ -201,6 +205,7 @@ export class Room {
       clickWinCount: 0,
       quizAnswered: false,
       dirty: true,
+      lastAdRewardAt: 0,
     };
     this.players.set(p.id, p);
     return p;
@@ -341,6 +346,20 @@ export class Room {
     this.savePlayer(p);
     this.sendYou(p);
     this.out.broadcast({ t: 'roster', p: this.publicOf(p) });
+  }
+
+  adBoost(playerId: string): void {
+    const p = this.online(playerId);
+    if (!p) return;
+    const now = this.now();
+    if (now - p.lastAdRewardAt < AD_REWARD_COOLDOWN_MS) {
+      this.out.send(p.id, { t: 'error', code: 'adCooldown' });
+      return;
+    }
+    p.lastAdRewardAt = now;
+    this.addBuff(p, 'ad', 'buff.ad', AD_BUFF_MULT, AD_BUFF_MS);
+    p.dirty = true;
+    this.sendYou(p);
   }
 
   steal(playerId: string, targetId: string): void {

@@ -23,7 +23,8 @@ export type ClientMsg =
   | { t: 'prestige' }
   | { t: 'leaderboard' }
   | { t: 'rename'; name: string; avatar?: AvatarSpec }
-  | { t: 'ping'; ts: number };
+  | { t: 'ping'; ts: number }
+  | { t: 'adBoost' };
 
 // ---------------------------------------------------------------------------
 // Server -> Client
