@@ -19,6 +19,7 @@ import {
   toast,
 } from './ui/modals';
 import { closePopover, showDeskPopover } from './ui/popover';
+import { initLangSelector } from './ui/langSelector';
 import { initShop } from './ui/shop';
 import { applyStaticTexts } from './ui/texts';
 
@@ -26,6 +27,9 @@ async function boot(): Promise<void> {
   if (platform.enabled) {
     await platform.init();
   }
+applyStaticTexts();
+initLangSelector('lang-selector');
+initBoss();
 
   applyStaticTexts();
   initBoss();

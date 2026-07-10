@@ -1,12 +1,12 @@
 import { AVATAR_RANGES, PRESTIGE_BASE } from '@shared/balance';
 import type { AvatarSpec, LeaderboardRow } from '@shared/types';
 import { fmt } from '../format';
-import { getLocale, gradeLabel, setLocale, t } from '../i18n';
+import { gradeLabel, t } from '../i18n';
 import { iconDataUrl, studentSprite } from '../render/sprites';
 import { platform } from '../platform';
 import { store } from '../state';
 import { el, id } from './dom';
-import { applyStaticTexts } from './texts';
+import { buildLangSelector } from './langSelector';
 
 const modalRoot = () => id('modal-root');
 const toastRoot = () => id('toast-root');
@@ -67,9 +67,22 @@ export function joinModal(onDone: (name: string, avatar: AvatarSpec) => void): v
   };
 
   openModal((box) => {
-    box.appendChild(el('h2', '', t('join.title')));
+    const title = el('h2', '', t('join.title'));
+    box.appendChild(title);
     const sub = el('p', '', t('join.sub'));
     box.appendChild(sub);
+
+    box.appendChild(
+      buildLangSelector({
+        onChange: () => {
+          title.textContent = t('join.title');
+          sub.textContent = t('join.sub');
+          for (const [row, label] of labelEls) row.firstChild!.textContent = label();
+          nameInput.placeholder = t('join.name');
+          start.textContent = t('join.start');
+        },
+      }),
+    );
 
     const picker = el('div', 'avatar-picker');
     const preview = el('div', 'avatar-preview');
@@ -79,18 +92,20 @@ export function joinModal(onDone: (name: string, avatar: AvatarSpec) => void): v
     picker.appendChild(preview);
 
     const rows = el('div', 'picker-rows');
+    const labelEls: Array<[HTMLElement, () => string]> = [];
     const refresh = () => {
       img.src = iconDataUrl(studentSprite(avatar), 8);
     };
-    const fields: Array<[keyof AvatarSpec, string, number]> = [
-      ['skin', t('join.skin'), AVATAR_RANGES.skin],
-      ['hair', t('join.hair'), AVATAR_RANGES.hair],
-      ['hairColor', t('join.hairColor'), AVATAR_RANGES.hairColor],
-      ['shirt', t('join.shirt'), AVATAR_RANGES.shirt],
+    const fields: Array<[keyof AvatarSpec, () => string, number]> = [
+      ['skin', () => t('join.skin'), AVATAR_RANGES.skin],
+      ['hair', () => t('join.hair'), AVATAR_RANGES.hair],
+      ['hairColor', () => t('join.hairColor'), AVATAR_RANGES.hairColor],
+      ['shirt', () => t('join.shirt'), AVATAR_RANGES.shirt],
     ];
     for (const [key, label, max] of fields) {
       const row = el('div', 'picker-row');
-      row.appendChild(el('span', '', label));
+      row.appendChild(el('span', '', label()));
+      labelEls.push([row, label]);
       const prev = el('button', '', '<');
       const next = el('button', '', '>');
       prev.onclick = () => {
@@ -211,19 +226,15 @@ export function settingsModal(): void {
   openModal((box, close) => {
     box.appendChild(el('h2', '', t('settings.title')));
 
-    const langRow = el('div', 'row');
-    langRow.appendChild(el('span', '', t('settings.lang') + ':'));
-    for (const l of ['de', 'en'] as const) {
-      const b = el('button', `btn small ${getLocale() === l ? 'gold' : ''}`, l.toUpperCase());
-      b.onclick = () => {
-        setLocale(l);
-        applyStaticTexts();
-        close();
-        settingsModal();
-      };
-      langRow.appendChild(b);
-    }
-    box.appendChild(langRow);
+    box.appendChild(
+      buildLangSelector({
+        label: true,
+        onChange: () => {
+          close();
+          settingsModal();
+        },
+      }),
+    );
 
     if (you) {
       const renameRow = el('div', 'row');

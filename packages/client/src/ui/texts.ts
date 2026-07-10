@@ -1,8 +1,9 @@
-import { t } from '../i18n';
+import { getLocale, t } from '../i18n';
 import { id } from './dom';
 
 /** (Re)applies all static UI labels; called at boot and on language change. */
 export function applyStaticTexts(): void {
+  document.documentElement.lang = getLocale();
   id('click-label').textContent = t('shop.click');
   id('shop-title').textContent = t('shop.title');
   id('upgrades-title').textContent = t('shop.upgrades');
@@ -18,4 +19,9 @@ export function applyStaticTexts(): void {
   id('quiz-submit').textContent = t('event.quiz.submit');
   id<HTMLInputElement>('quiz-input').placeholder = t('event.quiz.prompt');
   id('conn-banner').textContent = t('conn.lost');
+  id('footer-tagline').textContent = t('footer.tagline');
+  id('footer-about').textContent = t('footer.about');
+  id('footer-guide').textContent = t('footer.guide');
+  id('footer-privacy').textContent = t('footer.privacy');
+  id('footer-impressum').textContent = t('footer.impressum');
 }

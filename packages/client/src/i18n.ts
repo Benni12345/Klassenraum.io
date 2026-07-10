@@ -1,5 +1,8 @@
 export type Locale = 'de' | 'en';
 
+export const DEFAULT_LOCALE: Locale = 'en';
+export const LOCALES: readonly Locale[] = ['en', 'de'];
+
 type Dict = Record<string, string>;
 
 const de: Dict = {
@@ -145,6 +148,13 @@ const de: Dict = {
   'misc.sleeping': 'schläft',
   'misc.stars': 'Goldsterne',
   'misc.onHand': 'auf der Hand',
+
+  'footer.tagline':
+    'Klassenraum.io — kostenloses Multiplayer-Idle-Game. Alle sitzen im selben Klassenraum.',
+  'footer.about': 'Über uns',
+  'footer.guide': 'Spielanleitung',
+  'footer.privacy': 'Datenschutz',
+  'footer.impressum': 'Impressum',
 
   'boss.title': 'Mathe – Notizen',
   'boss.hint': 'Esc zum Zurückkehren',
@@ -294,13 +304,21 @@ const en: Dict = {
   'misc.stars': 'Gold stars',
   'misc.onHand': 'on hand',
 
+  'footer.tagline':
+    'Klassenraum.io — free multiplayer idle game. Everyone shares one classroom.',
+  'footer.about': 'About',
+  'footer.guide': 'How to play',
+  'footer.privacy': 'Privacy',
+  'footer.impressum': 'Legal notice',
+
   'boss.title': 'Math – Notes',
   'boss.hint': 'Esc to return',
 };
 
 const DICTS: Record<Locale, Dict> = { de, en };
 
-let locale: Locale = (localStorage.getItem('kr_lang') as Locale) || 'de';
+let locale: Locale =
+  (localStorage.getItem('kr_lang') as Locale) || DEFAULT_LOCALE;
 
 export function getLocale(): Locale {
   return locale;
@@ -309,10 +327,11 @@ export function getLocale(): Locale {
 export function setLocale(l: Locale): void {
   locale = l;
   localStorage.setItem('kr_lang', l);
+  document.documentElement.lang = l;
 }
 
 export function t(key: string, params?: Record<string, string | number>): string {
-  let s = DICTS[locale][key] ?? DICTS.de[key] ?? key;
+  let s = DICTS[locale][key] ?? DICTS[DEFAULT_LOCALE][key] ?? key;
   if (params) {
     for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, String(v));
   }
