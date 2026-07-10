@@ -18,10 +18,12 @@ import {
   toast,
 } from './ui/modals';
 import { closePopover, showDeskPopover } from './ui/popover';
+import { initLangSelector } from './ui/langSelector';
 import { initShop } from './ui/shop';
 import { applyStaticTexts } from './ui/texts';
 
 applyStaticTexts();
+initLangSelector('lang-selector');
 initBoss();
 
 // Pixel icons for the DOM chrome.

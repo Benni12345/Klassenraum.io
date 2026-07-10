@@ -133,6 +133,32 @@ input {
   gap: 8px;
 }
 
+.lang-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lang-selector.compact .lang-btns {
+  display: flex;
+  gap: 2px;
+}
+
+.lang-selector.compact .btn.small {
+  padding: 3px 6px;
+  min-width: 28px;
+}
+
+.lang-label {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.lang-btns {
+  display: flex;
+  gap: 4px;
+}
+
 #buffs {
   display: flex;
   gap: 6px;
