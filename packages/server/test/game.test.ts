@@ -26,33 +26,33 @@ function setup(rng: () => number = () => 0.99) {
 }
 
 describe('join and seats', () => {
-  it('creates players with tokens and assigns dense seats', () => {
+  it('creates players with tokens and assigns dense seats', async () => {
     const { room } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
-    const b = room.hello(undefined, 'Ben', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
     expect(a.newToken).toMatch(/^[a-f0-9]{48}$/);
     expect(room.youOf(a.playerId)!.seat).toBe(0);
     expect(room.youOf(b.playerId)!.seat).toBe(1);
     expect(room.roster().length).toBe(2);
   });
 
-  it('frees seats after the grace period and reuses them', () => {
+  it('frees seats after the grace period and reuses them', async () => {
     const { room, clock } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
-    room.hello(undefined, 'Ben', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
+    await room.hello(undefined, 'Ben', undefined);
     room.disconnect(a.playerId);
     room.tick();
     expect(room.roster().find((p) => p.id === a.playerId)!.online).toBe(false);
     clock.advance(5 * 60_000 + 1000);
     room.tick();
     expect(room.roster().find((p) => p.id === a.playerId)).toBeUndefined();
-    const c = room.hello(undefined, 'Cleo', undefined);
+    const c = await room.hello(undefined, 'Cleo', undefined);
     expect(room.youOf(c.playerId)!.seat).toBe(0);
   });
 
-  it('restores accounts by token, including offline gains', () => {
+  it('restores accounts by token, including offline gains', async () => {
     const { room, clock } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     // Earn 25 BP by clicking, buy a pencil (0.1 BP/s).
     room.click(a.playerId, 40);
     room.buy(a.playerId, 0, 1);
@@ -60,7 +60,7 @@ describe('join and seats', () => {
     clock.advance(6 * 60_000);
     room.tick(); // frees the seat, persists
     clock.advance(2 * 3_600_000);
-    const back = room.hello(a.newToken, undefined, undefined);
+    const back = await room.hello(a.newToken, undefined, undefined);
     expect(back.playerId).toBe(a.playerId);
     expect(back.offline).toBeDefined();
     expect(back.offline!.bp).toBeCloseTo(0.1 * 2 * 3600, 0);
@@ -70,9 +70,9 @@ describe('join and seats', () => {
 });
 
 describe('economy', () => {
-  it('clamps clicks to 25 per second', () => {
+  it('clamps clicks to 25 per second', async () => {
     const { room, clock } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     room.click(a.playerId, 40);
     expect(room.youOf(a.playerId)!.clicks).toBe(25);
     room.click(a.playerId, 10);
@@ -82,9 +82,9 @@ describe('economy', () => {
     expect(room.youOf(a.playerId)!.clicks).toBe(35);
   });
 
-  it('produces over time after buying generators', () => {
+  it('produces over time after buying generators', async () => {
     const { room, clock } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     room.click(a.playerId, 25); // 25 BP
     room.buy(a.playerId, 0, 1); // -15 BP
     const before = room.youOf(a.playerId)!;
@@ -95,17 +95,17 @@ describe('economy', () => {
     expect(after.bp).toBeCloseTo(before.bp + 6, 1);
   });
 
-  it('rejects unaffordable buys with an error', () => {
+  it('rejects unaffordable buys with an error', async () => {
     const { room, sent } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     room.buy(a.playerId, 8, 1); // galaxy brain on 0 BP
     const errs = (sent.get(a.playerId) ?? []).filter((m) => m.t === 'error');
     expect(errs.length).toBe(1);
   });
 
-  it('applies upgrades only when threshold met and affordable', () => {
+  it('applies upgrades only when threshold met and affordable', async () => {
     const { room, clock } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     // Grind enough BP: simulate long idle with pencils.
     room.click(a.playerId, 25);
     room.buy(a.playerId, 0, 1);
@@ -123,10 +123,10 @@ describe('economy', () => {
 });
 
 describe('stealing', () => {
-  it('transfers capped amounts and enforces cooldown', () => {
+  it('transfers capped amounts and enforces cooldown', async () => {
     const { room, sent, broadcasts } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
-    const b = room.hello(undefined, 'Ben', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
     room.click(b.playerId, 25); // victim has 25 BP
     room.steal(a.playerId, b.playerId);
     const msg = broadcasts.find((m) => m.t === 'steal') as Extract<ServerMsg, { t: 'steal' }>;
@@ -142,10 +142,10 @@ describe('stealing', () => {
     expect(errs.length).toBe(1);
   });
 
-  it('catches thieves during patrol (detention, nothing stolen)', () => {
+  it('catches thieves during patrol (detention, nothing stolen)', async () => {
     const { room, broadcasts } = setup(() => 0.1); // rng below catch chance
-    const a = room.hello(undefined, 'Anna', undefined);
-    const b = room.hello(undefined, 'Ben', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
     room.click(b.playerId, 25);
     room.forceEvent('patrol');
     room.steal(a.playerId, b.playerId);
@@ -158,10 +158,10 @@ describe('stealing', () => {
     expect(room.youOf(a.playerId)!.detentionUntil).toBeGreaterThan(0);
   });
 
-  it('refuses sleeping targets', () => {
+  it('refuses sleeping targets', async () => {
     const { room, sent } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
-    const b = room.hello(undefined, 'Ben', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
     room.disconnect(b.playerId);
     room.steal(a.playerId, b.playerId);
     const errs = (sent.get(a.playerId) ?? []).filter(
@@ -172,9 +172,9 @@ describe('stealing', () => {
 });
 
 describe('prestige', () => {
-  it('grants stars, resets the run, keeps lifetime stats', () => {
+  it('grants stars, resets the run, keeps lifetime stats', async () => {
     const { room } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     const p = (room as any).players.get(a.playerId);
     p.runBp = 5e9;
     p.lifetimeBp = 5e9;
@@ -189,9 +189,9 @@ describe('prestige', () => {
     expect(you.lifetimeBp).toBeGreaterThanOrEqual(5e9);
   });
 
-  it('rejects prestige below threshold', () => {
+  it('rejects prestige below threshold', async () => {
     const { room, sent } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     room.prestige(a.playerId);
     expect(
       (sent.get(a.playerId) ?? []).some((m) => m.t === 'error' && m.code === 'prestige'),
@@ -200,9 +200,9 @@ describe('prestige', () => {
 });
 
 describe('class goal and events', () => {
-  it('completes the goal, buffs everyone online, persists level', () => {
+  it('completes the goal, buffs everyone online, persists level', async () => {
     const { room, db, broadcasts } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     (room as any).goalProgress = 49_999.5;
     room.click(a.playerId, 1);
     room.tick();
@@ -217,9 +217,9 @@ describe('class goal and events', () => {
     expect(db.getMeta('goal_level')).toBe('1');
   });
 
-  it('runs a quiz: correct answers win a buff and reward', () => {
+  it('runs a quiz: correct answers win a buff and reward', async () => {
     const { room, clock, broadcasts } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     room.forceEvent('quiz');
     const ev = broadcasts.filter((m) => m.t === 'event').pop() as Extract<
       ServerMsg,
@@ -244,10 +244,10 @@ describe('class goal and events', () => {
     expect(result.answer).toBe(answer);
   });
 
-  it('substitute event buffs all online players', () => {
+  it('substitute event buffs all online players', async () => {
     const { room } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
-    const b = room.hello(undefined, 'Ben', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
     room.forceEvent('sub');
     expect(room.youOf(a.playerId)!.buffs.some((x) => x.id === 'sub')).toBe(true);
     expect(room.youOf(b.playerId)!.buffs.some((x) => x.id === 'sub')).toBe(true);
@@ -255,9 +255,9 @@ describe('class goal and events', () => {
 });
 
 describe('persistence round-trip', () => {
-  it('saves and restores full player state', () => {
+  it('saves and restores full player state', async () => {
     const { room, db, clock } = setup();
-    const a = room.hello(undefined, 'Anna', undefined);
+    const a = await room.hello(undefined, 'Anna', undefined);
     room.click(a.playerId, 25);
     room.buy(a.playerId, 0, 1);
     room.flush();
@@ -267,7 +267,7 @@ describe('persistence round-trip', () => {
     // New room instance over the same DB (server restart).
     const out2 = { send: () => {}, broadcast: () => {} };
     const room2 = new Room(db, out2, clock.now);
-    const back = room2.hello(a.newToken, undefined, undefined);
+    const back = await room2.hello(a.newToken, undefined, undefined);
     const you = room2.youOf(back.playerId)!;
     expect(you.name).toBe('Anna');
     expect(you.gens[0]).toBe(1);
@@ -275,12 +275,25 @@ describe('persistence round-trip', () => {
   });
 });
 
+describe('ad boost', () => {
+  it('grants a timed buff and enforces cooldown', async () => {
+    const { room, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    room.adBoost(a.playerId);
+    const you = room.youOf(a.playerId)!;
+    expect(you.buffs.some((b) => b.id === 'ad')).toBe(true);
+    expect(you.adRewardReadyAt).toBeGreaterThan(clock.now());
+    room.adBoost(a.playerId); // should no-op while cooling down
+    expect(room.youOf(a.playerId)!.buffs.filter((b) => b.id === 'ad').length).toBe(1);
+  });
+});
+
 describe('name sanitization', () => {
-  it('strips dangerous characters, keeps umlauts', () => {
+  it('strips dangerous characters, keeps umlauts', async () => {
     expect(sanitizeName('  Müller<script> ')).toBe('Müllerscript');
     expect(sanitizeName('Ää Öö-Üü_ß.')).toBe('Ää Öö-Üü_ß.');
     expect(sanitizeName('x')).toBe(null);
     expect(sanitizeName(12 as unknown as string)).toBe(null);
-    expect(sanitizeName('a'.repeat(40))!.length).toBe(16);
+    expect(sanitizeName('a'.repeat(40))!.length).toBe(20);
   });
 });

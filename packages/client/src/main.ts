@@ -26,12 +26,11 @@ import { applyStaticTexts } from './ui/texts';
 async function boot(): Promise<void> {
   if (platform.enabled) {
     await platform.init();
+    store.setCgTokenProvider(() => platform.getUserToken());
   }
-applyStaticTexts();
-initLangSelector('lang-selector');
-initBoss();
 
   applyStaticTexts();
+  initLangSelector('lang-selector');
   initBoss();
 
   // Pixel icons for the DOM chrome.
@@ -81,6 +80,7 @@ initBoss();
   store.on('joined', () => {
     closePopover();
     platform.onGameplayStart();
+    platform.markRoomJoinable();
     if (lastGrade === -1) {
       scene.scrollToOwnDesk();
       lastGrade = store.you?.grade ?? 0;
@@ -91,6 +91,7 @@ initBoss();
     const grade = store.you?.grade ?? 0;
     if (lastGrade >= 0 && grade > lastGrade) {
       toast(t('prestige.done', { g: gradeLabel(grade) }), 'gold');
+      platform.happytime();
       if (platform.enabled) void platform.requestMidgameAd();
     }
     if (lastGrade >= 0) lastGrade = Math.max(lastGrade, grade);
@@ -126,12 +127,23 @@ initBoss();
     }
   });
 
-  store.on('goalDone', () => toast(t('goal.done'), 'gold'));
+  store.on('goalDone', () => {
+    toast(t('goal.done'), 'gold');
+    // Natural break — midgame cadence is capped by the SDK (~3 min).
+    if (platform.enabled) void platform.requestMidgameAd();
+  });
 
   store.on('status', (s) => {
     id('conn-banner').classList.toggle('hidden', s !== 'reconnecting');
     if (s === 'replaced') replacedModal();
   });
+
+  // Guest → CrazyGames login mid-session: reload so hello links accounts.
+  if (platform.enabled) {
+    platform.onAuthChange((user) => {
+      if (user && !store.hasAccount) location.reload();
+    });
+  }
 
   platform.loadingDone();
 
@@ -139,6 +151,18 @@ initBoss();
 
   if (store.hasAccount) {
     store.connect();
+  } else if (platform.enabled) {
+    const cgUser = await platform.getUser();
+    if (cgUser) {
+      // Logged-in CrazyGames players land in gameplay without a name modal.
+      store.connect({ name: cgUser.username });
+    } else {
+      platform.onGameplayStop();
+      joinModal((name, avatar) => {
+        closeModal();
+        store.connect({ name: name || undefined, avatar });
+      });
+    }
   } else {
     platform.onGameplayStop();
     joinModal((name, avatar) => {

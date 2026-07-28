@@ -106,21 +106,17 @@ export class Net implements Outbox {
         if (++st.badMsgs > MAX_BAD_MSGS) ws.close(4400, 'bad');
         return;
       }
-      try {
-        this.dispatch(ws, st, msg);
-      } catch (err) {
-        console.error('dispatch error', err);
-      }
+      void this.dispatch(ws, st, msg).catch((err) => console.error('dispatch error', err));
     });
   }
 
-  private dispatch(ws: WebSocket, st: ConnState, msg: ClientMsg): void {
+  private async dispatch(ws: WebSocket, st: ConnState, msg: ClientMsg): Promise<void> {
     if (st.playerId === null) {
       if (msg.t !== 'hello') {
         ws.close(4401, 'hello first');
         return;
       }
-      this.handleHello(ws, st, msg);
+      await this.handleHello(ws, st, msg);
       return;
     }
 
@@ -175,14 +171,19 @@ export class Net implements Outbox {
     }
   }
 
-  private handleHello(
+  private async handleHello(
     ws: WebSocket,
     st: ConnState,
     msg: Extract<ClientMsg, { t: 'hello' }>,
-  ): void {
+  ): Promise<void> {
     const token = typeof msg.token === 'string' ? msg.token : undefined;
     const name = typeof msg.name === 'string' ? msg.name : undefined;
-    const { playerId, newToken, offline } = this.room.hello(token, name, msg.avatar);
+    const { playerId, newToken, offline } = await this.room.hello(
+      token,
+      name,
+      msg.avatar,
+      typeof msg.cgToken === 'string' ? msg.cgToken : undefined,
+    );
 
     // One live socket per player: replace an older tab.
     const old = this.activeSocket.get(playerId);

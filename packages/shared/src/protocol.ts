@@ -12,7 +12,14 @@ import type {
 // Client -> Server
 
 export type ClientMsg =
-  | { t: 'hello'; token?: string; name?: string; avatar?: AvatarSpec }
+  | {
+      t: 'hello';
+      token?: string;
+      name?: string;
+      avatar?: AvatarSpec;
+      /** CrazyGames JWT — verified server-side for account linking. */
+      cgToken?: string;
+    }
   | { t: 'click'; n: number }
   | { t: 'buy'; gen: number; qty: number } // qty: 1 | 10 | -1 (max)
   | { t: 'upgrade'; id: string }

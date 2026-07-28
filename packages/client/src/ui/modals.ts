@@ -126,7 +126,7 @@ export function joinModal(onDone: (name: string, avatar: AvatarSpec) => void): v
 
     const nameInput = el('input');
     nameInput.type = 'text';
-    nameInput.maxLength = 16;
+    nameInput.maxLength = 20;
     nameInput.placeholder = t('join.name');
     const nameRow = el('div', 'row');
     nameRow.appendChild(nameInput);
@@ -240,7 +240,7 @@ export function settingsModal(): void {
       const renameRow = el('div', 'row');
       const input = el('input');
       input.type = 'text';
-      input.maxLength = 16;
+      input.maxLength = 20;
       input.value = you.name;
       input.style.flex = '1';
       input.style.width = 'auto';
@@ -268,25 +268,81 @@ export function settingsModal(): void {
 
     box.appendChild(el('p', '', t('settings.boss')));
 
+    let stopAdTick: (() => void) | null = null;
+
     if (platform.enabled) {
       const adRow = el('div', 'row ad-reward-row');
       const adBtn = el('button', 'btn gold', `▶ ${t('settings.adBoost')}`);
+      const refreshAdBtn = () => {
+        if (!adBtn.isConnected) {
+          clearInterval(adTick);
+          return;
+        }
+        if (platform.hasAdblock) {
+          adBtn.disabled = true;
+          adBtn.textContent = t('settings.adBoostAdblock');
+          return;
+        }
+        const readyAt = store.you?.adRewardReadyAt ?? 0;
+        const left = readyAt - store.serverNow();
+        if (left > 0) {
+          adBtn.disabled = true;
+          const mins = Math.ceil(left / 60_000);
+          adBtn.textContent = t('settings.adBoostCooldown', {
+            t: mins >= 1 ? `${mins}m` : '<1m',
+          });
+        } else {
+          adBtn.disabled = false;
+          adBtn.textContent = `▶ ${t('settings.adBoost')}`;
+        }
+      };
+      const adTick = window.setInterval(refreshAdBtn, 5_000);
+      refreshAdBtn();
+      stopAdTick = () => clearInterval(adTick);
       adBtn.onclick = async () => {
-        const ok = await platform.requestRewardedAd();
-        if (ok) {
+        if (adBtn.disabled) return;
+        adBtn.disabled = true;
+        const watched = await platform.requestRewardedAd();
+        if (watched) {
           store.claimAdBoost();
           toast(t('settings.adBoostDone'), 'gold');
+          setTimeout(refreshAdBtn, 400);
         } else {
-          toast(t('settings.adBoostFail'), 'info');
+          toast(
+            platform.hasAdblock ? t('settings.adBoostAdblock') : t('settings.adBoostFail'),
+            'info',
+          );
+          refreshAdBtn();
         }
       };
       adRow.appendChild(adBtn);
       box.appendChild(adRow);
+
+      // Optional CG login for guests (not a main CTA).
+      void platform.getUser().then((u) => {
+        if (u || !box.isConnected) return;
+        const loginRow = el('div', 'row ad-reward-row');
+        const loginBtn = el('button', 'btn small', t('settings.cgLogin'));
+        loginBtn.title = t('settings.cgLoginHint');
+        loginBtn.onclick = async () => {
+          const user = await platform.showAuthPrompt();
+          if (user) {
+            stopAdTick?.();
+            close();
+            location.reload();
+          }
+        };
+        loginRow.appendChild(loginBtn);
+        box.appendChild(loginRow);
+      });
     }
 
     const actions = el('div', 'actions');
     const ok = el('button', 'btn', 'OK');
-    ok.onclick = close;
+    ok.onclick = () => {
+      stopAdTick?.();
+      close();
+    };
     actions.appendChild(ok);
     box.appendChild(actions);
   }, true, { banner: true });

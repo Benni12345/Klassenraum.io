@@ -18,6 +18,8 @@ export interface PlayerRow {
   stolenTotal: number;
   lostTotal: number;
   lastStealAt: number;
+  lastAdRewardAt: number;
+  cgUserId: string | null;
   createdAt: number;
   lastSeen: number;
 }
@@ -47,6 +49,8 @@ CREATE TABLE IF NOT EXISTS players (
   stolen_total REAL NOT NULL DEFAULT 0,
   lost_total REAL NOT NULL DEFAULT 0,
   last_steal_at INTEGER NOT NULL DEFAULT 0,
+  last_ad_reward_at INTEGER NOT NULL DEFAULT 0,
+  cg_user_id TEXT UNIQUE,
   created_at INTEGER NOT NULL,
   last_seen INTEGER NOT NULL
 );
@@ -65,14 +69,31 @@ export class Db {
     this.db = new DatabaseSync(file);
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  /** Add columns introduced after the first release. */
+  private migrate(): void {
+    const cols = this.db.prepare('PRAGMA table_info(players)').all() as Array<{ name: string }>;
+    const names = new Set(cols.map((c) => c.name));
+    if (!names.has('cg_user_id')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN cg_user_id TEXT');
+      this.db.exec(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_players_cg_user ON players(cg_user_id) WHERE cg_user_id IS NOT NULL',
+      );
+    }
+    if (!names.has('last_ad_reward_at')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN last_ad_reward_at INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   createPlayer(row: PlayerRow, tokenHash: string): void {
     this.db
       .prepare(
         `INSERT INTO players (id, token_hash, name, avatar, bp, run_bp, lifetime_bp, clicks,
-           gens, upgrades, stars, grade, stolen_total, lost_total, last_steal_at, created_at, last_seen)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           gens, upgrades, stars, grade, stolen_total, lost_total, last_steal_at,
+           last_ad_reward_at, cg_user_id, created_at, last_seen)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -90,6 +111,8 @@ export class Db {
         row.stolenTotal,
         row.lostTotal,
         row.lastStealAt,
+        row.lastAdRewardAt,
+        row.cgUserId,
         row.createdAt,
         row.lastSeen,
       );
@@ -102,12 +125,23 @@ export class Db {
     return r ? decodeRow(r) : null;
   }
 
+  loadPlayerByCgUserId(cgUserId: string): PlayerRow | null {
+    const r = this.db
+      .prepare('SELECT * FROM players WHERE cg_user_id = ?')
+      .get(cgUserId) as Record<string, unknown> | undefined;
+    return r ? decodeRow(r) : null;
+  }
+
+  linkCgUserId(playerId: string, cgUserId: string): void {
+    this.db.prepare('UPDATE players SET cg_user_id = ? WHERE id = ?').run(cgUserId, playerId);
+  }
+
   savePlayer(row: PlayerRow): void {
     this.db
       .prepare(
         `UPDATE players SET name = ?, avatar = ?, bp = ?, run_bp = ?, lifetime_bp = ?, clicks = ?,
            gens = ?, upgrades = ?, stars = ?, grade = ?, stolen_total = ?, lost_total = ?,
-           last_steal_at = ?, last_seen = ? WHERE id = ?`,
+           last_steal_at = ?, last_ad_reward_at = ?, cg_user_id = ?, last_seen = ? WHERE id = ?`,
       )
       .run(
         row.name,
@@ -123,6 +157,8 @@ export class Db {
         row.stolenTotal,
         row.lostTotal,
         row.lastStealAt,
+        row.lastAdRewardAt,
+        row.cgUserId,
         row.lastSeen,
         row.id,
       );
@@ -179,6 +215,8 @@ function decodeRow(r: Record<string, unknown>): PlayerRow {
     stolenTotal: r.stolen_total as number,
     lostTotal: r.lost_total as number,
     lastStealAt: r.last_steal_at as number,
+    lastAdRewardAt: Number(r.last_ad_reward_at ?? 0),
+    cgUserId: (r.cg_user_id as string | null) ?? null,
     createdAt: r.created_at as number,
     lastSeen: r.last_seen as number,
   };

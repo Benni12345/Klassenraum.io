@@ -1,6 +1,13 @@
-import type { AdCallbacks, Platform } from './types';
+import type {
+  AdCallbacks,
+  CrazyGamesGameSettings,
+  CrazyGamesUser,
+  Platform,
+  PlatformUser,
+} from './types';
 
 const SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
+const CLASSROOM_ROOM_ID = 'classroom';
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -25,7 +32,6 @@ function sdk() {
 
 function requestAd(type: 'midgame' | 'rewarded'): Promise<boolean> {
   return new Promise((resolve) => {
-    let started = false;
     let settled = false;
     const finish = (ok: boolean) => {
       if (settled) return;
@@ -34,14 +40,8 @@ function requestAd(type: 'midgame' | 'rewarded'): Promise<boolean> {
     };
 
     const callbacks: AdCallbacks = {
-      adStarted: () => {
-        started = true;
-      },
       adFinished: () => finish(true),
-      adError: () => {
-        if (started) finish(false);
-        else finish(false);
-      },
+      adError: () => finish(false),
     };
 
     try {
@@ -52,17 +52,63 @@ function requestAd(type: 'midgame' | 'rewarded'): Promise<boolean> {
   });
 }
 
+function toPlatformUser(user: CrazyGamesUser | null): PlatformUser | null {
+  if (!user?.username) return null;
+  return { username: user.username };
+}
+
 export function createCrazyGamesPlatform(): Platform {
   let gameplay = false;
   let loading = false;
   let bannerId: string | null = null;
+  let disableChat = false;
+  let hasAdblock = false;
+  const settingsListeners = new Set<(s: { disableChat: boolean }) => void>();
+  const authListeners = new Set<(user: PlatformUser | null) => void>();
+
+  const applySettings = (s: CrazyGamesGameSettings) => {
+    disableChat = Boolean(s.disableChat);
+    for (const fn of settingsListeners) fn({ disableChat });
+  };
+
+  const onSdkSettings = (s: CrazyGamesGameSettings) => applySettings(s);
+  const onSdkAuth = (user: CrazyGamesUser | null) => {
+    const u = toPlatformUser(user);
+    for (const fn of authListeners) fn(u);
+  };
 
   return {
     enabled: true,
 
+    get disableChat() {
+      return disableChat;
+    },
+
+    get hasAdblock() {
+      return hasAdblock;
+    },
+
     async init() {
       await loadScript(SDK_URL);
       await sdk().init();
+      applySettings(sdk().game.settings ?? {});
+      try {
+        sdk().game.addSettingsChangeListener(onSdkSettings);
+      } catch {
+        /* older SDK builds */
+      }
+      try {
+        if (sdk().user?.isUserAccountAvailable) {
+          sdk().user.addAuthListener(onSdkAuth);
+        }
+      } catch {
+        /* auth optional outside CrazyGames */
+      }
+      try {
+        hasAdblock = Boolean(await sdk().ad.hasAdblock());
+      } catch {
+        hasAdblock = false;
+      }
       await sdk().game.loadingStart();
       loading = true;
     },
@@ -85,6 +131,19 @@ export function createCrazyGamesPlatform(): Platform {
       void sdk().game.gameplayStop();
     },
 
+    happytime() {
+      void sdk().game.happytime().catch(() => {});
+    },
+
+    markRoomJoinable() {
+      void sdk()
+        .game.updateRoom({
+          roomId: CLASSROOM_ROOM_ID,
+          isJoinable: true,
+        })
+        .catch(() => {});
+    },
+
     async requestMidgameAd() {
       const wasPlaying = gameplay;
       this.onGameplayStop();
@@ -94,6 +153,7 @@ export function createCrazyGamesPlatform(): Platform {
     },
 
     async requestRewardedAd() {
+      if (hasAdblock) return false;
       const wasPlaying = gameplay;
       this.onGameplayStop();
       const ok = await requestAd('rewarded');
@@ -106,20 +166,62 @@ export function createCrazyGamesPlatform(): Platform {
       void sdk()
         .banner.requestBanner({ id: containerId, width: 300, height: 250 })
         .catch(() => {
-          /* unfilled, cooldown, or disabled during Basic Launch */
+          /* unfilled, cooldown, or temporarily unavailable */
         });
     },
 
     hideModalBanner() {
       if (!bannerId) return;
-      // Do not call SDK clearBanner/clearAllBanners — disabled during Basic Launch
-      // and the modal DOM is destroyed on close anyway.
-      const slot = document.getElementById(bannerId);
+      const id = bannerId;
+      bannerId = null;
+      try {
+        sdk().banner.clearBanner(id);
+      } catch {
+        /* clear may fail if SDK not ready; still clear DOM */
+      }
+      const slot = document.getElementById(id);
       if (slot) {
         slot.replaceChildren();
         slot.style.display = 'none';
       }
-      bannerId = null;
+    },
+
+    async getUser() {
+      try {
+        if (!sdk().user?.isUserAccountAvailable) return null;
+        return toPlatformUser(await sdk().user.getUser());
+      } catch {
+        return null;
+      }
+    },
+
+    async getUserToken() {
+      try {
+        if (!sdk().user?.isUserAccountAvailable) return null;
+        return await sdk().user.getUserToken();
+      } catch {
+        return null;
+      }
+    },
+
+    async showAuthPrompt() {
+      try {
+        if (!sdk().user?.isUserAccountAvailable) return null;
+        return toPlatformUser(await sdk().user.showAuthPrompt());
+      } catch {
+        return null;
+      }
+    },
+
+    onAuthChange(listener) {
+      authListeners.add(listener);
+      return () => authListeners.delete(listener);
+    },
+
+    onSettingsChange(listener) {
+      settingsListeners.add(listener);
+      listener({ disableChat });
+      return () => settingsListeners.delete(listener);
     },
   };
 }
