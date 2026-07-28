@@ -7,6 +7,7 @@ import {
   UPGRADES,
   type UpgradeDef,
 } from '@shared/balance';
+import { sfxBuy } from '../audio';
 import { fmt } from '../format';
 import { t } from '../i18n';
 import { genIcon, iconDataUrl } from '../render/sprites';
@@ -80,7 +81,10 @@ function tryBuyGen(gi: number): void {
   if (!you) return;
   const owned = you.gens[gi] ?? 0;
   const { qty, cost } = resolveBuyQty(gi, owned, you.bp);
-  if (qty > 0 && you.bp >= cost) store.buy(gi, qtySel);
+  if (qty > 0 && you.bp >= cost) {
+    store.buy(gi, qtySel);
+    sfxBuy();
+  }
 }
 
 function resolveBuyQty(gi: number, owned: number, bp: number): { qty: number; cost: number } {
@@ -251,7 +255,10 @@ function refreshUpgrades(): void {
       b.onclick = () => {
         const u = UPGRADE_BY_ID.get(b.dataset.uid ?? '');
         const cur = store.you;
-        if (u && cur && cur.bp >= u.cost) store.buyUpgrade(u.id);
+        if (u && cur && cur.bp >= u.cost) {
+          store.buyUpgrade(u.id);
+          sfxBuy();
+        }
       };
       box.appendChild(b);
     }

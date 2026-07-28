@@ -1,3 +1,4 @@
+import { setAdMuted, setPlatformMuted } from '../audio';
 import type {
   AdCallbacks,
   CrazyGamesGameSettings,
@@ -36,15 +37,18 @@ function requestAd(type: 'midgame' | 'rewarded'): Promise<boolean> {
     const finish = (ok: boolean) => {
       if (settled) return;
       settled = true;
+      setAdMuted(false);
       resolve(ok);
     };
 
     const callbacks: AdCallbacks = {
+      adStarted: () => setAdMuted(true),
       adFinished: () => finish(true),
       adError: () => finish(false),
     };
 
     try {
+      setAdMuted(true);
       sdk().ad.requestAd(type, callbacks);
     } catch {
       finish(false);
@@ -62,13 +66,17 @@ export function createCrazyGamesPlatform(): Platform {
   let loading = false;
   let bannerId: string | null = null;
   let disableChat = false;
+  let muteAudio = false;
   let hasAdblock = false;
-  const settingsListeners = new Set<(s: { disableChat: boolean }) => void>();
+  const settingsListeners = new Set<(s: { disableChat: boolean; muteAudio: boolean }) => void>();
   const authListeners = new Set<(user: PlatformUser | null) => void>();
 
   const applySettings = (s: CrazyGamesGameSettings) => {
     disableChat = Boolean(s.disableChat);
-    for (const fn of settingsListeners) fn({ disableChat });
+    muteAudio = Boolean(s.muteAudio);
+    // CrazyGames host mute must silence all game audio (Full Launch requirement).
+    setPlatformMuted(muteAudio);
+    for (const fn of settingsListeners) fn({ disableChat, muteAudio });
   };
 
   const onSdkSettings = (s: CrazyGamesGameSettings) => applySettings(s);
@@ -82,6 +90,10 @@ export function createCrazyGamesPlatform(): Platform {
 
     get disableChat() {
       return disableChat;
+    },
+
+    get muteAudio() {
+      return muteAudio;
     },
 
     get hasAdblock() {
@@ -220,7 +232,7 @@ export function createCrazyGamesPlatform(): Platform {
 
     onSettingsChange(listener) {
       settingsListeners.add(listener);
-      listener({ disableChat });
+      listener({ disableChat, muteAudio });
       return () => settingsListeners.delete(listener);
     },
   };
