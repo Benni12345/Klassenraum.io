@@ -71,6 +71,8 @@ export interface Platform {
   readonly enabled: boolean;
   /** True when CrazyGames asked us to hide chat. */
   disableChat: boolean;
+  /** True when CrazyGames (or `?muteAudio=true`) asked us to mute. */
+  muteAudio: boolean;
   /** True when an adblocker was detected (rewarded ads must not stay clickable). */
   hasAdblock: boolean;
   init(): Promise<void>;
@@ -91,5 +93,5 @@ export interface Platform {
   /** Prefer guest play; optional CG login prompt (not a main CTA). */
   showAuthPrompt(): Promise<PlatformUser | null>;
   onAuthChange(listener: (user: PlatformUser | null) => void): () => void;
-  onSettingsChange(listener: (s: { disableChat: boolean }) => void): () => void;
+  onSettingsChange(listener: (s: { disableChat: boolean; muteAudio: boolean }) => void): () => void;
 }
