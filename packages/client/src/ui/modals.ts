@@ -5,20 +5,14 @@ import { gradeLabel, t } from '../i18n';
 import { iconDataUrl, studentSprite } from '../render/sprites';
 import { platform } from '../platform';
 import { store } from '../state';
+import { mountRewardedBoostButton } from './ads';
 import { el, id } from './dom';
 import { buildLangSelector } from './langSelector';
+import { toast } from './toast';
+
+export { toast };
 
 const modalRoot = () => id('modal-root');
-const toastRoot = () => id('toast-root');
-
-// ------------------------------------------------------------------- Toasts
-
-export function toast(text: string, kind: 'info' | 'gold' | 'bad' = 'info'): void {
-  const box = el('div', `toast ${kind === 'info' ? '' : kind}`, text);
-  toastRoot().appendChild(box);
-  while (toastRoot().children.length > 4) toastRoot().firstChild?.remove();
-  setTimeout(() => box.remove(), 4200);
-}
 
 // ------------------------------------------------------------------- Modals
 
@@ -177,7 +171,7 @@ export function prestigeModal(): void {
       actions.appendChild(ok);
       box.appendChild(actions);
     }
-  });
+  }, true, { banner: true });
 }
 
 // -------------------------------------------------------------- Leaderboard
@@ -268,55 +262,11 @@ export function settingsModal(): void {
 
     box.appendChild(el('p', '', t('settings.boss')));
 
-    let stopAdTick: (() => void) | null = null;
-
+    let stopAd: (() => void) | null = null;
     if (platform.enabled) {
-      const adRow = el('div', 'row ad-reward-row');
-      const adBtn = el('button', 'btn gold', `▶ ${t('settings.adBoost')}`);
-      const refreshAdBtn = () => {
-        if (!adBtn.isConnected) {
-          clearInterval(adTick);
-          return;
-        }
-        if (platform.hasAdblock) {
-          adBtn.disabled = true;
-          adBtn.textContent = t('settings.adBoostAdblock');
-          return;
-        }
-        const readyAt = store.you?.adRewardReadyAt ?? 0;
-        const left = readyAt - store.serverNow();
-        if (left > 0) {
-          adBtn.disabled = true;
-          const mins = Math.ceil(left / 60_000);
-          adBtn.textContent = t('settings.adBoostCooldown', {
-            t: mins >= 1 ? `${mins}m` : '<1m',
-          });
-        } else {
-          adBtn.disabled = false;
-          adBtn.textContent = `▶ ${t('settings.adBoost')}`;
-        }
-      };
-      const adTick = window.setInterval(refreshAdBtn, 5_000);
-      refreshAdBtn();
-      stopAdTick = () => clearInterval(adTick);
-      adBtn.onclick = async () => {
-        if (adBtn.disabled) return;
-        adBtn.disabled = true;
-        const watched = await platform.requestRewardedAd();
-        if (watched) {
-          store.claimAdBoost();
-          toast(t('settings.adBoostDone'), 'gold');
-          setTimeout(refreshAdBtn, 400);
-        } else {
-          toast(
-            platform.hasAdblock ? t('settings.adBoostAdblock') : t('settings.adBoostFail'),
-            'info',
-          );
-          refreshAdBtn();
-        }
-      };
-      adRow.appendChild(adBtn);
-      box.appendChild(adRow);
+      const adHost = el('div', 'settings-ad-host');
+      box.appendChild(adHost);
+      stopAd = mountRewardedBoostButton(adHost, { compact: true });
 
       // Optional CG login for guests (not a main CTA).
       void platform.getUser().then((u) => {
@@ -327,7 +277,7 @@ export function settingsModal(): void {
         loginBtn.onclick = async () => {
           const user = await platform.showAuthPrompt();
           if (user) {
-            stopAdTick?.();
+            stopAd?.();
             close();
             location.reload();
           }
@@ -340,7 +290,7 @@ export function settingsModal(): void {
     const actions = el('div', 'actions');
     const ok = el('button', 'btn', 'OK');
     ok.onclick = () => {
-      stopAdTick?.();
+      stopAd?.();
       close();
     };
     actions.appendChild(ok);

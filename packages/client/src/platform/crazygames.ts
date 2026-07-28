@@ -64,7 +64,7 @@ function toPlatformUser(user: CrazyGamesUser | null): PlatformUser | null {
 export function createCrazyGamesPlatform(): Platform {
   let gameplay = false;
   let loading = false;
-  let bannerId: string | null = null;
+  const activeBanners = new Set<string>();
   let disableChat = false;
   let muteAudio = false;
   let hasAdblock = false;
@@ -83,6 +83,34 @@ export function createCrazyGamesPlatform(): Platform {
   const onSdkAuth = (user: CrazyGamesUser | null) => {
     const u = toPlatformUser(user);
     for (const fn of authListeners) fn(u);
+  };
+
+  const showBanner = (containerId: string, size?: { width: number; height: number }) => {
+    const width = size?.width ?? 300;
+    const height = size?.height ?? 250;
+    activeBanners.add(containerId);
+    const el = document.getElementById(containerId);
+    if (el) el.style.display = '';
+    void sdk()
+      .banner.requestBanner({ id: containerId, width, height })
+      .catch(() => {
+        /* unfilled, cooldown, or temporarily unavailable */
+      });
+  };
+
+  const hideBanner = (containerId: string) => {
+    if (!activeBanners.has(containerId) && !document.getElementById(containerId)) return;
+    activeBanners.delete(containerId);
+    try {
+      sdk().banner.clearBanner(containerId);
+    } catch {
+      /* clear may fail if SDK not ready; still clear DOM */
+    }
+    const slot = document.getElementById(containerId);
+    if (slot) {
+      slot.replaceChildren();
+      slot.style.display = 'none';
+    }
   };
 
   return {
@@ -173,29 +201,13 @@ export function createCrazyGamesPlatform(): Platform {
       return ok;
     },
 
+    showBanner,
+    hideBanner,
     showModalBanner(containerId: string) {
-      bannerId = containerId;
-      void sdk()
-        .banner.requestBanner({ id: containerId, width: 300, height: 250 })
-        .catch(() => {
-          /* unfilled, cooldown, or temporarily unavailable */
-        });
+      showBanner(containerId, { width: 300, height: 250 });
     },
-
     hideModalBanner() {
-      if (!bannerId) return;
-      const id = bannerId;
-      bannerId = null;
-      try {
-        sdk().banner.clearBanner(id);
-      } catch {
-        /* clear may fail if SDK not ready; still clear DOM */
-      }
-      const slot = document.getElementById(id);
-      if (slot) {
-        slot.replaceChildren();
-        slot.style.display = 'none';
-      }
+      hideBanner('cg-modal-banner');
     },
 
     async getUser() {

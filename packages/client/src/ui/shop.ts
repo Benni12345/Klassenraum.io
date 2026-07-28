@@ -10,8 +10,10 @@ import {
 import { sfxBuy } from '../audio';
 import { fmt } from '../format';
 import { t } from '../i18n';
+import { platform } from '../platform';
 import { genIcon, iconDataUrl } from '../render/sprites';
 import { store } from '../state';
+import { mountRewardedBoostButton, mountShopBanner } from './ads';
 import { el, id } from './dom';
 import { bindCursorTip, type TipCard } from './tooltip';
 
@@ -69,6 +71,16 @@ export function initShop(): void {
       btn.classList.add('on');
       refresh();
     };
+  }
+
+  if (platform.enabled) {
+    const boostSlot = id('ad-boost-slot');
+    boostSlot.classList.remove('hidden');
+    mountRewardedBoostButton(boostSlot);
+
+    const bannerSlot = id('shop-banner-slot');
+    bannerSlot.classList.remove('hidden');
+    mountShopBanner(bannerSlot);
   }
 
   store.on('you', refresh);
