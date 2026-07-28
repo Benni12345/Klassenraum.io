@@ -144,6 +144,9 @@ const de: Dict = {
   'settings.adBoostFail': 'Gerade keine Werbung verfügbar.',
   'settings.adBoostCooldown': 'Bonus in {t}',
   'settings.adBoostAdblock': 'Werbung blockiert — AdBlocker ausschalten.',
+  'ads.boostHint': 'Optional: Video ansehen für ×2 Produktion',
+  'ads.adblockHint': 'AdBlocker erkannt — Bonus-Werbung gesperrt',
+  'ads.watching': 'Werbung läuft…',
   'settings.cgLogin': 'Mit CrazyGames anmelden',
   'settings.cgLoginHint': 'Fortschritt geräteübergreifend speichern',
 
@@ -303,6 +306,9 @@ const en: Dict = {
   'settings.adBoostFail': 'No ad available right now.',
   'settings.adBoostCooldown': 'Bonus ready in {t}',
   'settings.adBoostAdblock': 'Ads blocked — turn off your ad blocker.',
+  'ads.boostHint': 'Optional: watch a video for ×2 production',
+  'ads.adblockHint': 'Ad blocker detected — bonus ads locked',
+  'ads.watching': 'Playing ad…',
   'settings.cgLogin': 'Sign in with CrazyGames',
   'settings.cgLoginHint': 'Save progress across devices',
 

@@ -84,7 +84,12 @@ export interface Platform {
   markRoomJoinable(): void;
   requestMidgameAd(): Promise<boolean>;
   requestRewardedAd(): Promise<boolean>;
+  /** Show a CrazyGames banner in a DOM container (shop / modal screens). */
+  showBanner(containerId: string, size?: { width: number; height: number }): void;
+  hideBanner(containerId: string): void;
+  /** @deprecated use showBanner */
   showModalBanner(containerId: string): void;
+  /** @deprecated use hideBanner */
   hideModalBanner(): void;
   /** Logged-in CrazyGames user, if any. */
   getUser(): Promise<PlatformUser | null>;

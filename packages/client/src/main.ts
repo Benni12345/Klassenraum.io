@@ -32,6 +32,7 @@ import { closePopover, showDeskPopover } from './ui/popover';
 import { initLangSelector } from './ui/langSelector';
 import { initShop } from './ui/shop';
 import { applyStaticTexts } from './ui/texts';
+import { tryMidgameAd } from './ui/ads';
 
 async function boot(): Promise<void> {
   if (platform.enabled) {
@@ -115,7 +116,7 @@ async function boot(): Promise<void> {
       sfxSuccess();
       toast(t('prestige.done', { g: gradeLabel(grade) }), 'gold');
       platform.happytime();
-      if (platform.enabled) void platform.requestMidgameAd();
+      tryMidgameAd('prestige');
     }
     if (lastGrade >= 0) lastGrade = Math.max(lastGrade, grade);
   });
@@ -130,6 +131,8 @@ async function boot(): Promise<void> {
     const mins = Math.floor((o.ms % 3_600_000) / 60_000);
     const dur = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
     toast(t('offline.toast', { v: fmt(o.bp), t: dur }), 'gold');
+    // Natural pause after returning — good midgame slot for idle sessions.
+    if (o.ms >= 60_000) tryMidgameAd('offline');
   });
 
   store.on('steal', (s) => {
@@ -138,6 +141,7 @@ async function boot(): Promise<void> {
     if (s.caught && s.attacker === you.id) {
       sfxError();
       toast(t('steal.caught.you'), 'bad');
+      tryMidgameAd('detention');
     } else if (s.victim === you.id && !s.caught) {
       sfxSteal();
       const attacker = store.roster.get(s.attacker)?.name ?? '?';
@@ -146,6 +150,7 @@ async function boot(): Promise<void> {
       sfxSteal();
       const victim = store.roster.get(s.victim)?.name ?? '?';
       toast(t('steal.success', { v: fmt(s.amount), b: victim }), 'gold');
+      tryMidgameAd('steal');
     }
   });
 
@@ -155,13 +160,13 @@ async function boot(): Promise<void> {
       sfxSuccess();
       toast(t('event.quiz.win'), 'gold');
     }
+    tryMidgameAd('quiz');
   });
 
   store.on('goalDone', () => {
     sfxSuccess();
     toast(t('goal.done'), 'gold');
-    // Natural break — midgame cadence is capped by the SDK (~3 min).
-    if (platform.enabled) void platform.requestMidgameAd();
+    tryMidgameAd('goal');
   });
 
   store.on('status', (s) => {

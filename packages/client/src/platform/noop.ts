@@ -31,8 +31,10 @@ export function createNoopPlatform(): Platform {
     async requestRewardedAd() {
       return false;
     },
-    showModalBanner() {},
-    hideModalBanner() {},
+  showBanner() {},
+  hideBanner() {},
+  showModalBanner() {},
+  hideModalBanner() {},
     async getUser() {
       return null;
     },
