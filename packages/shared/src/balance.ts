@@ -243,7 +243,8 @@ export const CLICKS_PER_SEC_MAX = 25;
 export const SEAT_GRACE_MS = 5 * 60_000;
 export const SEATS_PER_ROW = 6;
 export const NAME_MIN = 2;
-export const NAME_MAX = 16;
+/** Fits CrazyGames usernames (6–20 chars with `.` / `_`). */
+export const NAME_MAX = 20;
 export const CHAT_MAX = 140;
 export const EMOTE_COUNT = 8;
 export const AVATAR_RANGES = { skin: 4, hair: 5, hairColor: 6, shirt: 8 } as const;

@@ -142,6 +142,10 @@ const de: Dict = {
   'settings.adBoost': '5 Min. ×2 Produktion (Werbung)',
   'settings.adBoostDone': 'Bonus aktiv — 5 Minuten doppelte Produktion!',
   'settings.adBoostFail': 'Gerade keine Werbung verfügbar.',
+  'settings.adBoostCooldown': 'Bonus in {t}',
+  'settings.adBoostAdblock': 'Werbung blockiert — AdBlocker ausschalten.',
+  'settings.cgLogin': 'Mit CrazyGames anmelden',
+  'settings.cgLoginHint': 'Fortschritt geräteübergreifend speichern',
 
   'misc.myDesk': 'Mein Platz',
   'misc.you': 'Du',
@@ -297,6 +301,10 @@ const en: Dict = {
   'settings.adBoost': '5 min ×2 production (ad)',
   'settings.adBoostDone': 'Bonus active — double production for 5 minutes!',
   'settings.adBoostFail': 'No ad available right now.',
+  'settings.adBoostCooldown': 'Bonus ready in {t}',
+  'settings.adBoostAdblock': 'Ads blocked — turn off your ad blocker.',
+  'settings.cgLogin': 'Sign in with CrazyGames',
+  'settings.cgLoginHint': 'Save progress across devices',
 
   'misc.myDesk': 'My desk',
   'misc.you': 'You',

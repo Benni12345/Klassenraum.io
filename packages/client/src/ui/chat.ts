@@ -1,13 +1,23 @@
 import { EMOTE_COUNT } from '@shared/balance';
 import type { ChatEntry } from '@shared/types';
 import { t } from '../i18n';
+import { platform } from '../platform';
 import { emoteSprites, iconDataUrl } from '../render/sprites';
 import { store } from '../state';
 import { el, id } from './dom';
 
 export function initChat(): void {
+  const panel = id('chat-panel');
+
+  const applyChatVisibility = (disable: boolean) => {
+    panel.classList.toggle('hidden', disable);
+  };
+  applyChatVisibility(platform.disableChat);
+  platform.onSettingsChange((s) => applyChatVisibility(s.disableChat));
+
   const input = id<HTMLInputElement>('chat-input');
   const send = () => {
+    if (platform.disableChat) return;
     const text = input.value.trim();
     if (!text) return;
     store.sendChat(text);
@@ -26,11 +36,12 @@ export function initChat(): void {
     img.src = iconDataUrl(emoteSprites[e]!, 3);
     img.alt = '';
     b.appendChild(img);
-    b.onclick = () => store.sendEmote(e);
+    b.onclick = () => {
+      if (!platform.disableChat) store.sendEmote(e);
+    };
     emoteRow.appendChild(b);
   }
 
-  const panel = id('chat-panel');
   id('chat-toggle').addEventListener('click', () => panel.classList.toggle('collapsed'));
   if (window.innerWidth < 900) panel.classList.add('collapsed');
 

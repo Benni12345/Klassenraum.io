@@ -16,7 +16,7 @@ import type {
   PlayerYou,
   RoomEvent,
 } from '@shared/types';
-import { Net, type NetStatus } from './net';
+import { Net, type JoinInfo, type NetStatus } from './net';
 
 export interface StealFx {
   attacker: string;
@@ -70,6 +70,10 @@ class Store {
     setInterval(() => this.flushClicks(), 300);
   }
 
+  setCgTokenProvider(fn: (() => Promise<string | null>) | null): void {
+    this.net.setCgTokenProvider(fn);
+  }
+
   // ------------------------------------------------------------------ Events
 
   on<K extends keyof Events>(ev: K, fn: Handler<K>): void {
@@ -87,7 +91,7 @@ class Store {
     return localStorage.getItem('kr_token') !== null;
   }
 
-  connect(joinInfo?: { name?: string; avatar?: PlayerYou['avatar'] }): void {
+  connect(joinInfo?: JoinInfo): void {
     this.net.connect(joinInfo);
   }
 
