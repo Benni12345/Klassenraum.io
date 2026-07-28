@@ -302,7 +302,7 @@ export class Scene {
     const sn = store.serverNow();
 
     // Line 1: event or title
-    let line1 = 'KLASSENRAUM.IO';
+    let line1 = t('game.title');
     let line1Color: string = PAL.chalk;
     if (ev) {
       const secs = Math.max(0, Math.ceil((ev.endsAt - sn) / 1000));
@@ -310,7 +310,7 @@ export class Scene {
       else if (ev.kind === 'patrol') {
         line1 = `${getPatrolLabel()} (${secs})`;
         line1Color = time % 1 < 0.5 ? '#f0b0a0' : PAL.chalk;
-      } else line1 = `VERTRETUNG ×2 (${secs})`;
+      } else line1 = `${t('event.sub.banner').split('—')[0]!.trim()} (${secs})`;
     }
     drawText(ctx, line1.toUpperCase().slice(0, 30), bx + bw / 2, 9, line1Color, { align: 'center' });
 

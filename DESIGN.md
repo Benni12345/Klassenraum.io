@@ -1,4 +1,4 @@
-# Klassenraum.io — Design
+# Classroom.io — Design
 
 Multiplayer browser idle game. **Every player sits in one shared, global classroom.**
 You idle-generate **Hirnschmalz (HS)** — brainpower — buy increasingly absurd school-themed
@@ -10,7 +10,7 @@ Locked decisions:
 - **One global room** for all players (the classroom grows rows as people join)
 - **Real stealing** between players (paper airplanes knock HS off other desks)
 - **Pixel art**, code-authored sprites, crisp on weak Chromebooks
-- Name: **Klassenraum.io**, German-first UI with EN toggle
+- Name: **Classroom.io**, English-first UI with DE toggle
 
 ## Core loop
 

@@ -88,8 +88,18 @@ async function renderCovers(browser) {
 
 async function joinAndPlay(page, name) {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-  await page.evaluate(() => localStorage.clear());
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem('kr_lang', 'en');
+  });
   await page.reload({ waitUntil: 'domcontentloaded' });
+  // Hide OS/default cursor and any tap indicators in recorded frames (CrazyGames QA).
+  await page.addStyleTag({
+    content: `
+      *, *::before, *::after { cursor: none !important; }
+      html, body { cursor: none !important; }
+    `,
+  });
   const hasModal = await page
     .waitForSelector('.modal input[type="text"]', { timeout: 8000 })
     .then(() => true)

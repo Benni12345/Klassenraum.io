@@ -1,27 +1,27 @@
-# Klassenraum.io
+# Classroom.io
 
-Ein Multiplayer-Idle-Game im Browser: **alle Spieler sitzen im selben Klassenraum.**
+A multiplayer browser idle game where everyone shares **one global classroom**. Pixel art,
+English-first UI (German toggle in settings), built to run quietly on a school Chromebook.
+
 Sammle Hirnschmalz, kauf dir vom Bleistiftstummel bis zum Galaxienhirn hoch, klau deinen
 Mitschülern per Papierflieger die Punkte — und drück Esc, wenn der Lehrer kommt.
 
-A multiplayer browser idle game where everyone shares **one global classroom**. Pixel art,
-German-first UI (English toggle in settings), built to run quietly on a school Chromebook.
+![Classroom.io](docs/screenshot.png)
 
-![Klassenraum.io](docs/screenshot.png)
-
-| Platz aussuchen | Papierflieger werfen | Boss-Taste (Esc) |
+| Take a seat | Throw paper airplanes | Boss key (Esc) |
 |---|---|---|
 | ![Join](docs/join.png) | ![Steal](docs/steal.png) | ![Boss key](docs/boss.png) |
 
 ## Features
 
-- Idle economy with 9 school-themed generators, upgrades and prestige („Versetzung" for Goldsterne)
+- Idle economy with 9 school-themed generators, upgrades and prestige („Graduate" for gold stars)
 - One shared room: live desks for every online player, chalkboard leaderboard, class goal
 - Real stealing: throw paper airplanes at other desks (5 min cooldown, capped, risky during patrol)
-- Synchronized room events: Kurztest (pop quiz), Lehrer-Rundgang (patrol), Vertretungsstunde
+- Synchronized room events: pop quiz, teacher patrol, substitute period
 - Chat (passed notes), emotes, offline progress up to 8 h
 - Boss key: **Esc** swaps to a fake math-notes page (title + favicon included)
 - Server-authoritative: all production, clicks, buys and steals are validated server-side
+- CrazyGames Full Launch: SDK ads, account linking, gameplay start / happy time
 
 ## Development
 
@@ -47,7 +47,16 @@ Environment: `PORT` (default `8080`), `DB_PATH` (default `./data/klassenraum.db`
 One process serves everything — put it behind any HTTPS proxy and the client
 connects via `wss://` on the same origin automatically.
 
-A `Dockerfile` is included (`docker build -t klassenraum . && docker run -p 8080:8080 -v kr-data:/data klassenraum`).
+A `Dockerfile` is included (`docker build -t classroom . && docker run -p 8080:8080 -v kr-data:/data classroom`).
+
+### CrazyGames build
+
+```bash
+npm run build:crazygames   # relative assets + external WS to Fly.io
+```
+
+Upload the client `dist/` output in the CrazyGames Developer Portal. Marketing covers/videos
+live in `docs/crazygames/` (`npm run marketing` regenerates them).
 
 ### Fly.io
 

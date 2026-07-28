@@ -1,8 +1,8 @@
 {
-  "name": "klassenraum.io",
+  "name": "classroom.io",
   "private": true,
   "version": "0.1.0",
-  "description": "Klassenraum.io — multiplayer idle game set in one shared classroom",
+  "description": "Classroom.io — multiplayer idle game set in one shared classroom",
   "workspaces": [
     "packages/*"
   ],

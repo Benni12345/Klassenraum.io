@@ -10,7 +10,7 @@ const DOC_ICON = px(
 );
 
 let bossActive = false;
-let gameTitle = 'Klassenraum.io';
+let gameTitle = 'Classroom.io';
 let gameIcon = '';
 let bossIcon = '';
 

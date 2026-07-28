@@ -6,7 +6,7 @@ export const LOCALES: readonly Locale[] = ['en', 'de'];
 type Dict = Record<string, string>;
 
 const de: Dict = {
-  'game.title': 'Klassenraum.io',
+  'game.title': 'Classroom.io',
   unit: 'HS',
   'unit.long': 'Hirnschmalz',
   'hud.perSec': '{v} HS/s',
@@ -154,7 +154,7 @@ const de: Dict = {
   'misc.onHand': 'auf der Hand',
 
   'footer.tagline':
-    'Klassenraum.io — kostenloses Multiplayer-Idle-Game. Alle sitzen im selben Klassenraum.',
+    'Classroom.io — kostenloses Multiplayer-Idle-Game. Alle sitzen im selben Klassenraum.',
   'footer.about': 'Über uns',
   'footer.guide': 'Spielanleitung',
   'footer.privacy': 'Datenschutz',
@@ -165,7 +165,7 @@ const de: Dict = {
 };
 
 const en: Dict = {
-  'game.title': 'Klassenraum.io',
+  'game.title': 'Classroom.io',
   unit: 'BP',
   'unit.long': 'Brainpower',
   'hud.perSec': '{v} BP/s',
@@ -313,7 +313,7 @@ const en: Dict = {
   'misc.onHand': 'on hand',
 
   'footer.tagline':
-    'Klassenraum.io — free multiplayer idle game. Everyone shares one classroom.',
+    'Classroom.io — free multiplayer idle game. Everyone shares one classroom.',
   'footer.about': 'About',
   'footer.guide': 'How to play',
   'footer.privacy': 'Privacy',

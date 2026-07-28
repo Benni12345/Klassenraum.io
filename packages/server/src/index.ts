@@ -34,7 +34,7 @@ const tickTimer = setInterval(() => room.tick(), CONFIG.tickMs);
 const flushTimer = setInterval(() => room.flush(), CONFIG.flushMs);
 
 server.listen(CONFIG.port, () => {
-  console.log(`Klassenraum.io server on :${CONFIG.port} (static: ${staticDir})`);
+  console.log(`Classroom.io server on :${CONFIG.port} (static: ${staticDir})`);
 });
 
 function shutdown(): void {
