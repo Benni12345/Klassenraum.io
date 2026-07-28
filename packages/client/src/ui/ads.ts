@@ -1,6 +1,8 @@
+import { adRewardAmount } from '@shared/balance';
 import { platform } from '../platform';
 import { store } from '../state';
 import { t } from '../i18n';
+import { fmt, fmtDuration } from '../format';
 import { el } from './dom';
 import { toast } from './toast';
 
@@ -57,9 +59,8 @@ export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?:
     const left = readyAt - store.serverNow();
     if (left > 0) {
       btn.disabled = true;
-      const mins = Math.ceil(left / 60_000);
       btn.textContent = t('settings.adBoostCooldown', {
-        t: mins >= 1 ? `${mins}m` : '<1m',
+        t: fmtDuration(left),
       });
       hint.textContent = t('ads.boostHint');
     } else if (!busy) {
@@ -82,6 +83,7 @@ export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?:
     const watched = await platform.requestRewardedAd();
     busy = false;
     if (watched) {
+      const reward = adRewardAmount(store.you?.bp ?? 0);
       store.claimAdBoost();
       noteRewardedShown();
       toast(t('settings.adBoostDone'), 'gold');

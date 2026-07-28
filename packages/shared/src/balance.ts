@@ -231,11 +231,19 @@ export const PATROL_MS = 45_000;
 export const SUB_BUFF_MULT = 2;
 export const SUB_BUFF_MS = 180_000;
 
-/** Rewarded-ad production boost (CrazyGames). */
-export const AD_BUFF_MULT = 2;
-export const AD_BUFF_MS = 5 * 60_000;
-/** Rewarded cooldown — short enough for idle sessions, still respects CG “not too often”. */
-export const AD_REWARD_COOLDOWN_MS = 10 * 60_000;
+/**
+ * Rewarded ad (CrazyGames): instantly grant a cut of HS on hand.
+ * Framed as “10 % of your income” — juicy enough to watch often.
+ */
+export const AD_REWARD_INCOME_FRAC = 0.1;
+/** Rewarded cooldown — 1 min so ads stay available during idle sessions. */
+export const AD_REWARD_COOLDOWN_MS = 60_000;
+
+/** Instant HS granted for a completed rewarded ad. */
+export function adRewardAmount(bpOnHand: number): number {
+  if (!Number.isFinite(bpOnHand) || bpOnHand <= 0) return 0;
+  return bpOnHand * AD_REWARD_INCOME_FRAC;
+}
 
 // ---------------------------------------------------------------------------
 // Misc rules
