@@ -31,24 +31,33 @@ function sdk() {
   return s;
 }
 
-function requestAd(type: 'midgame' | 'rewarded'): Promise<boolean> {
+function requestAd(
+  type: 'midgame' | 'rewarded',
+  hooks?: { onStarted?: () => void; onEnded?: () => void },
+): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
+    let started = false;
     const finish = (ok: boolean) => {
       if (settled) return;
       settled = true;
       setAdMuted(false);
+      if (started) hooks?.onEnded?.();
       resolve(ok);
     };
 
     const callbacks: AdCallbacks = {
-      adStarted: () => setAdMuted(true),
+      adStarted: () => {
+        started = true;
+        setAdMuted(true);
+        hooks?.onStarted?.();
+      },
       adFinished: () => finish(true),
       adError: () => finish(false),
     };
 
     try {
-      setAdMuted(true);
+      // Do not pause/mute until adStarted — cooldown/unfilled midgames error immediately.
       sdk().ad.requestAd(type, callbacks);
     } catch {
       finish(false);
@@ -90,11 +99,18 @@ export function createCrazyGamesPlatform(): Platform {
     const height = size?.height ?? 250;
     activeBanners.add(containerId);
     const el = document.getElementById(containerId);
-    if (el) el.style.display = '';
+    if (el) {
+      el.style.display = 'flex';
+      // CrazyGames requires an explicit sized container or the request fails (notVisible / invalid).
+      el.style.width = `${width}px`;
+      el.style.height = `${height}px`;
+      el.style.minWidth = `${width}px`;
+      el.style.minHeight = `${height}px`;
+    }
     void sdk()
       .banner.requestBanner({ id: containerId, width, height })
-      .catch(() => {
-        /* unfilled, cooldown, or temporarily unavailable */
+      .catch((err) => {
+        if (import.meta.env.DEV) console.debug('[ads] banner error', containerId, err);
       });
   };
 
@@ -185,20 +201,18 @@ export function createCrazyGamesPlatform(): Platform {
     },
 
     async requestMidgameAd() {
-      const wasPlaying = gameplay;
-      this.onGameplayStop();
-      const ok = await requestAd('midgame');
-      if (wasPlaying) this.onGameplayStart();
-      return ok;
+      return requestAd('midgame', {
+        onStarted: () => this.onGameplayStop(),
+        onEnded: () => this.onGameplayStart(),
+      });
     },
 
     async requestRewardedAd() {
       if (hasAdblock) return false;
-      const wasPlaying = gameplay;
-      this.onGameplayStop();
-      const ok = await requestAd('rewarded');
-      if (wasPlaying) this.onGameplayStart();
-      return ok;
+      return requestAd('rewarded', {
+        onStarted: () => this.onGameplayStop(),
+        onEnded: () => this.onGameplayStart(),
+      });
     },
 
     showBanner,
