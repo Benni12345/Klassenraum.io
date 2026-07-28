@@ -1,4 +1,14 @@
 import './styles.css';
+import {
+  isEffectivelyMuted,
+  isPlatformMuted,
+  setPlatformMuted,
+  sfxClick,
+  sfxError,
+  sfxSteal,
+  sfxSuccess,
+  unlockAudio,
+} from './audio';
 import { fmt } from './format';
 import { gradeLabel, t } from './i18n';
 import { platform } from './platform';
@@ -29,6 +39,15 @@ async function boot(): Promise<void> {
     store.setCgTokenProvider(() => platform.getUserToken());
   }
 
+  // Unlock Web Audio on the first user gesture (autoplay policies).
+  const unlockOnce = () => {
+    unlockAudio();
+    window.removeEventListener('pointerdown', unlockOnce);
+    window.removeEventListener('keydown', unlockOnce);
+  };
+  window.addEventListener('pointerdown', unlockOnce, { once: true });
+  window.addEventListener('keydown', unlockOnce, { once: true });
+
   applyStaticTexts();
   initLangSelector('lang-selector');
   initBoss();
@@ -51,7 +70,10 @@ async function boot(): Promise<void> {
 
   function doClick(): void {
     const gain = store.click();
-    if (gain > 0) scene.clickFloaterAtOwnDesk(`+${fmt(gain)}`);
+    if (gain > 0) {
+      sfxClick();
+      scene.clickFloaterAtOwnDesk(`+${fmt(gain)}`);
+    }
   }
 
   id('btn-click').addEventListener('click', doClick);
@@ -90,6 +112,7 @@ async function boot(): Promise<void> {
   store.on('you', () => {
     const grade = store.you?.grade ?? 0;
     if (lastGrade >= 0 && grade > lastGrade) {
+      sfxSuccess();
       toast(t('prestige.done', { g: gradeLabel(grade) }), 'gold');
       platform.happytime();
       if (platform.enabled) void platform.requestMidgameAd();
@@ -97,7 +120,10 @@ async function boot(): Promise<void> {
     if (lastGrade >= 0) lastGrade = Math.max(lastGrade, grade);
   });
 
-  store.on('error', (code) => toast(t(`err.${code}`), 'bad'));
+  store.on('error', (code) => {
+    sfxError();
+    toast(t(`err.${code}`), 'bad');
+  });
 
   store.on('offline', (o) => {
     const hours = Math.floor(o.ms / 3_600_000);
@@ -110,11 +136,14 @@ async function boot(): Promise<void> {
     const you = store.you;
     if (!you) return;
     if (s.caught && s.attacker === you.id) {
+      sfxError();
       toast(t('steal.caught.you'), 'bad');
     } else if (s.victim === you.id && !s.caught) {
+      sfxSteal();
       const attacker = store.roster.get(s.attacker)?.name ?? '?';
       toast(t('steal.hit.you', { a: attacker, v: fmt(s.amount) }), 'bad');
     } else if (s.attacker === you.id && !s.caught) {
+      sfxSteal();
       const victim = store.roster.get(s.victim)?.name ?? '?';
       toast(t('steal.success', { v: fmt(s.amount), b: victim }), 'gold');
     }
@@ -123,11 +152,13 @@ async function boot(): Promise<void> {
   store.on('quizResult', (r) => {
     const name = store.you?.name;
     if (name && r.winners.includes(name)) {
+      sfxSuccess();
       toast(t('event.quiz.win'), 'gold');
     }
   });
 
   store.on('goalDone', () => {
+    sfxSuccess();
     toast(t('goal.done'), 'gold');
     // Natural break — midgame cadence is capped by the SDK (~3 min).
     if (platform.enabled) void platform.requestMidgameAd();
@@ -175,7 +206,12 @@ async function boot(): Promise<void> {
   setInterval(() => store.ping(), 25_000);
 
   // Debug handle for integration tests and console tinkering.
-  (window as unknown as Record<string, unknown>).__kr = { store, scene, platform };
+  (window as unknown as Record<string, unknown>).__kr = {
+    store,
+    scene,
+    platform,
+    audio: { setPlatformMuted, isPlatformMuted, isEffectivelyMuted },
+  };
 }
 
 void boot();

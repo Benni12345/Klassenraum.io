@@ -1,10 +1,23 @@
+import { setPlatformMuted } from '../audio';
 import type { Platform, PlatformUser } from './types';
+
+function urlMuteAudio(): boolean {
+  try {
+    return new URLSearchParams(location.search).get('muteAudio') === 'true';
+  } catch {
+    return false;
+  }
+}
 
 /** Stand-in when not building for CrazyGames (dev, self-host, Vercel). */
 export function createNoopPlatform(): Platform {
+  const muteAudio = urlMuteAudio();
+  if (muteAudio) setPlatformMuted(true);
+
   return {
     enabled: false,
     disableChat: false,
+    muteAudio,
     hasAdblock: false,
     async init() {},
     loadingDone() {},
@@ -32,7 +45,8 @@ export function createNoopPlatform(): Platform {
     onAuthChange() {
       return () => {};
     },
-    onSettingsChange() {
+    onSettingsChange(listener) {
+      listener({ disableChat: false, muteAudio });
       return () => {};
     },
   };
