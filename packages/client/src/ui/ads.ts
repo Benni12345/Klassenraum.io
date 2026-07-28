@@ -103,29 +103,33 @@ export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?:
   };
 }
 
-/** Persistent banner in the school kiosk (shop UI, not the canvas). */
+/**
+ * Persistent CrazyGames banner in the bottom-center dock (not the shop).
+ * Desktop uses 728×90 so the kiosk keeps vertical space; mobile uses 320×50.
+ */
 export function mountShopBanner(parent: HTMLElement): () => void {
   if (!platform.enabled) return () => {};
 
-  const slot = el('div', 'cg-banner-slot cg-shop-banner');
+  const slot = el('div', 'cg-banner-slot cg-dock-banner');
   slot.id = SHOP_BANNER_ID;
   slot.setAttribute('aria-label', 'Advertisement');
   // Explicit pixel box required by CrazyGames (notVisible / invalidSize otherwise).
-  slot.style.width = '300px';
-  slot.style.height = '250px';
+  slot.style.width = '728px';
+  slot.style.height = '90px';
   parent.appendChild(slot);
 
   const sizeForViewport = () => {
     if (window.matchMedia('(max-width: 900px)').matches) {
       return { width: 320, height: 50 };
     }
-    return { width: 300, height: 250 };
+    // Leaderboard size fits a bottom strip without crushing the classroom/shop.
+    return { width: 728, height: 90 };
   };
 
   let requested = false;
   const request = () => {
     const size = sizeForViewport();
-    slot.classList.toggle('cg-shop-banner-slim', size.height <= 100);
+    slot.classList.toggle('cg-dock-banner-slim', size.height <= 60);
     slot.style.width = `${size.width}px`;
     slot.style.height = `${size.height}px`;
     // Wait until the slot is fully on-screen — CG rejects partially clipped containers.
@@ -138,7 +142,7 @@ export function mountShopBanner(parent: HTMLElement): () => void {
       rect.bottom <= window.innerHeight + 1 &&
       rect.right <= window.innerWidth + 1;
     if (!fullyVisible) {
-      if (import.meta.env.DEV) console.debug('[ads] shop banner not fully visible yet');
+      if (import.meta.env.DEV) console.debug('[ads] dock banner not fully visible yet');
       return;
     }
     platform.showBanner(SHOP_BANNER_ID, size);
@@ -160,7 +164,7 @@ export function mountShopBanner(parent: HTMLElement): () => void {
   };
   window.addEventListener('resize', onResize);
 
-  // Retry once after join when the shop is definitely painted.
+  // Retry once after join when the dock is definitely painted.
   store.on('joined', () => {
     if (!requested) window.setTimeout(request, 500);
   });
