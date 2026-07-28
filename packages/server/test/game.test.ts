@@ -276,15 +276,20 @@ describe('persistence round-trip', () => {
 });
 
 describe('ad boost', () => {
-  it('grants a timed buff and enforces cooldown', async () => {
+  it('grants 10% of HS on hand instantly and enforces cooldown', async () => {
     const { room, clock } = setup();
     const a = await room.hello(undefined, 'Anna', undefined);
+    // Seed some HS so the reward is meaningful.
+    room.click(a.playerId, 20);
+    const before = room.youOf(a.playerId)!.bp;
     room.adBoost(a.playerId);
     const you = room.youOf(a.playerId)!;
-    expect(you.buffs.some((b) => b.id === 'ad')).toBe(true);
-    expect(you.adRewardReadyAt).toBeGreaterThan(clock.now());
+    expect(you.bp).toBeCloseTo(before * 1.1, 5);
+    expect(you.buffs.some((b) => b.id === 'ad')).toBe(false);
+    expect(you.adRewardReadyAt).toBe(clock.now() + 60_000);
+    const mid = you.bp;
     room.adBoost(a.playerId); // should no-op while cooling down
-    expect(room.youOf(a.playerId)!.buffs.filter((b) => b.id === 'ad').length).toBe(1);
+    expect(room.youOf(a.playerId)!.bp).toBeCloseTo(mid, 5);
   });
 });
 

@@ -55,7 +55,7 @@ export interface PlayerYou {
   buffs: Buff[];
   detentionUntil: number;
   stealReadyAt: number;
-  /** Server time when the next rewarded-ad boost may be claimed. */
+  /** Server time when the next rewarded-ad income grant may be claimed. */
   adRewardReadyAt: number;
   /** Lifetime stats for flavor. */
   stolenTotal: number;

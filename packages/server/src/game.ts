@@ -18,8 +18,7 @@ import {
   goalTarget,
   NAME_MAX,
   NAME_MIN,
-  AD_BUFF_MS,
-  AD_BUFF_MULT,
+  adRewardAmount,
   AD_REWARD_COOLDOWN_MS,
   OFFLINE_CAP_MS,
   PATROL_CATCH_CHANCE,
@@ -429,8 +428,10 @@ export class Room {
       this.out.send(p.id, { t: 'error', code: 'adCooldown' });
       return;
     }
+    this.settle(p, now);
+    const reward = adRewardAmount(p.bp);
     p.lastAdRewardAt = now;
-    this.addBuff(p, 'ad', 'buff.ad', AD_BUFF_MULT, AD_BUFF_MS);
+    if (reward > 0) this.earn(p, reward);
     p.dirty = true;
     this.sendYou(p);
   }
