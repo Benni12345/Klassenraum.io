@@ -104,8 +104,8 @@ export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?:
 }
 
 /**
- * Persistent CrazyGames banner in the bottom-center dock (not the shop).
- * Desktop uses 728×90 so the kiosk keeps vertical space; mobile uses 320×50.
+ * Persistent CrazyGames banner on a board-green ledge under the classroom.
+ * Picks the largest supported size that fits the play column width.
  */
 export function mountShopBanner(parent: HTMLElement): () => void {
   if (!platform.enabled) return () => {};
@@ -114,22 +114,26 @@ export function mountShopBanner(parent: HTMLElement): () => void {
   slot.id = SHOP_BANNER_ID;
   slot.setAttribute('aria-label', 'Advertisement');
   // Explicit pixel box required by CrazyGames (notVisible / invalidSize otherwise).
-  slot.style.width = '728px';
-  slot.style.height = '90px';
+  slot.style.width = '468px';
+  slot.style.height = '60px';
   parent.appendChild(slot);
 
   const sizeForViewport = () => {
     if (window.matchMedia('(max-width: 900px)').matches) {
       return { width: 320, height: 50 };
     }
-    // Leaderboard size fits a bottom strip without crushing the classroom/shop.
-    return { width: 728, height: 90 };
+    const avail = parent.clientWidth || window.innerWidth;
+    // Prefer compact main banner; use leaderboard only when the ledge is wide.
+    if (avail >= 760) return { width: 728, height: 90 };
+    if (avail >= 500) return { width: 468, height: 60 };
+    return { width: 320, height: 50 };
   };
 
   let requested = false;
   const request = () => {
     const size = sizeForViewport();
-    slot.classList.toggle('cg-dock-banner-slim', size.height <= 60);
+    slot.classList.toggle('cg-dock-banner-wide', size.width >= 728);
+    slot.classList.toggle('cg-dock-banner-slim', size.width <= 320);
     slot.style.width = `${size.width}px`;
     slot.style.height = `${size.height}px`;
     // Wait until the slot is fully on-screen — CG rejects partially clipped containers.

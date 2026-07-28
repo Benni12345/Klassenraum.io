@@ -53,21 +53,25 @@
       </header>
 
       <main id="game">
-        <div id="canvas-wrap">
-          <canvas id="scene"></canvas>
-          <button id="btn-my-desk" class="btn small"></button>
-          <div id="conn-banner" class="hidden"></div>
-          <div id="chat-panel">
-            <button id="chat-toggle"></button>
-            <div id="chat-body">
-              <div id="chat-log"></div>
-              <div id="emote-row"></div>
-              <div id="chat-input-row">
-                <input id="chat-input" maxlength="140" />
-                <button id="chat-send" class="btn small"></button>
+        <div id="play-col">
+          <div id="canvas-wrap">
+            <canvas id="scene"></canvas>
+            <button id="btn-my-desk" class="btn small"></button>
+            <div id="conn-banner" class="hidden"></div>
+            <div id="chat-panel">
+              <button id="chat-toggle"></button>
+              <div id="chat-body">
+                <div id="chat-log"></div>
+                <div id="emote-row"></div>
+                <div id="chat-input-row">
+                  <input id="chat-input" maxlength="140" />
+                  <button id="chat-send" class="btn small"></button>
+                </div>
               </div>
             </div>
           </div>
+          <!-- Banner sits under the classroom only — same chrome as the HUD/footer. -->
+          <div id="banner-dock" class="hidden"></div>
         </div>
 
         <aside id="shop">
@@ -96,9 +100,6 @@
           </div>
         </aside>
       </main>
-
-      <!-- Persistent CG banner: bottom-center dock (keeps the shop usable). -->
-      <div id="banner-dock" class="hidden"></div>
 
       <footer id="site-footer">
         <p id="footer-tagline"></p>
