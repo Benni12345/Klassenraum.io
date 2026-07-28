@@ -5,13 +5,25 @@ import { el } from './dom';
 import { toast } from './toast';
 
 const SHOP_BANNER_ID = 'cg-shop-banner';
+/** Match CrazyGames midroll pacing so QA isn't flooded with midgame adError. */
+const MIDGAME_MIN_GAP_MS = 3 * 60_000;
+let lastMidgameAt = 0;
 
-/** Safe midgame request — SDK ignores it if too soon / Basic Launch. */
+/** Safe midgame request — SDK ignores early calls; we also throttle client-side. */
 export function tryMidgameAd(reason: string): void {
   if (!platform.enabled) return;
+  const now = Date.now();
+  if (now - lastMidgameAt < MIDGAME_MIN_GAP_MS) return;
+  lastMidgameAt = now;
   void platform.requestMidgameAd().then((shown) => {
-    if (import.meta.env.DEV && shown) console.debug('[ads] midgame shown:', reason);
+    if (shown) lastMidgameAt = Date.now();
+    if (import.meta.env.DEV) console.debug('[ads] midgame', reason, shown ? 'shown' : 'skipped');
   });
+}
+
+/** Call after a rewarded finishes so midgame waits for SDK pacing. */
+export function noteRewardedShown(): void {
+  lastMidgameAt = Date.now();
 }
 
 /**
@@ -71,6 +83,7 @@ export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?:
     busy = false;
     if (watched) {
       store.claimAdBoost();
+      noteRewardedShown();
       toast(t('settings.adBoostDone'), 'gold');
       setTimeout(refresh, 400);
     } else {
@@ -95,22 +108,44 @@ export function mountShopBanner(parent: HTMLElement): () => void {
   const slot = el('div', 'cg-banner-slot cg-shop-banner');
   slot.id = SHOP_BANNER_ID;
   slot.setAttribute('aria-label', 'Advertisement');
+  // Explicit pixel box required by CrazyGames (notVisible / invalidSize otherwise).
+  slot.style.width = '300px';
+  slot.style.height = '250px';
   parent.appendChild(slot);
 
   const sizeForViewport = () => {
-    // Tall rectangle on desktop shop; leaderboard-style strip on narrow/mobile.
     if (window.matchMedia('(max-width: 900px)').matches) {
       return { width: 320, height: 50 };
     }
     return { width: 300, height: 250 };
   };
 
+  let requested = false;
   const request = () => {
     const size = sizeForViewport();
     slot.classList.toggle('cg-shop-banner-slim', size.height <= 100);
+    slot.style.width = `${size.width}px`;
+    slot.style.height = `${size.height}px`;
+    // Wait until the slot is fully on-screen — CG rejects partially clipped containers.
+    const rect = slot.getBoundingClientRect();
+    const fullyVisible =
+      rect.width >= size.width - 1 &&
+      rect.height >= size.height - 1 &&
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= window.innerHeight + 1 &&
+      rect.right <= window.innerWidth + 1;
+    if (!fullyVisible) {
+      if (import.meta.env.DEV) console.debug('[ads] shop banner not fully visible yet');
+      return;
+    }
     platform.showBanner(SHOP_BANNER_ID, size);
+    requested = true;
   };
-  request();
+
+  // Defer first request so layout/flex settles (avoids notVisible on boot).
+  requestAnimationFrame(() => requestAnimationFrame(request));
+  window.setTimeout(request, 1500);
 
   const refresh = window.setInterval(() => {
     if (!slot.isConnected) return;
@@ -122,6 +157,11 @@ export function mountShopBanner(parent: HTMLElement): () => void {
     request();
   };
   window.addEventListener('resize', onResize);
+
+  // Retry once after join when the shop is definitely painted.
+  store.on('joined', () => {
+    if (!requested) window.setTimeout(request, 500);
+  });
 
   return () => {
     clearInterval(refresh);
