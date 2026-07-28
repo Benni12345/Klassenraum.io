@@ -78,9 +78,9 @@ export function initShop(): void {
     boostSlot.classList.remove('hidden');
     mountRewardedBoostButton(boostSlot);
 
-    const bannerSlot = id('shop-banner-slot');
-    bannerSlot.classList.remove('hidden');
-    mountShopBanner(bannerSlot);
+    const bannerDock = id('banner-dock');
+    bannerDock.classList.remove('hidden');
+    mountShopBanner(bannerDock);
   }
 
   store.on('you', refresh);

@@ -361,32 +361,35 @@ input {
   }
 }
 
-#shop-banner-slot {
+/* Bottom-center CG banner dock — between game and site footer */
+#banner-dock {
   flex-shrink: 0;
   display: flex;
   justify-content: center;
-  padding-top: 8px;
-  border-top: 2px dashed var(--paper-line);
+  align-items: center;
+  padding: 6px 8px;
+  background: #1a1713;
+  border-top: 2px solid #0f0d0b;
 }
 
-.cg-shop-banner {
-  width: 300px;
-  height: 250px;
+.cg-dock-banner {
+  width: 728px;
+  height: 90px;
   margin: 0 auto;
   flex-shrink: 0;
 }
 
-.cg-shop-banner-slim {
+.cg-dock-banner-slim {
   width: 320px;
   height: 50px;
 }
 
 .cg-banner-slot {
-  margin: 12px auto 0;
-  min-height: 250px;
+  margin: 0 auto;
+  min-height: 90px;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   background: repeating-linear-gradient(
     -45deg,
     #ebe4d2,
@@ -395,6 +398,13 @@ input {
     #e2d8c0 16px
   );
   border: 2px dashed #b8a882;
+}
+
+/* Modal banners still use the taller medium rectangle */
+#cg-modal-banner.cg-banner-slot {
+  margin: 12px auto 0;
+  min-height: 250px;
+  align-items: flex-start;
 }
 
 .ad-reward-row {
@@ -1137,6 +1147,14 @@ input {
     flex: 1;
     border-left: none;
     border-top: 4px solid var(--ink);
+  }
+
+  #banner-dock {
+    padding: 4px 6px;
+  }
+
+  .cg-banner-slot {
+    min-height: 50px;
   }
 
   #bp-value {
