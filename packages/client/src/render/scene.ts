@@ -1,4 +1,4 @@
-import { SEATS_PER_ROW } from '@shared/balance';
+import { NAME_MAX, SEATS_PER_ROW } from '@shared/balance';
 import type { PlayerPublic } from '@shared/types';
 import { t } from '../i18n';
 import { fmt } from '../format';
@@ -25,6 +25,10 @@ const DESK_TOP = 78;
 const CELL_W = 36;
 const ROW_H = 36;
 const GRID_X = 12;
+/** Characters that fit under one desk; hovering reveals the full username. */
+const DESK_LABEL_MAX = 12;
+/** Characters per chalkboard leaderboard entry (three entries share one line). */
+const BOARD_NAME_MAX = 9;
 
 export interface DeskHit {
   player: PlayerPublic;
@@ -49,6 +53,8 @@ export class Scene {
   private scale = 3;
   /** Horizontal inset (world units) centering the fixed-width classroom. */
   private contentOffsetX = 0;
+  /** Vertical inset (world units) centering short rooms in tall viewports. */
+  private contentOffsetY = 0;
   private camY = 0;
   private viewW = 0;
   private viewH = 0;
@@ -151,7 +157,7 @@ export class Scene {
     const px = (ev.clientX - rect.left) * dpr;
     const py = (ev.clientY - rect.top) * dpr;
     const x = px / this.scale - this.contentOffsetX;
-    const y = py / this.scale + this.camY;
+    const y = py / this.scale + this.camY - this.contentOffsetY;
     if (x < 0 || x > WORLD_W) return null;
     return { x, y };
   }
@@ -173,7 +179,7 @@ export class Scene {
     const dpr = window.devicePixelRatio || 1;
     return {
       x: rect.left + ((this.contentOffsetX + pos.x + DESK_W / 2) * this.scale) / dpr,
-      y: rect.top + ((pos.y + 4 - this.camY) * this.scale) / dpr,
+      y: rect.top + ((pos.y + 4 - this.camY + this.contentOffsetY) * this.scale) / dpr,
     };
   }
 
@@ -193,7 +199,13 @@ export class Scene {
     this.scale = Math.max(2, Math.floor(w / WORLD_W));
     this.viewW = w / this.scale;
     this.viewH = h / this.scale;
+    this.updateOffsets();
+  }
+
+  /** Centers the fixed-size classroom in whatever viewport we were given. */
+  private updateOffsets(): void {
     this.contentOffsetX = (this.viewW - WORLD_W) / 2;
+    this.contentOffsetY = Math.max(0, Math.floor((this.viewH - this.worldH()) / 2));
   }
 
   // ------------------------------------------------------------------ Frame
@@ -205,6 +217,7 @@ export class Scene {
 
     store.frameAdvance();
     this.fx.update(dt);
+    this.updateOffsets();
     this.draw(now / 1000);
 
     requestAnimationFrame(() => this.frame());
@@ -218,10 +231,10 @@ export class Scene {
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#211d18';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.setTransform(this.scale, 0, 0, this.scale, 0, -camY * this.scale);
+    ctx.setTransform(this.scale, 0, 0, this.scale, 0, (this.contentOffsetY - camY) * this.scale);
 
-    const viewTop = camY;
-    const viewBottom = camY + this.viewH;
+    const viewTop = camY - this.contentOffsetY;
+    const viewBottom = camY + this.viewH - this.contentOffsetY;
 
     this.drawRoomShell(viewTop, viewBottom, time);
     ctx.save();
@@ -234,18 +247,21 @@ export class Scene {
 
   private drawRoomShell(viewTop: number, viewBottom: number, time: number): void {
     const { ctx } = this;
-    const worldH = Math.max(this.worldH(), viewBottom);
+    // Wall and floor stretch to the viewport edges in every direction, so a
+    // short room in a tall phone viewport still reads as one continuous room.
+    const wallTop = Math.min(0, viewTop);
+    const floorBottom = Math.max(this.worldH(), viewBottom);
     const viewW = this.viewW;
 
     // Floor with plank lines — extend across the full viewport width.
     ctx.fillStyle = PAL.floor;
-    ctx.fillRect(0, WALL_H, viewW, worldH - WALL_H);
+    ctx.fillRect(0, WALL_H, viewW, floorBottom - WALL_H);
     ctx.fillStyle = PAL.floorLine;
-    for (let y = WALL_H + 6; y < worldH; y += 7) {
+    for (let y = WALL_H + 6; y < floorBottom; y += 7) {
       if (y > viewTop - 8 && y < viewBottom + 8) ctx.fillRect(0, y, viewW, 1);
     }
     // Plank joints, pseudo-random but stable.
-    for (let y = WALL_H; y < worldH; y += 7) {
+    for (let y = WALL_H; y < floorBottom; y += 7) {
       if (y < viewTop - 8 || y > viewBottom + 8) continue;
       for (let k = 0; k < 4; k++) {
         const jx = ((y * 37 + k * 61) % viewW + viewW) % viewW;
@@ -256,7 +272,7 @@ export class Scene {
     if (viewTop < WALL_H + 8) {
       // Wall — extend across the full viewport width.
       ctx.fillStyle = PAL.wall;
-      ctx.fillRect(0, 0, viewW, WALL_H);
+      ctx.fillRect(0, wallTop, viewW, WALL_H - wallTop);
       ctx.fillStyle = PAL.wallDark;
       ctx.fillRect(0, WALL_H - 2, viewW, 2);
 
@@ -329,7 +345,11 @@ export class Scene {
     // Line 3: top three by production
     const online = [...store.roster.values()].filter((p) => p.online);
     online.sort((a, b) => b.bps - a.bps);
-    const parts = online.slice(0, 3).map((p, i) => `${i + 1}.${p.name.toUpperCase().slice(0, 7)}`);
+    const parts = online
+      .slice(0, 3)
+      .map((p, i) => `${i + 1}.${p.name.toUpperCase().slice(0, BOARD_NAME_MAX)}`);
+    // Drop entries that no longer fit rather than clipping a name mid-word.
+    while (parts.length > 1 && textWidth(parts.join(' ')) > bw - 30) parts.pop();
     drawText(ctx, parts.join(' '), bx, 30, PAL.chalk);
     // Goal level chalk note
     drawText(ctx, `LVL ${goal.level + 1}`, bx + bw, 30, PAL.chalkDim, { align: 'right' });
@@ -359,8 +379,10 @@ export class Scene {
 
       ctx.globalAlpha = 1;
 
-      // Name caption below the student, like a class photo.
-      const label = p.name.toUpperCase().slice(0, 9) + (p.grade > 0 ? `★${p.grade}` : '');
+      // Name caption below the student, like a class photo. A desk cell is only
+      // 36 world px wide, so the caption is capped — hovering shows the full
+      // username on a plate that may overlap neighbouring desks.
+      const label = p.name.toUpperCase().slice(0, DESK_LABEL_MAX) + (p.grade > 0 ? `★${p.grade}` : '');
       const nameColor = isYou ? '#ffd869' : sleeping ? '#8d94a0' : '#fdfaf2';
       drawText(ctx, label, pos.x + DESK_W / 2, pos.y + 24, nameColor, {
         align: 'center',
@@ -390,6 +412,27 @@ export class Scene {
         ctx.strokeRect(pos.x - 1.5, pos.y - 5.5, DESK_W + 3, 36);
       }
     }
+
+    // Full username of the hovered desk, on top of everything else.
+    const hovered = this.hoverSeatPlayer;
+    if (hovered) this.drawNamePlate(hovered);
+  }
+
+  /** Untruncated username (up to NAME_MAX) on a plate above the desk. */
+  private drawNamePlate(p: PlayerPublic): void {
+    const { ctx } = this;
+    const pos = seatPos(p.seat);
+    const text = p.name.toUpperCase().slice(0, NAME_MAX);
+    const w = textWidth(text) + 6;
+    const cx = pos.x + DESK_W / 2;
+    const x = Math.round(Math.max(1, Math.min(cx - w / 2, WORLD_W - w - 1)));
+    const y = pos.y - 14;
+    ctx.fillStyle = 'rgba(20,16,12,0.88)';
+    ctx.fillRect(x, y, w, 10);
+    ctx.fillStyle = '#e8b23a';
+    ctx.fillRect(x, y, w, 1);
+    ctx.fillRect(x, y + 9, w, 1);
+    drawText(ctx, text, x + w / 2, y + 2, '#fdfaf2', { align: 'center' });
   }
 
   private drawTeacher(time: number): void {

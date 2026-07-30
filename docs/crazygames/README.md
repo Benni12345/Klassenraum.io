@@ -17,6 +17,16 @@ Upload these files in the CrazyGames Developer Portal metadata form.
 | `preview-landscape.mp4` | 1920×1080 | Landscape hover video |
 | `preview-portrait.mp4` | 1080×1620 | Portrait hover video |
 
+## Rules baked into the generator
+
+- Every asset uses the title **Classroom.io** — the covers render it from
+  `scripts/marketing/cover.html`, and both preview videos open on the matching
+  cover as their first frame.
+- The default mouse cursor and mobile tap indicators are suppressed while
+  recording. A stylized gloved-hand pointer follows the synthetic mouse instead,
+  so the interactions stay readable.
+- Tutorial and hint overlays are pre-dismissed, so the videos show gameplay only.
+
 ## Regenerate
 
 Requires a running game server (`npm start`) and Playwright Chromium:

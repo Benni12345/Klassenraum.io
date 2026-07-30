@@ -357,6 +357,27 @@ export const gearIcon = px(
 
 export const zzzIcon = px(['###', '..#', '.#.', '#..', '###'], { '#': '#8ca3c7' });
 
+/**
+ * Rectangular video badge with a play symbol — CrazyGames requires this shape
+ * on every rewarded-ad button so players recognise it as "watch a video".
+ */
+export const adPlayIcon = px(
+  [
+    '#############',
+    '#...........#',
+    '#..PP.......#',
+    '#..PPPP.....#',
+    '#..PPPPPP...#',
+    '#..PPPPPPPP.#',
+    '#..PPPPPP...#',
+    '#..PPPP.....#',
+    '#..PP.......#',
+    '#...........#',
+    '#############',
+  ],
+  { '#': '#26221c', P: '#fdf6e3' },
+);
+
 const EMOTE_MAPS: Array<{ rows: string[]; pal: Record<string, string> }> = [
   // 0 thumbs up
   { rows: ['...##', '..##.', '####.', '####.', '####.', '.###.'], pal: { '#': '#e8c39e' } },

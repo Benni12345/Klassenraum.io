@@ -9,6 +9,7 @@ import {
 } from '@shared/balance';
 import type { ServerMsg } from '@shared/protocol';
 import type {
+  AvatarSpec,
   ChatEntry,
   GoalState,
   LeaderboardRow,
@@ -200,6 +201,10 @@ class Store {
 
   rename(name: string): void {
     this.net.send({ t: 'rename', name });
+  }
+
+  setAvatar(avatar: AvatarSpec): void {
+    this.net.send({ t: 'rename', name: '', avatar });
   }
 
   requestLeaderboard(): void {

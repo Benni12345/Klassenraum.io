@@ -33,7 +33,7 @@ Locked decisions:
 - **Upgrades**: per generator at 10/25/50/100 owned → that generator ×2
   (cost = baseCost × 30/300/3.000/30.000). Click upgrades at 100/1.000/10.000 total clicks → click ×2.
 - **Prestige — „Versetzung"**: reset the run for **Goldsterne** ⭐.
-  Stars gained = `floor((runHS / 1e9) ^ 0.6)`, each star +10 % production forever.
+  Stars gained = `floor((runHS / 1e6) ^ 0.6)`, each star +10 % production forever.
   Graduations advance your grade badge: 1. Klasse → … → 13. Klasse → Uni → Prof.
 - **Offline**: your desk keeps producing for up to 8 h while you're away (base rate, no buffs).
 
@@ -78,11 +78,28 @@ Random event every 4–8 min:
   code-authored pixel sprites + 5×7 bitmap font (incl. ÄÖÜß), DOM for all idle-game UI.
   Zero runtime npm dependencies. Numbers are plain doubles (fine until ~1e308;
   swap in break_infinity.js if balance ever gets there).
-- **School-friendly**: silent by default, timestamp-based (background-tab safe), auto-reconnect
-  with resync, anonymous localStorage token accounts, and a **boss key** (Esc) that swaps the
-  page to a fake math-notes document incl. title/favicon.
+- **School-friendly**: silent by default (music/SFX can be toggled in Settings),
+  timestamp-based (background-tab safe), auto-reconnect with resync, anonymous
+  localStorage token accounts, and a **boss key** (Tab) that swaps the page to a
+  fake math-notes document incl. title/favicon.
+
+## Save system
+
+- **Server-authoritative**: game progress (economy, upgrades, stars, etc.) lives
+  in SQLite on the game server and is flushed at most once every 30 seconds.
+- **localStorage** only holds the anonymous guest token plus UI preferences
+  (language, music/SFX, tutorial state), also written at most once every 30 s.
+- On CrazyGames, the save is linked to the CrazyGames user via JWT (`userId`).
+  Guest progress is copied into a brand-new account **once**; later logins
+  resume the account save without re-importing guest data.
+
+## Multiplayer
+
+Classroom.io is a real multiplayer game: every player sits in the same global
+classroom over WebSockets. CrazyGames room data, invite link/button and the
+join-room listener are wired so friends can drop into the shared classroom.
 
 ## Not in this version (stretch)
 
 Attendance streaks, cosmetics/desk skins, seasons ("Schuljahre"), unlockable maps
-(Bibliothek, Turnhalle), profanity filter, account claiming, break_infinity numbers.
+(Bibliothek, Turnhalle), break_infinity numbers.

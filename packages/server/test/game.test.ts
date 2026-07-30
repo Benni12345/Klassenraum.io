@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import { PRESTIGE_BASE } from '../../shared/src/balance.js';
 import type { ServerMsg } from '../../shared/src/protocol.js';
+import type { CrazyGamesTokenPayload } from '../src/cgAuth.js';
 import { Db } from '../src/db.js';
-import { Room, sanitizeName } from '../src/game.js';
+import { Room, guestName, sanitizeChosenName, sanitizeName } from '../src/game.js';
+
+/** Fake CrazyGames JWT: `cg:<userId>:<username>` (long enough to be parsed). */
+async function fakeVerify(token: string): Promise<CrazyGamesTokenPayload> {
+  const m = /^cg:([^:]+):([^:.]+)\.*$/.exec(token);
+  if (!m) throw new Error('invalid token');
+  return { userId: m[1]!, username: m[2]!, gameId: 'classroom' };
+}
+
+function cgToken(userId: string, username: string): string {
+  return `cg:${userId}:${username}`.padEnd(24, '.');
+}
 
 function setup(rng: () => number = () => 0.99) {
   let now = 1_000_000_000;
@@ -21,7 +34,7 @@ function setup(rng: () => number = () => 0.99) {
     broadcast: (m: ServerMsg) => broadcasts.push(m),
   };
   const db = new Db(':memory:');
-  const room = new Room(db, out, clock.now, rng);
+  const room = new Room(db, out, clock.now, rng, undefined, fakeVerify);
   return { room, db, clock, sent, broadcasts };
 }
 
@@ -176,8 +189,8 @@ describe('prestige', () => {
     const { room } = setup();
     const a = await room.hello(undefined, 'Anna', undefined);
     const p = (room as any).players.get(a.playerId);
-    p.runBp = 5e9;
-    p.lifetimeBp = 5e9;
+    p.runBp = PRESTIGE_BASE * 5;
+    p.lifetimeBp = PRESTIGE_BASE * 5;
     p.bp = 123;
     p.gens[3] = 7;
     room.prestige(a.playerId);
@@ -186,7 +199,7 @@ describe('prestige', () => {
     expect(you.grade).toBe(1);
     expect(you.bp).toBe(0);
     expect(you.gens.every((g: number) => g === 0)).toBe(true);
-    expect(you.lifetimeBp).toBeGreaterThanOrEqual(5e9);
+    expect(you.lifetimeBp).toBeGreaterThanOrEqual(PRESTIGE_BASE * 5);
   });
 
   it('rejects prestige below threshold', async () => {
@@ -300,5 +313,112 @@ describe('name sanitization', () => {
     expect(sanitizeName('x')).toBe(null);
     expect(sanitizeName(12 as unknown as string)).toBe(null);
     expect(sanitizeName('a'.repeat(40))!.length).toBe(20);
+  });
+
+  it('rejects profane player-chosen names', () => {
+    expect(sanitizeChosenName('xXfuckerXx')).toBe(null);
+    expect(sanitizeChosenName('Sh1tLord')).toBe(null);
+    expect(sanitizeChosenName('Anna')).toBe('Anna');
+  });
+
+  it('names guests with a random stylized suffix', () => {
+    expect(guestName()).toMatch(/^Student_\d{4}$/);
+  });
+
+  it('keeps the CrazyGames username and blocks in-game renames', async () => {
+    const { room, sent } = setup();
+    const a = await room.hello(undefined, undefined, undefined, cgToken('u1', 'CoolPlayer'));
+    expect(room.youOf(a.playerId)!.name).toBe('CoolPlayer');
+    expect(room.youOf(a.playerId)!.cgLinked).toBe(true);
+    room.rename(a.playerId, 'SomethingElse');
+    expect(room.youOf(a.playerId)!.name).toBe('CoolPlayer');
+    expect(
+      (sent.get(a.playerId) ?? []).some((m) => m.t === 'error' && m.code === 'nameLocked'),
+    ).toBe(true);
+  });
+});
+
+describe('CrazyGames account linking', () => {
+  it('migrates a guest save into a brand-new account exactly once', async () => {
+    const { room, clock } = setup();
+
+    // 1. Guest in an incognito tab buys one Stubby Pencil.
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 100;
+    room.buy(guest.playerId, 0, 1);
+    expect(room.youOf(guest.playerId)!.gens[0]).toBe(1);
+    room.disconnect(guest.playerId);
+
+    // 2. Logs into a fresh CrazyGames account — guest progress is copied over.
+    const linked = await room.hello(guest.newToken, undefined, undefined, cgToken('u1', 'Player'));
+    expect(linked.playerId).not.toBe(guest.playerId);
+    expect(room.youOf(linked.playerId)!.gens[0]).toBe(1);
+    (room as any).players.get(linked.playerId).bp = 1_000;
+    room.buy(linked.playerId, 0, 1);
+    expect(room.youOf(linked.playerId)!.gens[0]).toBe(2);
+    room.disconnect(linked.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    // 3. Logs out: the guest save is untouched and keeps playing separately.
+    const out1 = await room.hello(guest.newToken, undefined, undefined);
+    expect(out1.playerId).toBe(guest.playerId);
+    expect(room.youOf(guest.playerId)!.gens[0]).toBe(1);
+    (room as any).players.get(guest.playerId).bp = 1e6;
+    room.buy(guest.playerId, 0, 1);
+    room.buy(guest.playerId, 0, 1);
+    expect(room.youOf(guest.playerId)!.gens[0]).toBe(3);
+    room.disconnect(guest.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    // 4. Logs back into the same account: no second migration.
+    const back = await room.hello(guest.newToken, undefined, undefined, cgToken('u1', 'Player'));
+    expect(back.playerId).toBe(linked.playerId);
+    expect(room.youOf(back.playerId)!.gens[0]).toBe(2);
+  });
+
+  it('never copies an already-migrated guest save into another account', async () => {
+    const { room, clock } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 100;
+    room.buy(guest.playerId, 0, 1);
+    room.disconnect(guest.playerId);
+
+    await room.hello(guest.newToken, undefined, undefined, cgToken('u1', 'First'));
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const second = await room.hello(guest.newToken, undefined, undefined, cgToken('u2', 'Second'));
+    expect(room.youOf(second.playerId)!.gens[0]).toBe(0);
+  });
+
+  it('resumes an existing account and refreshes the username', async () => {
+    const { room, clock } = setup();
+    const first = await room.hello(undefined, undefined, undefined, cgToken('u9', 'OldName'));
+    (room as any).players.get(first.playerId).bp = 100;
+    room.buy(first.playerId, 0, 1);
+    room.disconnect(first.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const again = await room.hello(undefined, undefined, undefined, cgToken('u9', 'NewName'));
+    expect(again.playerId).toBe(first.playerId);
+    expect(room.youOf(again.playerId)!.name).toBe('NewName');
+    expect(room.youOf(again.playerId)!.gens[0]).toBe(1);
+  });
+});
+
+describe('chat moderation', () => {
+  it('masks profanity in passed notes', async () => {
+    const { room, broadcasts } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    room.chatMessage(a.playerId, 'you are a fucking idiot');
+    const msg = broadcasts.filter((m) => m.t === 'chat').pop() as Extract<
+      ServerMsg,
+      { t: 'chat' }
+    >;
+    expect(msg.msg.text.toLowerCase()).not.toContain('fucking');
+    expect(msg.msg.text).toContain('*');
   });
 });

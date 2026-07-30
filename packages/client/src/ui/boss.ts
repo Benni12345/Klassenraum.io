@@ -3,6 +3,7 @@ import { t } from '../i18n';
 import { platform } from '../platform';
 import { store } from '../state';
 import { id } from './dom';
+import { pushOverlay } from './overlay';
 
 const DOC_ICON = px(
   ['WWWWW.', 'WggW#.', 'WWWWWW', 'WggggW', 'WWWWWW', 'WggggW', 'WWWWWW'],
@@ -10,7 +11,8 @@ const DOC_ICON = px(
 );
 
 let bossActive = false;
-let gameTitle = 'Classroom.io';
+let releaseOverlay: (() => void) | null = null;
+const gameTitle = 'Classroom.io';
 let gameIcon = '';
 let bossIcon = '';
 
@@ -20,13 +22,22 @@ export function initBoss(): void {
   setFavicon(gameIcon);
   document.title = gameTitle;
 
-  document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape') {
+  // Tab, not Esc: Esc is the browser shortcut for leaving fullscreen.
+  // Capture phase so the shortcut also works while an input has focus.
+  document.addEventListener(
+    'keydown',
+    (ev) => {
+      if (ev.key !== 'Tab' || ev.ctrlKey || ev.metaKey || ev.altKey) return;
       ev.preventDefault();
       toggleBoss();
-    }
-  });
+    },
+    true,
+  );
   id('boss-close').addEventListener('click', () => toggleBoss(false));
+}
+
+export function isBossActive(): boolean {
+  return bossActive;
 }
 
 export function toggleBoss(force?: boolean): void {
@@ -34,11 +45,14 @@ export function toggleBoss(force?: boolean): void {
   id('boss-overlay').classList.toggle('hidden', !bossActive);
   id('app').style.visibility = bossActive ? 'hidden' : 'visible';
   if (bossActive) {
+    releaseOverlay = pushOverlay();
     platform.onGameplayStop();
     document.title = t('boss.title');
     id('boss-doc-title').textContent = t('boss.title');
     setFavicon(bossIcon);
   } else {
+    releaseOverlay?.();
+    releaseOverlay = null;
     if (store.you && store.status === 'open') platform.onGameplayStart();
     document.title = gameTitle;
     setFavicon(gameIcon);

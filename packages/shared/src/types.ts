@@ -60,6 +60,11 @@ export interface PlayerYou {
   /** Lifetime stats for flavor. */
   stolenTotal: number;
   lostTotal: number;
+  /**
+   * True when this save is bound to a CrazyGames account. The name then mirrors
+   * the CrazyGames username and must not be editable in-game.
+   */
+  cgLinked: boolean;
 }
 
 export type EventKind = 'quiz' | 'patrol' | 'sub';

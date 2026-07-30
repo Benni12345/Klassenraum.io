@@ -43,18 +43,22 @@
             session is active; not permanently archived)
           </li>
           <li>
-            <strong>Local storage:</strong> an anonymous account token in your browser
-            (localStorage) so your progress is recognized on return visits
+            <strong>Local storage:</strong> an anonymous guest token and UI preferences (language,
+            music/SFX, tutorial state) in your browser (localStorage). Preferences are written at
+            most once every 30 seconds. Game progress itself is <strong>not</strong> stored in
+            localStorage — it lives on our game server.
           </li>
           <li>
             <strong>CrazyGames account (when applicable):</strong> if you play on CrazyGames and
-            sign in, progress may be linked to your CrazyGames user ID, username, and avatar via
-            their SDK
+            sign in, progress is linked to your CrazyGames user ID and username via their SDK
+            (JWT verified on our server). Guest progress is copied into a new CrazyGames-linked
+            account once; later logins resume that account without re-importing guest data.
           </li>
         </ul>
         <p>
-          We do not require email/password registration. A play account is created automatically
-          on first visit (or linked when you sign in via CrazyGames).
+          We do not require email/password registration. On CrazyGames, logged-in players use
+          their CrazyGames username automatically; guests get a stylized name like
+          <code>Student_0192</code>. A play account is created automatically on first visit.
         </p>
 
         <h2>3. Purpose of processing</h2>

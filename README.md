@@ -4,11 +4,11 @@ A multiplayer browser idle game where everyone shares **one global classroom**. 
 English-first UI (German toggle in settings), built to run quietly on a school Chromebook.
 
 Sammle Hirnschmalz, kauf dir vom Bleistiftstummel bis zum Galaxienhirn hoch, klau deinen
-Mitschülern per Papierflieger die Punkte — und drück Esc, wenn der Lehrer kommt.
+Mitschülern per Papierflieger die Punkte — und drück Tab, wenn der Lehrer kommt.
 
 ![Classroom.io](docs/screenshot.png)
 
-| Take a seat | Throw paper airplanes | Boss key (Esc) |
+| Take a seat | Throw paper airplanes | Boss key (Tab) |
 |---|---|---|
 | ![Join](docs/join.png) | ![Steal](docs/steal.png) | ![Boss key](docs/boss.png) |
 
@@ -19,9 +19,10 @@ Mitschülern per Papierflieger die Punkte — und drück Esc, wenn der Lehrer ko
 - Real stealing: throw paper airplanes at other desks (5 min cooldown, capped, risky during patrol)
 - Synchronized room events: pop quiz, teacher patrol, substitute period
 - Chat (passed notes), emotes, offline progress up to 8 h
-- Boss key: **Esc** swaps to a fake math-notes page (title + favicon included)
+- Boss key: **Tab** swaps to a fake math-notes page (title + favicon included)
 - Server-authoritative: all production, clicks, buys and steals are validated server-side
-- CrazyGames Full Launch: SDK ads, account linking, gameplay start / happy time
+- CrazyGames Full Launch: SDK ads, account linking, multiplayer room/invite, gameplay start / happy time
+- Procedural background music, skippable tutorial + persistent interaction hints
 
 ## Development
 

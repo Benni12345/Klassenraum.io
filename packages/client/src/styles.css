@@ -38,6 +38,51 @@ body {
   image-rendering: pixelated;
 }
 
+/* --------------------------------------------------------------- Scrollbars */
+
+/*
+ * Every scrollable surface uses the game's chalk-and-paper look — CrazyGames
+ * does not allow default browser scrollbars in a game frame.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold-dark) rgba(38, 34, 28, 0.25);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(38, 34, 28, 0.18);
+  border-radius: 0;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--gold-dark);
+  border: 2px solid var(--ink);
+  border-radius: 0;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Board-green surfaces get a lighter thumb so it stays visible. */
+.on-board {
+  scrollbar-color: #9fd4a8 rgba(0, 0, 0, 0.3);
+}
+
+.on-board::-webkit-scrollbar-thumb {
+  background: #9fd4a8;
+  border-color: var(--board-dark);
+}
+
 button {
   font-family: var(--font);
   font-weight: 700;
@@ -186,6 +231,38 @@ input {
   font-size: 12px;
   white-space: nowrap;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+/*
+ * Player name chip: the CrazyGames username for logged-in players, otherwise
+ * the stylized guest name. Sized for the full 20 characters, never ellipsised.
+ */
+#player-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 9px;
+  background: var(--board-dark);
+  border: 2px solid #9fd4a8;
+  color: #eef3ea;
+  font-size: 12px;
+}
+
+#player-chip::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  background: var(--green);
+}
+
+#player-name {
+  white-space: nowrap;
+}
+
+#btn-prestige.ready {
+  animation: ad-pulse 2.4s ease-in-out infinite;
 }
 
 /* ----------------------------------------------------------------- Layout */
@@ -346,7 +423,22 @@ input {
   width: 100%;
   font-size: 13px;
   padding: 10px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   animation: ad-pulse 2.4s ease-in-out infinite;
+}
+
+/* Rectangular video badge with a play symbol, required on rewarded buttons. */
+.ad-play-badge {
+  flex: 0 0 auto;
+  width: 39px;
+  height: 33px;
+}
+
+.ad-boost-label {
+  min-width: 0;
 }
 
 .ad-boost-btn:disabled {
@@ -372,73 +464,59 @@ input {
 }
 
 /*
- * Banner ledge under the classroom — board-green chrome like the HUD/footer,
- * so the ad reads as part of the game frame instead of a floating overlay.
+ * Banner ledge under the game — board-green chrome like the HUD/footer, so the
+ * ad reads as part of the game frame. The dock is only rendered when a banner
+ * was actually requested (never behind an ad blocker), so the classroom keeps
+ * the full height in that case.
  */
 #banner-dock {
   flex-shrink: 0;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  padding: 8px 16px;
   background: var(--board);
   border-top: 3px solid var(--board-dark);
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.06);
 }
 
-#banner-dock::before,
-#banner-dock::after {
-  content: '';
-  flex: 1;
-  height: 2px;
-  max-width: 72px;
-  background: linear-gradient(90deg, transparent, #9fd4a8, transparent);
-  opacity: 0.45;
-}
-
-.cg-dock-banner {
-  width: 468px;
-  height: 60px;
-  margin: 0;
-  flex-shrink: 0;
-}
-
-.cg-dock-banner-wide {
-  width: 728px;
-  height: 90px;
-}
-
-.cg-dock-banner-slim {
-  width: 320px;
-  height: 50px;
-}
-
+/*
+ * The slot keeps an exact pixel box. Ad iframes are clamped to it so leaving
+ * fullscreen can never leave the container stretched.
+ */
 .cg-banner-slot {
-  margin: 0 auto;
+  flex: 0 0 auto;
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
+  width: 468px;
+  height: 60px;
   background: var(--board-dark);
   border: 3px solid var(--ink);
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.35);
 }
 
-/* Modal banners keep the taller medium rectangle + empty-state hatch */
-#cg-modal-banner.cg-banner-slot {
-  margin: 12px auto 0;
-  min-height: 250px;
-  align-items: flex-start;
-  background: repeating-linear-gradient(
-    -45deg,
-    #ebe4d2,
-    #ebe4d2 8px,
-    #e2d8c0 8px,
-    #e2d8c0 16px
-  );
-  border: 2px dashed #b8a882;
-  box-shadow: none;
+.cg-banner-wide {
+  width: 728px;
+  height: 90px;
+}
+
+.cg-banner-slim {
+  width: 320px;
+  height: 50px;
+}
+
+.cg-banner-slot > * {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.cg-banner-slot iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .ad-reward-row {
@@ -889,30 +967,144 @@ input {
   padding: 16px;
 }
 
+/*
+ * Modals are a sticky header + scrolling body + sticky action bar, so the close
+ * button and the primary action are always reachable without scrolling to the
+ * end of a long page (How to play, Settings).
+ */
 .modal {
   background: var(--paper);
   border: 3px solid var(--ink);
   box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.45);
   max-width: 460px;
   width: 100%;
-  max-height: 86vh;
-  overflow-y: auto;
-  padding: 16px;
+  max-height: min(86vh, 640px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.modal h2 {
-  margin: 0 0 10px;
-  font-size: 16px;
+.modal-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--paper-dark);
+  border-bottom: 3px solid var(--ink);
+}
+
+.modal-head h2 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
   text-transform: uppercase;
   letter-spacing: 1px;
-  border-bottom: 3px solid var(--ink);
-  padding-bottom: 6px;
+}
+
+.modal-close {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  line-height: 1;
+  font-size: 20px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+}
+
+.modal-close:hover {
+  background: var(--red);
+  color: #fff;
+}
+
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.modal-foot {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  background: var(--paper-dark);
+  border-top: 3px solid var(--ink);
+}
+
+.modal-foot:empty {
+  display: none;
+}
+
+.modal h3 {
+  margin: 14px 0 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modal-body > h3:first-child {
+  margin-top: 0;
 }
 
 .modal p {
   font-weight: 400;
   font-size: 13px;
   line-height: 1.45;
+  margin: 0 0 8px;
+}
+
+.modal-warn {
+  border-left: 4px solid var(--red);
+  background: #f7e6e0;
+  padding: 8px 10px;
+  color: #7d2f2f;
+  font-weight: 700;
+}
+
+.settings-h {
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 3px;
+}
+
+.settings-note {
+  font-size: 11px;
+  color: #6e5f46;
+  font-style: italic;
+}
+
+.name-readonly {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  background: #fff;
+  border: 2px dashed var(--paper-line);
+  font-size: 14px;
+  /* CrazyGames usernames are 6–20 chars and must show in full. */
+  word-break: break-all;
+}
+
+.toggle-row {
+  justify-content: space-between;
+}
+
+.btn.toggle {
+  min-width: 56px;
+}
+
+.btn.toggle.on {
+  background: var(--green);
+  color: #fff;
+}
+
+.howto-h {
+  color: var(--board);
 }
 
 .modal .row {
@@ -921,13 +1113,6 @@ input {
   align-items: center;
   margin: 10px 0;
   flex-wrap: wrap;
-}
-
-.modal .actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 14px;
 }
 
 .modal input[type='text'],
@@ -1164,36 +1349,201 @@ input {
   }
 }
 
+/* --------------------------------------------------- Tutorial + hint arrows */
+
+#hint-root {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+
+#hint-root > * {
+  pointer-events: auto;
+}
+
+.tut-card {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 24px));
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.45);
+}
+
+.tut-step {
+  font-size: 11px;
+  color: #6e5f46;
+  letter-spacing: 1px;
+}
+
+.tut-title {
+  margin: 2px 0 6px;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--board);
+}
+
+.tut-body {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.tut-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tut-next {
+  min-width: 92px;
+}
+
+/* Spotlight for the element a tutorial step talks about. */
+.tut-target {
+  position: relative;
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+  animation: tut-glow 1.4s ease-in-out infinite;
+}
+
+@keyframes tut-glow {
+  50% {
+    outline-color: #fff3c9;
+  }
+}
+
+.hint-arrow {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  pointer-events: none;
+  animation: hint-bob 1s ease-in-out infinite;
+  z-index: 41;
+}
+
+.hint-label {
+  background: var(--gold);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
+  padding: 4px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.hint-tip {
+  color: var(--gold);
+  font-size: 14px;
+  line-height: 1;
+  text-shadow: 1px 1px 0 var(--ink);
+}
+
+.hint-arrow.below {
+  flex-direction: column-reverse;
+}
+
+.hint-arrow.below .hint-tip {
+  transform: rotate(180deg);
+}
+
+@keyframes hint-bob {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* ------------------------------------------------------------ Mobile tabs */
+
+#mobile-tabs {
+  flex-shrink: 0;
+  display: flex;
+  background: var(--board-dark);
+  border-top: 3px solid #1a3a2c;
+}
+
+.mtab {
+  flex: 1;
+  padding: 12px 6px;
+  background: transparent;
+  border: none;
+  border-top: 3px solid transparent;
+  color: #b7cbb9;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mtab.on {
+  background: var(--board);
+  border-top-color: var(--gold);
+  color: #fff;
+}
+
 /* ------------------------------------------------------------- Responsive */
 
-@media (max-width: 900px) {
+/*
+ * Phones (narrow *or* short, so landscape works too): the classroom and the
+ * School Kiosk each take the whole play area and are swapped with the tab bar.
+ * "Take notes!" and the rewarded-ad slot stay docked in both tabs.
+ */
+@media (max-width: 900px), (max-height: 560px) {
   #game {
     flex-direction: column;
   }
 
   #play-col {
-    flex: none;
+    flex: 1;
+    min-height: 0;
   }
 
   #canvas-wrap {
-    height: 42vh;
-    flex: none;
+    flex: 1;
+    min-height: 0;
   }
 
   #shop {
     width: 100%;
-    flex: 1;
+    flex: none;
     border-left: none;
     border-top: 4px solid var(--ink);
+    padding: 8px;
+    gap: 8px;
+  }
+
+  body.m-tab-classroom #shop-scroll {
+    display: none;
+  }
+
+  body.m-tab-shop #play-col {
+    display: none;
+  }
+
+  body.m-tab-shop #shop {
+    flex: 1;
+    min-height: 0;
+  }
+
+  body.m-tab-shop #shop-scroll {
+    display: flex;
+  }
+
+  #btn-click {
+    padding: 10px;
+    font-size: 16px;
   }
 
   #banner-dock {
-    padding: 6px 8px;
-  }
-
-  #banner-dock::before,
-  #banner-dock::after {
-    max-width: 36px;
+    justify-content: center;
+    padding: 6px 4px;
   }
 
   #bp-value {
@@ -1201,11 +1551,102 @@ input {
     min-width: 0;
   }
 
+  #hud {
+    gap: 8px;
+    padding: 5px 8px;
+    min-height: 0;
+  }
+
+  .hud-right {
+    gap: 6px;
+  }
+
   #chat-log {
-    height: 80px;
+    height: 90px;
   }
 
   #chat-panel {
-    width: min(240px, calc(100% - 20px));
+    width: min(260px, calc(100% - 20px));
+  }
+
+  #site-footer {
+    display: none;
+  }
+}
+
+/*
+ * Landscape phones are only ~390 px tall: squeeze the chrome into a single HUD
+ * row so the School Kiosk keeps a usable amount of height.
+ */
+@media (max-height: 560px) {
+  #hud {
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 4px 8px;
+  }
+
+  #lang-selector,
+  #btn-invite,
+  #player-chip {
+    display: none !important;
+  }
+
+  #event-banner {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  #event-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #bp-value {
+    font-size: 15px;
+  }
+
+  #bps-value {
+    font-size: 10px;
+  }
+
+  #hud-brain {
+    width: 24px;
+    height: 24px;
+  }
+
+  #btn-click {
+    padding: 7px;
+    font-size: 14px;
+  }
+
+  #shop {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .mtab {
+    padding: 7px 6px;
+    font-size: 12px;
+  }
+
+  .ad-boost-hint {
+    display: none;
+  }
+
+  .ad-boost {
+    padding: 6px;
+  }
+
+  .tut-card {
+    padding: 8px 10px;
+  }
+
+  .tut-body {
+    margin-bottom: 6px;
+    font-size: 12px;
   }
 }

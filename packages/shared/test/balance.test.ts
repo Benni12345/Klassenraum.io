@@ -10,6 +10,7 @@ import {
   genMult,
   goalTarget,
   maxAffordable,
+  PRESTIGE_BASE,
   resolveBuy,
   starMult,
   starsForRun,
@@ -95,10 +96,14 @@ describe('production', () => {
 });
 
 describe('prestige', () => {
-  it('needs 1e9 run HS for the first star', () => {
-    expect(starsForRun(1e9 - 1)).toBe(0);
-    expect(starsForRun(1e9)).toBe(1);
-    expect(starsForRun(1e12)).toBe(Math.floor(Math.pow(1000, 0.6)));
+  it('needs PRESTIGE_BASE run HS for the first star', () => {
+    expect(starsForRun(PRESTIGE_BASE - 1)).toBe(0);
+    expect(starsForRun(PRESTIGE_BASE)).toBe(1);
+    expect(starsForRun(PRESTIGE_BASE * 1000)).toBe(Math.floor(Math.pow(1000, 0.6)));
+  });
+
+  it('is reachable inside one session', () => {
+    expect(PRESTIGE_BASE).toBeLessThanOrEqual(1e6);
   });
 });
 

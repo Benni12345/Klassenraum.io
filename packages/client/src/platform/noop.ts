@@ -19,22 +19,28 @@ export function createNoopPlatform(): Platform {
     disableChat: false,
     muteAudio,
     hasAdblock: false,
+    isInstantMultiplayer: false,
     async init() {},
     loadingDone() {},
     onGameplayStart() {},
     onGameplayStop() {},
     happytime() {},
     markRoomJoinable() {},
+    showInviteButton() {},
+    inviteLink() {
+      return null;
+    },
+    onJoinRoom() {
+      return () => {};
+    },
     async requestMidgameAd() {
       return false;
     },
     async requestRewardedAd() {
       return false;
     },
-  showBanner() {},
-  hideBanner() {},
-  showModalBanner() {},
-  hideModalBanner() {},
+    requestBanner() {},
+    clearBanner() {},
     async getUser() {
       return null;
     },

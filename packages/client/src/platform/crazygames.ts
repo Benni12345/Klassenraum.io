@@ -1,14 +1,17 @@
 import { setAdMuted, setPlatformMuted } from '../audio';
 import type {
   AdCallbacks,
+  BannerSize,
   CrazyGamesGameSettings,
   CrazyGamesUser,
+  InviteParams,
   Platform,
   PlatformUser,
 } from './types';
 
 const SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
 const CLASSROOM_ROOM_ID = 'classroom';
+const ROOM_INVITE_PARAMS: InviteParams = { room: CLASSROOM_ROOM_ID };
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -77,8 +80,10 @@ export function createCrazyGamesPlatform(): Platform {
   let disableChat = false;
   let muteAudio = false;
   let hasAdblock = false;
+  let instantMultiplayer = false;
   const settingsListeners = new Set<(s: { disableChat: boolean; muteAudio: boolean }) => void>();
   const authListeners = new Set<(user: PlatformUser | null) => void>();
+  const joinRoomListeners = new Set<() => void>();
 
   const applySettings = (s: CrazyGamesGameSettings) => {
     disableChat = Boolean(s.disableChat);
@@ -93,40 +98,8 @@ export function createCrazyGamesPlatform(): Platform {
     const u = toPlatformUser(user);
     for (const fn of authListeners) fn(u);
   };
-
-  const showBanner = (containerId: string, size?: { width: number; height: number }) => {
-    const width = size?.width ?? 300;
-    const height = size?.height ?? 250;
-    activeBanners.add(containerId);
-    const el = document.getElementById(containerId);
-    if (el) {
-      el.style.display = 'flex';
-      // CrazyGames requires an explicit sized container or the request fails (notVisible / invalid).
-      el.style.width = `${width}px`;
-      el.style.height = `${height}px`;
-      el.style.minWidth = `${width}px`;
-      el.style.minHeight = `${height}px`;
-    }
-    void sdk()
-      .banner.requestBanner({ id: containerId, width, height })
-      .catch((err) => {
-        if (import.meta.env.DEV) console.debug('[ads] banner error', containerId, err);
-      });
-  };
-
-  const hideBanner = (containerId: string) => {
-    if (!activeBanners.has(containerId) && !document.getElementById(containerId)) return;
-    activeBanners.delete(containerId);
-    try {
-      sdk().banner.clearBanner(containerId);
-    } catch {
-      /* clear may fail if SDK not ready; still clear DOM */
-    }
-    const slot = document.getElementById(containerId);
-    if (slot) {
-      slot.replaceChildren();
-      slot.style.display = 'none';
-    }
+  const onSdkJoinRoom = () => {
+    for (const fn of joinRoomListeners) fn();
   };
 
   return {
@@ -144,6 +117,10 @@ export function createCrazyGamesPlatform(): Platform {
       return hasAdblock;
     },
 
+    get isInstantMultiplayer() {
+      return instantMultiplayer;
+    },
+
     async init() {
       await loadScript(SDK_URL);
       await sdk().init();
@@ -159,6 +136,16 @@ export function createCrazyGamesPlatform(): Platform {
         }
       } catch {
         /* auth optional outside CrazyGames */
+      }
+      try {
+        sdk().game.addJoinRoomListener?.(onSdkJoinRoom);
+      } catch {
+        /* multiplayer join listener optional */
+      }
+      try {
+        instantMultiplayer = Boolean(sdk().game.isInstantMultiplayer);
+      } catch {
+        instantMultiplayer = false;
       }
       try {
         hasAdblock = Boolean(await sdk().ad.hasAdblock());
@@ -192,12 +179,35 @@ export function createCrazyGamesPlatform(): Platform {
     },
 
     markRoomJoinable() {
+      // One global classroom: always open, so friends can always drop in.
       void sdk()
         .game.updateRoom({
           roomId: CLASSROOM_ROOM_ID,
           isJoinable: true,
+          inviteParams: ROOM_INVITE_PARAMS,
         })
         .catch(() => {});
+    },
+
+    showInviteButton() {
+      try {
+        sdk().game.showInviteButton?.(ROOM_INVITE_PARAMS);
+      } catch {
+        /* invite button optional */
+      }
+    },
+
+    inviteLink() {
+      try {
+        return sdk().game.inviteLink?.(ROOM_INVITE_PARAMS) ?? null;
+      } catch {
+        return null;
+      }
+    },
+
+    onJoinRoom(listener) {
+      joinRoomListeners.add(listener);
+      return () => joinRoomListeners.delete(listener);
     },
 
     async requestMidgameAd() {
@@ -215,13 +225,25 @@ export function createCrazyGamesPlatform(): Platform {
       });
     },
 
-    showBanner,
-    hideBanner,
-    showModalBanner(containerId: string) {
-      showBanner(containerId, { width: 300, height: 250 });
+    requestBanner(containerId: string, size: BannerSize) {
+      if (hasAdblock) return;
+      activeBanners.add(containerId);
+      void sdk()
+        .banner.requestBanner({ id: containerId, width: size.width, height: size.height })
+        .catch((err) => {
+          if (import.meta.env.DEV) console.debug('[ads] banner error', containerId, err);
+        });
     },
-    hideModalBanner() {
-      hideBanner('cg-modal-banner');
+
+    clearBanner(containerId: string) {
+      if (!activeBanners.has(containerId)) return;
+      activeBanners.delete(containerId);
+      try {
+        sdk().banner.clearBanner(containerId);
+      } catch {
+        /* clear may fail if SDK not ready; still clear DOM */
+      }
+      document.getElementById(containerId)?.replaceChildren();
     },
 
     async getUser() {
