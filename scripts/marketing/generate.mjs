@@ -86,27 +86,72 @@ async function renderCovers(browser) {
   }
 }
 
+/**
+ * Stylized gloved-hand pointer. CrazyGames does not allow the default OS cursor
+ * or a mobile tap indicator in cover videos, so the real cursor is hidden and
+ * this follows the synthetic mouse instead.
+ */
+const GLOVE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="36" viewBox="0 0 30 36"><path d="M11 2c1.7 0 3 1.3 3 3v11h1.5c.8-1.2 2.2-2 3.8-2 1 0 1.9.3 2.7.8.6-.5 1.4-.8 2.3-.8 2 0 3.7 1.6 3.7 3.6v7.2C28 30.1 24.1 34 19.3 34h-4.6C10.4 34 7 30.6 7 26.4V17l-2.6 2.6c-1 1-2.6 1-3.5 0-1-1-1-2.6 0-3.5L8 9V5c0-1.7 1.3-3 3-3z" fill="#fdf6e3" stroke="#26221c" stroke-width="2" stroke-linejoin="round"/></svg>`;
+
+const PROMO_STYLE = `
+  *, *::before, *::after { cursor: none !important; -webkit-tap-highlight-color: transparent !important; }
+  *:focus, *:focus-visible { outline: none !important; }
+  /* Onboarding UI has no place in a cover video. */
+  .tut-card, .hint-arrow, #hint-root { display: none !important; }
+  #promo-cursor {
+    position: fixed;
+    width: 30px;
+    height: 36px;
+    margin: -4px 0 0 -6px;
+    z-index: 2147483647;
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 0.06s ease-out;
+    background: no-repeat center/contain url('data:image/svg+xml;utf8,${encodeURIComponent(GLOVE_SVG)}');
+    filter: drop-shadow(2px 3px 0 rgba(0, 0, 0, 0.45));
+  }
+  #promo-cursor.down { transform: scale(0.82); }
+`;
+
+const PROMO_SCRIPT = `
+  const cursor = document.createElement('div');
+  cursor.id = 'promo-cursor';
+  document.body.appendChild(cursor);
+  addEventListener('mousemove', (e) => {
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+    cursor.style.opacity = '1';
+  }, true);
+  addEventListener('mousedown', () => cursor.classList.add('down'), true);
+  addEventListener('mouseup', () => cursor.classList.remove('down'), true);
+`;
+
 async function joinAndPlay(page, name) {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => {
     localStorage.clear();
-    localStorage.setItem('kr_lang', 'en');
+    // English UI, tutorial and hints already seen: the video shows gameplay only.
+    localStorage.setItem(
+      'kr_prefs',
+      JSON.stringify({
+        lang: 'en',
+        music: true,
+        sfx: true,
+        tutorialDone: true,
+        hints: ['click', 'gen', 'upgrade', 'prestige'],
+      }),
+    );
   });
   await page.reload({ waitUntil: 'domcontentloaded' });
-  // Hide OS/default cursor and any tap indicators in recorded frames (CrazyGames QA).
-  await page.addStyleTag({
-    content: `
-      *, *::before, *::after { cursor: none !important; }
-      html, body { cursor: none !important; }
-    `,
-  });
+  await page.addStyleTag({ content: PROMO_STYLE });
+  await page.addScriptTag({ content: PROMO_SCRIPT });
   const hasModal = await page
     .waitForSelector('.modal input[type="text"]', { timeout: 8000 })
     .then(() => true)
     .catch(() => false);
   if (hasModal) {
     await page.fill('.modal input[type="text"]', name);
-    await page.click('.modal .actions .btn.gold');
+    await page.click('.modal .modal-foot .btn.gold');
     await page
       .waitForFunction(() => window.__kr?.store?.you, { timeout: 12000 })
       .catch(() => console.warn('  (join slow — continuing)'));
@@ -114,11 +159,27 @@ async function joinAndPlay(page, name) {
   await page.waitForTimeout(600);
 }
 
-async function capturePreview(browser, { width, height, outfile, label }) {
+/** Branded opening frame so every cover video carries the Classroom.io title. */
+async function renderTitleFrame(browser, framesDir, { width, height, layout }) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+  await page.goto(`file://${COVER_HTML}?layout=${layout}`);
+  await page.waitForTimeout(200);
+  await page.screenshot({
+    path: path.join(framesDir, 'frame-001.png'),
+    type: 'png',
+    animations: 'disabled',
+  });
+  await withTimeout(page.close(), 5000, 'close title frame page');
+}
+
+async function capturePreview(browser, { width, height, outfile, label, layout }) {
   console.log(`Recording ${label} preview…`);
   const framesDir = path.join(OUT, `.frames-${label}`);
   fs.rmSync(framesDir, { recursive: true, force: true });
   fs.mkdirSync(framesDir, { recursive: true });
+
+  // frame-001 is the branded title card; gameplay frames follow.
+  await renderTitleFrame(browser, framesDir, { width, height, layout });
 
   const page = await browser.newPage({
     viewport: { width, height },
@@ -128,7 +189,7 @@ async function capturePreview(browser, { width, height, outfile, label }) {
   try {
     await joinAndPlay(page, `Vid${label}`);
 
-    let frame = 0;
+    let frame = 1;
     const snap = async () => {
       const n = String(++frame).padStart(3, '0');
       await page.screenshot({ path: path.join(framesDir, `frame-${n}.png`), type: 'png' });
@@ -214,6 +275,7 @@ async function main() {
     height: 1080,
     outfile: 'preview-landscape.mp4',
     label: 'landscape',
+    layout: 'landscape',
   });
 
   await capturePreview(browser, {
@@ -221,6 +283,7 @@ async function main() {
     height: 1620,
     outfile: 'preview-portrait.mp4',
     label: 'portrait',
+    layout: 'portrait',
   });
 
   await browser.close();
