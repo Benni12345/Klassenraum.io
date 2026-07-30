@@ -41,13 +41,23 @@ function renderStatic(): void {
   badge.textContent = `${gradeLabel(you.grade)} ★${you.stars}`;
   badge.title = `${t('misc.stars')}: ${you.stars} (+${you.stars * 10}%)`;
 
+  // Player name: the CrazyGames username for logged-in players, otherwise the
+  // stylized guest name. Shown in full up to NAME_MAX so it isn't truncated.
+  const chip = id('player-chip');
+  const name = id('player-name');
+  chip.classList.remove('hidden');
+  chip.title = you.name;
+  if (name.textContent !== you.name) name.textContent = you.name;
+
+  // Always visible so the graduation flow is discoverable (and QA-verifiable).
   const pb = id('btn-prestige');
-  if (you.starsIfGraduate >= 1) {
-    pb.classList.remove('hidden');
-    pb.textContent = `${t('prestige.button')} +${you.starsIfGraduate}★`;
-  } else {
-    pb.classList.add('hidden');
-  }
+  pb.classList.remove('hidden');
+  const eligible = you.starsIfGraduate >= 1;
+  pb.classList.toggle('gold', eligible);
+  pb.classList.toggle('ready', eligible);
+  pb.textContent = eligible
+    ? `${t('prestige.button')} +${you.starsIfGraduate}★`
+    : t('prestige.button');
 }
 
 function tick(): void {

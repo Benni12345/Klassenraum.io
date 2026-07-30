@@ -1,44 +1,57 @@
 import { adRewardAmount } from '@shared/balance';
 import { platform } from '../platform';
+import type { BannerSize } from '../platform/types';
 import { store } from '../state';
 import { t } from '../i18n';
 import { fmt, fmtDuration } from '../format';
+import { adPlayIcon, iconDataUrl } from '../render/sprites';
 import { el } from './dom';
+import { isCovered, onCoverChange } from './overlay';
 import { toast } from './toast';
 
-const SHOP_BANNER_ID = 'cg-shop-banner';
-/** Match CrazyGames midroll pacing so QA isn't flooded with midgame adError. */
-const MIDGAME_MIN_GAP_MS = 3 * 60_000;
-let lastMidgameAt = 0;
+const BANNER_ID = 'cg-bottom-banner';
+/** CrazyGames requires the lower-left banner to refresh every 35 s. */
+const BANNER_REFRESH_MS = 35_000;
+const BANNER_TICK_MS = 1_000;
 
-/** Safe midgame request — SDK ignores early calls; we also throttle client-side. */
-export function tryMidgameAd(reason: string): void {
+/**
+ * Midgame ads are only shown when the player graduates (prestige), after they
+ * confirmed the reset — the only placement CrazyGames allows for clicker games.
+ */
+export function showPrestigeMidgameAd(): void {
   if (!platform.enabled) return;
-  const now = Date.now();
-  if (now - lastMidgameAt < MIDGAME_MIN_GAP_MS) return;
-  lastMidgameAt = now;
   void platform.requestMidgameAd().then((shown) => {
-    if (shown) lastMidgameAt = Date.now();
-    if (import.meta.env.DEV) console.debug('[ads] midgame', reason, shown ? 'shown' : 'skipped');
+    if (import.meta.env.DEV) console.debug('[ads] prestige midgame', shown ? 'shown' : 'skipped');
   });
 }
 
-/** Call after a rewarded finishes so midgame waits for SDK pacing. */
-export function noteRewardedShown(): void {
-  lastMidgameAt = Date.now();
+/** Rectangular badge with a play symbol, required on rewarded-ad buttons. */
+export function adPlayBadge(): HTMLImageElement {
+  const img = el('img');
+  img.className = 'ad-play-badge pix';
+  img.src = iconDataUrl(adPlayIcon, 3);
+  img.alt = '';
+  return img;
 }
 
 /**
  * Build a prominent rewarded-ad boost control (shop / settings).
- * Shows video affordance, cooldown timer, and adblock state per CG rules.
+ * Shows the video badge, cooldown timer, and adblock state per CG rules.
  */
-export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?: boolean }): () => void {
+export function mountRewardedBoostButton(
+  parent: HTMLElement,
+  opts?: { compact?: boolean },
+): () => void {
   if (!platform.enabled) return () => {};
 
   const wrap = el('div', opts?.compact ? 'ad-boost ad-boost-compact' : 'ad-boost');
   const hint = el('div', 'ad-boost-hint', t('ads.boostHint'));
-  const btn = el('button', 'btn gold ad-boost-btn', `▶ ${t('settings.adBoost')}`);
+  const btn = el('button', 'btn gold ad-boost-btn');
   btn.type = 'button';
+  const badge = adPlayBadge();
+  const label = el('span', 'ad-boost-label', t('settings.adBoost'));
+  btn.appendChild(badge);
+  btn.appendChild(label);
   wrap.appendChild(hint);
   wrap.appendChild(btn);
   parent.appendChild(wrap);
@@ -50,7 +63,7 @@ export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?:
     if (platform.hasAdblock) {
       btn.disabled = true;
       btn.classList.add('ad-blocked');
-      btn.textContent = t('settings.adBoostAdblock');
+      label.textContent = t('settings.adBoostAdblock');
       hint.textContent = t('ads.adblockHint');
       return;
     }
@@ -59,13 +72,11 @@ export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?:
     const left = readyAt - store.serverNow();
     if (left > 0) {
       btn.disabled = true;
-      btn.textContent = t('settings.adBoostCooldown', {
-        t: fmtDuration(left),
-      });
+      label.textContent = t('settings.adBoostCooldown', { t: fmtDuration(left) });
       hint.textContent = t('ads.boostHint');
     } else if (!busy) {
       btn.disabled = false;
-      btn.textContent = `▶ ${t('settings.adBoost')}`;
+      label.textContent = t('settings.adBoost');
       hint.textContent = t('ads.boostHint');
     }
   };
@@ -79,14 +90,13 @@ export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?:
     if (btn.disabled || busy) return;
     busy = true;
     btn.disabled = true;
-    btn.textContent = t('ads.watching');
+    label.textContent = t('ads.watching');
     const watched = await platform.requestRewardedAd();
     busy = false;
     if (watched) {
       const reward = adRewardAmount(store.you?.bp ?? 0);
       store.claimAdBoost();
-      noteRewardedShown();
-      toast(t('settings.adBoostDone'), 'gold');
+      toast(t('settings.adBoostDone', { n: fmt(reward) }), 'gold');
       setTimeout(refresh, 400);
     } else {
       toast(
@@ -103,80 +113,102 @@ export function mountRewardedBoostButton(parent: HTMLElement, opts?: { compact?:
   };
 }
 
+function sizeForViewport(available: number): BannerSize {
+  if (window.matchMedia('(max-width: 900px)').matches) return { width: 320, height: 50 };
+  if (available >= 760) return { width: 728, height: 90 };
+  if (available >= 500) return { width: 468, height: 60 };
+  return { width: 320, height: 50 };
+}
+
 /**
- * Persistent CrazyGames banner on a board-green ledge under the classroom.
- * Picks the largest supported size that fits the play column width.
+ * Persistent CrazyGames banner on the board-green ledge under the classroom.
+ *
+ * - Nothing is mounted at all when an adblocker is detected, so the layout
+ *   falls back to the Basic Launch look with no reserved space.
+ * - A new banner is requested on mount and then every 35 s. Frame resizes
+ *   (including entering / leaving fullscreen) only re-apply the container box,
+ *   they never request another ad.
  */
-export function mountShopBanner(parent: HTMLElement): () => void {
-  if (!platform.enabled) return () => {};
+export function mountBottomBanner(dock: HTMLElement): () => void {
+  if (!platform.enabled || platform.hasAdblock) return () => {};
 
-  const slot = el('div', 'cg-banner-slot cg-dock-banner');
-  slot.id = SHOP_BANNER_ID;
+  dock.classList.remove('hidden');
+  const slot = el('div', 'cg-banner-slot');
+  slot.id = BANNER_ID;
   slot.setAttribute('aria-label', 'Advertisement');
-  // Explicit pixel box required by CrazyGames (notVisible / invalidSize otherwise).
-  slot.style.width = '468px';
-  slot.style.height = '60px';
-  parent.appendChild(slot);
+  dock.appendChild(slot);
 
-  const sizeForViewport = () => {
-    if (window.matchMedia('(max-width: 900px)').matches) {
-      return { width: 320, height: 50 };
-    }
-    const avail = parent.clientWidth || window.innerWidth;
-    // Prefer compact main banner; use leaderboard only when the ledge is wide.
-    if (avail >= 760) return { width: 728, height: 90 };
-    if (avail >= 500) return { width: 468, height: 60 };
-    return { width: 320, height: 50 };
-  };
-
+  let size = sizeForViewport(dock.clientWidth || window.innerWidth);
   let requested = false;
-  const request = () => {
-    const size = sizeForViewport();
-    slot.classList.toggle('cg-dock-banner-wide', size.width >= 728);
-    slot.classList.toggle('cg-dock-banner-slim', size.width <= 320);
+  let uncoveredMs = 0;
+
+  /** Keeps the container at exactly the requested pixel box. */
+  const applySize = () => {
+    slot.classList.toggle('cg-banner-wide', size.width >= 728);
+    slot.classList.toggle('cg-banner-slim', size.width <= 320);
     slot.style.width = `${size.width}px`;
     slot.style.height = `${size.height}px`;
-    // Wait until the slot is fully on-screen — CG rejects partially clipped containers.
+    slot.style.maxWidth = `${size.width}px`;
+    slot.style.maxHeight = `${size.height}px`;
+  };
+
+  const fullyVisible = () => {
     const rect = slot.getBoundingClientRect();
-    const fullyVisible =
+    return (
       rect.width >= size.width - 1 &&
       rect.height >= size.height - 1 &&
       rect.top >= 0 &&
       rect.left >= 0 &&
       rect.bottom <= window.innerHeight + 1 &&
-      rect.right <= window.innerWidth + 1;
-    if (!fullyVisible) {
-      if (import.meta.env.DEV) console.debug('[ads] dock banner not fully visible yet');
+      rect.right <= window.innerWidth + 1
+    );
+  };
+
+  const request = () => {
+    const next = sizeForViewport(dock.clientWidth || window.innerWidth);
+    size = next;
+    applySize();
+    // CrazyGames rejects containers that are clipped or not laid out yet.
+    if (!fullyVisible()) {
+      if (import.meta.env.DEV) console.debug('[ads] banner slot not fully visible yet');
       return;
     }
-    platform.showBanner(SHOP_BANNER_ID, size);
+    platform.requestBanner(BANNER_ID, size);
     requested = true;
+    uncoveredMs = 0;
   };
 
-  // Defer first request so layout/flex settles (avoids notVisible on boot).
+  applySize();
+  // Defer the first request so flex layout settles (avoids notVisible on boot).
   requestAnimationFrame(() => requestAnimationFrame(request));
-  window.setTimeout(request, 1500);
 
-  const refresh = window.setInterval(() => {
+  // Refresh cadence: only counts time where the banner is actually on screen.
+  const tick = window.setInterval(() => {
     if (!slot.isConnected) return;
-    request();
-  }, 60_000);
+    if (!requested) {
+      request();
+      return;
+    }
+    if (isCovered() || document.visibilityState === 'hidden') return;
+    uncoveredMs += BANNER_TICK_MS;
+    if (uncoveredMs >= BANNER_REFRESH_MS) request();
+  }, BANNER_TICK_MS);
 
-  const onResize = () => {
-    if (!slot.isConnected) return;
-    request();
+  // Resizing the game frame must not trigger a new ad request.
+  const onFrameChange = () => {
+    if (slot.isConnected) applySize();
   };
-  window.addEventListener('resize', onResize);
-
-  // Retry once after join when the dock is definitely painted.
-  store.on('joined', () => {
-    if (!requested) window.setTimeout(request, 500);
-  });
+  window.addEventListener('resize', onFrameChange);
+  document.addEventListener('fullscreenchange', onFrameChange);
+  const stopCoverWatch = onCoverChange(() => onFrameChange());
 
   return () => {
-    clearInterval(refresh);
-    window.removeEventListener('resize', onResize);
-    platform.hideBanner(SHOP_BANNER_ID);
+    clearInterval(tick);
+    window.removeEventListener('resize', onFrameChange);
+    document.removeEventListener('fullscreenchange', onFrameChange);
+    stopCoverWatch();
+    platform.clearBanner(BANNER_ID);
     slot.remove();
+    dock.classList.add('hidden');
   };
 }

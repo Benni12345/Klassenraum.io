@@ -11,6 +11,7 @@ import {
 } from './audio';
 import { fmt } from './format';
 import { gradeLabel, t } from './i18n';
+import { initMusic, syncMusic } from './music';
 import { platform } from './platform';
 import { Scene } from './render/scene';
 import { brainIcon, gearIcon, iconDataUrl, trophyIcon } from './render/sprites';
@@ -19,8 +20,11 @@ import { initBoss } from './ui/boss';
 import { initChat } from './ui/chat';
 import { el, id } from './ui/dom';
 import { initHud } from './ui/hud';
+import { initMobileTabs } from './ui/mobile';
 import {
   closeModal,
+  closeTopModal,
+  howToPlayModal,
   joinModal,
   leaderboardModal,
   prestigeModal,
@@ -32,7 +36,7 @@ import { closePopover, showDeskPopover } from './ui/popover';
 import { initLangSelector } from './ui/langSelector';
 import { initShop } from './ui/shop';
 import { applyStaticTexts } from './ui/texts';
-import { tryMidgameAd } from './ui/ads';
+import { initHints, startTutorial } from './ui/tutorial';
 
 async function boot(): Promise<void> {
   if (platform.enabled) {
@@ -40,17 +44,21 @@ async function boot(): Promise<void> {
     store.setCgTokenProvider(() => platform.getUserToken());
   }
 
-  // Unlock Web Audio on the first user gesture (autoplay policies).
+  // Unlock Web Audio on the first user gesture (autoplay policies), then start
+  // the background music loop.
   const unlockOnce = () => {
     unlockAudio();
+    initMusic();
     window.removeEventListener('pointerdown', unlockOnce);
     window.removeEventListener('keydown', unlockOnce);
   };
   window.addEventListener('pointerdown', unlockOnce, { once: true });
   window.addEventListener('keydown', unlockOnce, { once: true });
+  platform.onSettingsChange(() => syncMusic());
 
   applyStaticTexts();
   initLangSelector('lang-selector');
+  initMobileTabs();
   initBoss();
 
   // Pixel icons for the DOM chrome.
@@ -66,6 +74,7 @@ async function boot(): Promise<void> {
   initHud();
   initShop();
   initChat();
+  initHints();
 
   // ----------------------------------------------------------------- Clicking
 
@@ -82,6 +91,13 @@ async function boot(): Promise<void> {
   scene.onDeskClick = (hit) => showDeskPopover(hit);
 
   document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      // Esc closes in-game overlays; the boss key is Tab so Esc stays free for
+      // the browser's own "leave fullscreen" shortcut.
+      if (closeTopModal()) ev.preventDefault();
+      closePopover();
+      return;
+    }
     if (ev.code !== 'Space') return;
     const target = ev.target as HTMLElement;
     if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
@@ -95,6 +111,36 @@ async function boot(): Promise<void> {
   id('btn-prestige').addEventListener('click', () => prestigeModal());
   id('btn-leaderboard').addEventListener('click', () => leaderboardModal());
   id('btn-settings').addEventListener('click', () => settingsModal());
+  id('btn-howto').addEventListener('click', () => howToPlayModal());
+  id('footer-guide').addEventListener('click', (ev) => {
+    ev.preventDefault();
+    howToPlayModal();
+  });
+
+  // ------------------------------------------------------------- Multiplayer
+
+  if (platform.enabled) {
+    const invite = id('btn-invite');
+    const link = platform.inviteLink();
+    if (link) {
+      invite.classList.remove('hidden');
+      invite.addEventListener('click', () => {
+        const href = platform.inviteLink();
+        if (!href) return;
+        void navigator.clipboard
+          ?.writeText(href)
+          .then(() => toast(t('invite.copied'), 'gold'))
+          .catch(() => {});
+      });
+    }
+    // Friends joining from the CrazyGames UI land in the same shared classroom,
+    // so no reload or lobby hop is needed — just make sure we're connected.
+    platform.onJoinRoom(() => {
+      closeModal();
+      if (!store.you) store.connect();
+      platform.markRoomJoinable();
+    });
+  }
 
   // ---------------------------------------------------------- Store reactions
 
@@ -104,9 +150,13 @@ async function boot(): Promise<void> {
     closePopover();
     platform.onGameplayStart();
     platform.markRoomJoinable();
+    platform.showInviteButton();
     if (lastGrade === -1) {
       scene.scrollToOwnDesk();
       lastGrade = store.you?.grade ?? 0;
+      // Players arriving through instant multiplayer or a friend invite land
+      // straight in the room; they still get the interaction hints.
+      if (!platform.isInstantMultiplayer) startTutorial();
     }
   });
 
@@ -116,7 +166,6 @@ async function boot(): Promise<void> {
       sfxSuccess();
       toast(t('prestige.done', { g: gradeLabel(grade) }), 'gold');
       platform.happytime();
-      tryMidgameAd('prestige');
     }
     if (lastGrade >= 0) lastGrade = Math.max(lastGrade, grade);
   });
@@ -131,8 +180,6 @@ async function boot(): Promise<void> {
     const mins = Math.floor((o.ms % 3_600_000) / 60_000);
     const dur = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
     toast(t('offline.toast', { v: fmt(o.bp), t: dur }), 'gold');
-    // Natural pause after returning — good midgame slot for idle sessions.
-    if (o.ms >= 60_000) tryMidgameAd('offline');
   });
 
   store.on('steal', (s) => {
@@ -141,7 +188,6 @@ async function boot(): Promise<void> {
     if (s.caught && s.attacker === you.id) {
       sfxError();
       toast(t('steal.caught.you'), 'bad');
-      tryMidgameAd('detention');
     } else if (s.victim === you.id && !s.caught) {
       sfxSteal();
       const attacker = store.roster.get(s.attacker)?.name ?? '?';
@@ -150,7 +196,6 @@ async function boot(): Promise<void> {
       sfxSteal();
       const victim = store.roster.get(s.victim)?.name ?? '?';
       toast(t('steal.success', { v: fmt(s.amount), b: victim }), 'gold');
-      tryMidgameAd('steal');
     }
   });
 
@@ -160,13 +205,11 @@ async function boot(): Promise<void> {
       sfxSuccess();
       toast(t('event.quiz.win'), 'gold');
     }
-    tryMidgameAd('quiz');
   });
 
   store.on('goalDone', () => {
     sfxSuccess();
     toast(t('goal.done'), 'gold');
-    tryMidgameAd('goal');
   });
 
   store.on('status', (s) => {
@@ -174,10 +217,16 @@ async function boot(): Promise<void> {
     if (s === 'replaced') replacedModal();
   });
 
-  // Guest → CrazyGames login mid-session: reload so hello links accounts.
+  // Any CrazyGames auth change swaps the active save (account <-> guest), so the
+  // page reloads and the hello handshake resolves the right one.
   if (platform.enabled) {
+    let knownUser: string | null = null;
+    void platform.getUser().then((u) => (knownUser = u?.username ?? null));
     platform.onAuthChange((user) => {
-      if (user && !store.hasAccount) location.reload();
+      const next = user?.username ?? null;
+      if (next === knownUser) return;
+      knownUser = next;
+      location.reload();
     });
   }
 
@@ -185,20 +234,11 @@ async function boot(): Promise<void> {
 
   // ------------------------------------------------------------------- Join
 
-  if (store.hasAccount) {
+  // CrazyGames: no name prompt and no onboarding gate. Logged-in players get
+  // their CrazyGames username, guests a stylized Student_#### name, and the
+  // player is joinable immediately (also required for instant multiplayer).
+  if (store.hasAccount || platform.enabled) {
     store.connect();
-  } else if (platform.enabled) {
-    const cgUser = await platform.getUser();
-    if (cgUser) {
-      // Logged-in CrazyGames players land in gameplay without a name modal.
-      store.connect({ name: cgUser.username });
-    } else {
-      platform.onGameplayStop();
-      joinModal((name, avatar) => {
-        closeModal();
-        store.connect({ name: name || undefined, avatar });
-      });
-    }
   } else {
     platform.onGameplayStop();
     joinModal((name, avatar) => {

@@ -13,7 +13,7 @@ import { t } from '../i18n';
 import { platform } from '../platform';
 import { genIcon, iconDataUrl } from '../render/sprites';
 import { store } from '../state';
-import { mountRewardedBoostButton, mountShopBanner } from './ads';
+import { mountBottomBanner, mountRewardedBoostButton } from './ads';
 import { el, id } from './dom';
 import { bindCursorTip, type TipCard } from './tooltip';
 
@@ -78,9 +78,9 @@ export function initShop(): void {
     boostSlot.classList.remove('hidden');
     mountRewardedBoostButton(boostSlot);
 
-    const bannerDock = id('banner-dock');
-    bannerDock.classList.remove('hidden');
-    mountShopBanner(bannerDock);
+    // No dock at all behind an ad blocker: the layout keeps the Basic Launch
+    // proportions instead of reserving empty space for a banner.
+    mountBottomBanner(id('banner-dock'));
   }
 
   store.on('you', refresh);

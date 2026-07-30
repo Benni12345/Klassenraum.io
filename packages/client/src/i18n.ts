@@ -1,3 +1,5 @@
+import { getPrefs, setPrefs } from './prefs';
+
 export type Locale = 'de' | 'en';
 
 export const DEFAULT_LOCALE: Locale = 'en';
@@ -85,9 +87,13 @@ const de: Dict = {
   'prestige.title': 'Versetzung beantragen',
   'prestige.desc':
     'Setzt Hirnschmalz, Käufe und Upgrades zurück. Dafür bekommst du {n} Goldsterne — jeder gibt +10% Produktion, für immer.',
+  'prestige.warn':
+    'Achtung: Eine Versetzung setzt deinen Fortschritt zurück. Hirnschmalz, alle Generatoren und alle Upgrades dieser Runde sind weg. Goldsterne und Klassenstufe behältst du.',
   'prestige.locked': 'Noch {v} HS in dieser Runde bis zum ersten Goldstern.',
   'prestige.confirm': 'Versetzen!',
   'prestige.cancel': 'Doch nicht',
+  'prestige.yes': 'Ja, versetzen',
+  'prestige.no': 'Nein',
   'prestige.done': 'Versetzt! Willkommen in der {g}!',
 
   'grade.n': '{n}. Klasse',
@@ -117,9 +123,19 @@ const de: Dict = {
   'settings.stolen': 'Geklaut: {v} HS',
   'settings.lost': 'Verloren: {v} HS',
   'settings.clicks': 'Klicks: {v}',
-  'settings.boss': 'Boss-Taste: Esc tarnt das Spiel als Mathe-Notizen.',
+  'settings.boss': 'Boss-Taste: Tab tarnt das Spiel als Mathe-Notizen.',
   'settings.rename': 'Name ändern',
   'settings.renameSave': 'Speichern',
+  'settings.audio': 'Ton',
+  'settings.music': 'Musik',
+  'settings.sfx': 'Soundeffekte',
+  'settings.on': 'An',
+  'settings.off': 'Aus',
+  'settings.name': 'Spielername',
+  'settings.nameCg': 'Dein CrazyGames-Benutzername wird automatisch verwendet.',
+  'settings.nameGuest': 'Melde dich bei CrazyGames an, um deinen Benutzernamen zu nutzen.',
+  'settings.howto': 'Spielanleitung',
+  'settings.tutorial': 'Tutorial erneut ansehen',
 
   'conn.lost': 'Verbindung verloren — verbinde neu…',
   'conn.replaced': 'Der Klassenraum ist in einem anderen Tab geöffnet.',
@@ -133,6 +149,8 @@ const de: Dict = {
   'err.detention': 'Du sitzt nach!',
   'err.target': 'Ziel nicht verfügbar.',
   'err.prestige': 'Noch nicht genug für eine Versetzung.',
+  'err.nameLocked': 'Dein CrazyGames-Benutzername wird automatisch verwendet.',
+  'err.nameBlocked': 'Dieser Name ist nicht erlaubt. Bitte wähle einen anderen.',
 
   'buff.quiz': 'Kurztest bestanden ×2',
   'buff.sub': 'Vertretungsstunde ×2',
@@ -164,7 +182,63 @@ const de: Dict = {
   'footer.impressum': 'Impressum',
 
   'boss.title': 'Mathe – Notizen',
-  'boss.hint': 'Esc zum Zurückkehren',
+  'boss.hint': 'Tab zum Zurückkehren',
+
+  'ui.close': 'Schließen',
+  'ui.back': 'Zurück',
+
+  'howto.title': 'Spielanleitung',
+  'howto.notes.h': '1. Mitschreiben',
+  'howto.notes.p':
+    'Klick auf „Mitschreiben!“ (oder drück Leertaste), um Hirnschmalz zu sammeln. Je höher deine Produktion, desto mehr bringt ein Klick.',
+  'howto.shop.h': '2. Schulkiosk',
+  'howto.shop.p':
+    'Kauf im Schulkiosk Generatoren — vom Bleistiftstummel bis zum Galaxienhirn. Sie produzieren automatisch weiter, auch offline (bis zu 8 Stunden).',
+  'howto.upgrades.h': '3. Upgrades',
+  'howto.upgrades.p':
+    'Ab genügend Generatoren oder Klicks erscheinen Upgrades über dem Kiosk. Jedes verdoppelt eine Produktion dauerhaft.',
+  'howto.steal.h': '4. Papierflieger',
+  'howto.steal.p':
+    'Alle Spieler sitzen im selben Klassenraum. Klick auf einen anderen Platz, um mit einem Papierflieger Hirnschmalz zu klauen. Beim Lehrer-Rundgang ist das riskant.',
+  'howto.events.h': '5. Klassen-Events',
+  'howto.events.p':
+    'Kurztest, Lehrer-Rundgang und Vertretungsstunde treffen alle gleichzeitig. Beim Kurztest bringt die richtige Antwort Bonus und ×2.',
+  'howto.prestige.h': '6. Versetzung',
+  'howto.prestige.p':
+    'Mit genug Hirnschmalz kannst du dich versetzen lassen: Die Runde startet neu, du behältst Goldsterne für dauerhaft mehr Produktion.',
+  'howto.boss.h': '7. Boss-Taste',
+  'howto.boss.p': 'Tab tarnt das Spiel als Mathe-Notizen. Noch mal Tab bringt dich zurück.',
+
+  'tutorial.skip': 'Tutorial überspringen',
+  'tutorial.next': 'Weiter',
+  'tutorial.done': 'Los geht’s!',
+  'tutorial.step': 'Schritt {n}/{total}',
+  'tutorial.welcome.h': 'Willkommen im Klassenraum!',
+  'tutorial.welcome.p':
+    'Alle Spieler sitzen im selben Raum. Dein Platz ist mit einem goldenen Pfeil markiert.',
+  'tutorial.click.h': 'Sammle Hirnschmalz',
+  'tutorial.click.p':
+    'Klick auf „Mitschreiben!“ — oder drück Leertaste. Das ist deine Einnahmequelle am Anfang.',
+  'tutorial.shop.h': 'Kauf im Schulkiosk',
+  'tutorial.shop.p':
+    'Generatoren produzieren automatisch weiter. Fang mit dem Bleistiftstummel an, danach werden neue Stufen freigeschaltet.',
+  'tutorial.steal.h': 'Klau deinen Mitschülern Punkte',
+  'tutorial.steal.p':
+    'Klick auf einen anderen Platz und wirf einen Papierflieger. Beim Lehrer-Rundgang riskierst du Nachsitzen.',
+  'tutorial.boss.h': 'Boss-Taste: Tab',
+  'tutorial.boss.p':
+    'Tab tarnt das Spiel sofort als Mathe-Notizen. Noch mal Tab und du bist zurück im Klassenraum.',
+
+  'hint.click': 'Hier klicken zum Mitschreiben!',
+  'hint.gen': 'Jetzt kannst du dir das leisten!',
+  'hint.upgrade': 'Upgrade verfügbar!',
+  'hint.prestige': 'Versetzung möglich!',
+
+  'mobile.classroom': 'Klassenraum',
+  'mobile.shop': 'Kiosk',
+
+  'invite.button': 'Freunde einladen',
+  'invite.copied': 'Einladungslink kopiert!',
 };
 
 const en: Dict = {
@@ -247,9 +321,13 @@ const en: Dict = {
   'prestige.title': 'Request promotion',
   'prestige.desc':
     'Resets brainpower, purchases and upgrades. In return you get {n} gold stars — each gives +10% production, forever.',
+  'prestige.warn':
+    'Careful: graduating resets your progress. Your brainpower, all generators and all upgrades from this run are gone. You keep your gold stars and grade.',
   'prestige.locked': '{v} BP left this run until your first gold star.',
   'prestige.confirm': 'Graduate!',
   'prestige.cancel': 'Not yet',
+  'prestige.yes': 'Yes, graduate',
+  'prestige.no': 'No',
   'prestige.done': 'Promoted! Welcome to {g}!',
 
   'grade.n': 'Grade {n}',
@@ -279,9 +357,19 @@ const en: Dict = {
   'settings.stolen': 'Stolen: {v} BP',
   'settings.lost': 'Lost: {v} BP',
   'settings.clicks': 'Clicks: {v}',
-  'settings.boss': 'Boss key: Esc disguises the game as math notes.',
+  'settings.boss': 'Boss key: Tab disguises the game as math notes.',
   'settings.rename': 'Change name',
   'settings.renameSave': 'Save',
+  'settings.audio': 'Audio',
+  'settings.music': 'Music',
+  'settings.sfx': 'Sound effects',
+  'settings.on': 'On',
+  'settings.off': 'Off',
+  'settings.name': 'Player name',
+  'settings.nameCg': 'Your CrazyGames username is used automatically.',
+  'settings.nameGuest': 'Sign in with CrazyGames to play under your username.',
+  'settings.howto': 'How to play',
+  'settings.tutorial': 'Replay tutorial',
 
   'conn.lost': 'Connection lost — reconnecting…',
   'conn.replaced': 'The classroom is open in another tab.',
@@ -295,6 +383,8 @@ const en: Dict = {
   'err.detention': "You're in detention!",
   'err.target': 'Target unavailable.',
   'err.prestige': 'Not enough for a promotion yet.',
+  'err.nameLocked': 'Your CrazyGames username is used automatically.',
+  'err.nameBlocked': 'That name is not allowed. Please pick another one.',
 
   'buff.quiz': 'Quiz passed ×2',
   'buff.sub': 'Substitute ×2',
@@ -326,13 +416,69 @@ const en: Dict = {
   'footer.impressum': 'Legal notice',
 
   'boss.title': 'Math – Notes',
-  'boss.hint': 'Esc to return',
+  'boss.hint': 'Tab to return',
+
+  'ui.close': 'Close',
+  'ui.back': 'Back',
+
+  'howto.title': 'How to play',
+  'howto.notes.h': '1. Take notes',
+  'howto.notes.p':
+    'Click “Take notes!” (or press space) to collect brainpower. The higher your production, the more each click is worth.',
+  'howto.shop.h': '2. School Kiosk',
+  'howto.shop.p':
+    'Buy generators in the School Kiosk — from the Stubby Pencil up to the Galaxy Brain. They keep producing on their own, even while you are away (up to 8 hours).',
+  'howto.upgrades.h': '3. Upgrades',
+  'howto.upgrades.p':
+    'Once you own enough generators or have clicked enough, upgrades appear above the kiosk. Each one permanently doubles a production source.',
+  'howto.steal.h': '4. Paper airplanes',
+  'howto.steal.p':
+    'Everyone shares one classroom. Click another desk to throw a paper airplane and steal brainpower. During a teacher patrol that gets risky.',
+  'howto.events.h': '5. Class events',
+  'howto.events.p':
+    'Pop quiz, teacher patrol and substitute period hit the whole room at once. Answer the quiz correctly for a bonus and a ×2 multiplier.',
+  'howto.prestige.h': '6. Graduating',
+  'howto.prestige.p':
+    'With enough brainpower you can graduate: the run restarts, but you keep gold stars that permanently boost production.',
+  'howto.boss.h': '7. Boss key',
+  'howto.boss.p': 'Tab disguises the game as a math notes document. Press Tab again to return.',
+
+  'tutorial.skip': 'Skip tutorial',
+  'tutorial.next': 'Next',
+  'tutorial.done': "Let's go!",
+  'tutorial.step': 'Step {n}/{total}',
+  'tutorial.welcome.h': 'Welcome to the classroom!',
+  'tutorial.welcome.p':
+    'Every player sits in the same room. Your own desk is marked with a golden arrow.',
+  'tutorial.click.h': 'Collect brainpower',
+  'tutorial.click.p':
+    'Click “Take notes!” — or press space. That is your income while you are starting out.',
+  'tutorial.shop.h': 'Shop in the School Kiosk',
+  'tutorial.shop.p':
+    'Generators keep producing on their own. Start with the Stubby Pencil; buying it unlocks the next tier.',
+  'tutorial.steal.h': 'Steal from your classmates',
+  'tutorial.steal.p':
+    'Click another desk to throw a paper airplane. During a teacher patrol you risk detention.',
+  'tutorial.boss.h': 'Boss key: Tab',
+  'tutorial.boss.p':
+    'Tab instantly disguises the game as math notes. Press Tab again and you are back in the classroom.',
+
+  'hint.click': 'Click here to take notes!',
+  'hint.gen': 'You can afford this now!',
+  'hint.upgrade': 'Upgrade available!',
+  'hint.prestige': 'You can graduate!',
+
+  'mobile.classroom': 'Classroom',
+  'mobile.shop': 'Kiosk',
+
+  'invite.button': 'Invite friends',
+  'invite.copied': 'Invite link copied!',
 };
 
 const DICTS: Record<Locale, Dict> = { de, en };
 
-let locale: Locale =
-  (localStorage.getItem('kr_lang') as Locale) || DEFAULT_LOCALE;
+const stored = getPrefs().lang;
+let locale: Locale = LOCALES.includes(stored as Locale) ? (stored as Locale) : DEFAULT_LOCALE;
 
 export function getLocale(): Locale {
   return locale;
@@ -340,7 +486,7 @@ export function getLocale(): Locale {
 
 export function setLocale(l: Locale): void {
   locale = l;
-  localStorage.setItem('kr_lang', l);
+  setPrefs({ lang: l });
   document.documentElement.lang = l;
 }
 

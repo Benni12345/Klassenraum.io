@@ -32,9 +32,28 @@ await page.goto(baseUrl);
 await page.waitForSelector('.modal input[type="text"]', { timeout: 5000 });
 await page.fill('.modal input[type="text"]', 'Du');
 await page.screenshot({ path: `${outDir}/join.png` });
-await page.click('.modal .actions .btn.gold');
+await page.click('.modal .modal-foot .btn.gold');
 await page.waitForSelector('.modal', { state: 'detached', timeout: 5000 });
 await page.waitForTimeout(2000);
+
+// --- Tutorial -------------------------------------------------------------
+const sawTutorial = await page
+  .waitForSelector('.tut-card', { timeout: 5000 })
+  .then(() => true)
+  .catch(() => false);
+if (!sawTutorial) errors.push('tutorial did not appear for a new player');
+else {
+  await page.screenshot({ path: `${outDir}/tutorial.png` });
+  await page.click('.tut-skip');
+  await page.waitForSelector('.tut-card', { state: 'detached', timeout: 3000 });
+}
+
+// Skipped tutorial still leaves an interaction hint on "Take notes!".
+const sawHint = await page
+  .waitForSelector('.hint-arrow:not(.hidden)', { timeout: 5000 })
+  .then(() => true)
+  .catch(() => false);
+if (!sawHint) errors.push('no interaction hint after skipping the tutorial');
 
 // --- Click + buy ------------------------------------------------------------
 for (let i = 0; i < 30; i++) {
@@ -97,8 +116,34 @@ if (sawEvent) {
   await page.screenshot({ path: `${outDir}/event.png` });
 }
 
-// --- Boss key ----------------------------------------------------------------
-await page.keyboard.press('Escape');
+// --- Menus: close button must be reachable without scrolling -----------------
+for (const [button, label] of [
+  ['#btn-howto', 'how to play'],
+  ['#btn-settings', 'settings'],
+]) {
+  await page.click(button);
+  await page.waitForSelector('.modal', { timeout: 3000 });
+  const reachable = await page.evaluate(() => {
+    const box = document.querySelector('.modal');
+    const close = box?.querySelector('.modal-close');
+    const action = box?.querySelector('.modal-foot .btn');
+    if (!box || !close || !action) return false;
+    const boxRect = box.getBoundingClientRect();
+    const inside = (el) => {
+      const r = el.getBoundingClientRect();
+      return r.top >= boxRect.top - 1 && r.bottom <= boxRect.bottom + 1 && r.height > 0;
+    };
+    // The body scrolls, the header and action bar do not.
+    return inside(close) && inside(action) && box.querySelector('.modal-body').scrollTop === 0;
+  });
+  if (!reachable) errors.push(`${label}: close button not reachable without scrolling`);
+  await page.screenshot({ path: `${outDir}/menu-${label.replace(/\s+/g, '-')}.png` });
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.modal', { state: 'detached', timeout: 3000 });
+}
+
+// --- Boss key (Tab, because Esc exits browser fullscreen) --------------------
+await page.keyboard.press('Tab');
 await page.waitForTimeout(300);
 const title = await page.title();
 console.log('boss title:', title);
@@ -106,8 +151,33 @@ if (title !== 'Mathe – Notizen' && title !== 'Math – Notes') {
   errors.push(`boss key title unexpected: ${title}`);
 }
 await page.screenshot({ path: `${outDir}/boss.png` });
-await page.keyboard.press('Escape');
+await page.keyboard.press('Tab');
 await page.waitForTimeout(200);
+if (await page.locator('#boss-overlay:not(.hidden)').count()) {
+  errors.push('second Tab did not leave the boss overlay');
+}
+
+// --- Mobile layouts ---------------------------------------------------------
+for (const [w, h, label] of [
+  [412, 915, 'portrait'],
+  [844, 390, 'landscape'],
+]) {
+  await page.setViewportSize({ width: w, height: h });
+  await page.waitForTimeout(600);
+  const tabsVisible = await page.locator('#mobile-tabs:not(.hidden)').count();
+  if (!tabsVisible) errors.push(`${label}: mobile tab bar missing at ${w}x${h}`);
+  await page.screenshot({ path: `${outDir}/mobile-${label}-classroom.png` });
+  await page.click('#tab-shop');
+  await page.waitForTimeout(400);
+  const kioskTall = await page.evaluate(
+    () => document.querySelector('#shop-scroll')?.getBoundingClientRect().height ?? 0,
+  );
+  console.log(`${label} kiosk height:`, Math.round(kioskTall));
+  if (kioskTall < 180) errors.push(`${label}: School Kiosk only ${Math.round(kioskTall)}px tall`);
+  await page.screenshot({ path: `${outDir}/mobile-${label}-kiosk.png` });
+  await page.click('#tab-classroom');
+}
+await page.setViewportSize({ width: 1280, height: 800 });
 
 await browser.close();
 

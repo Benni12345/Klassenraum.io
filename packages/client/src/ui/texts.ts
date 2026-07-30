@@ -16,9 +16,14 @@ export function applyStaticTexts(): void {
   id('btn-prestige').textContent = t('prestige.button');
   id('btn-leaderboard').title = t('leaderboard.title');
   id('btn-settings').title = t('settings.title');
+  id('btn-howto').title = t('howto.title');
+  id('btn-invite').textContent = t('invite.button');
   id('quiz-submit').textContent = t('event.quiz.submit');
   id<HTMLInputElement>('quiz-input').placeholder = t('event.quiz.prompt');
   id('conn-banner').textContent = t('conn.lost');
+  id('tab-classroom').textContent = t('mobile.classroom');
+  id('tab-shop').textContent = t('mobile.shop');
+  id('boss-close').title = t('boss.hint');
   id('footer-tagline').textContent = t('footer.tagline');
   id('footer-about').textContent = t('footer.about');
   id('footer-guide').textContent = t('footer.guide');

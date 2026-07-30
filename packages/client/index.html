@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Classroom.io</title>
     <meta
       name="description"
@@ -43,10 +43,15 @@
           </span>
         </div>
         <div class="hud-right">
+          <div id="player-chip" class="hidden" title="">
+            <span id="player-name"></span>
+          </div>
           <div id="lang-selector"></div>
           <div id="buffs"></div>
           <div id="grade-badge" title=""></div>
           <button id="btn-prestige" class="btn small gold hidden"></button>
+          <button id="btn-invite" class="btn small hidden"></button>
+          <button id="btn-howto" class="btn small icon" title="">?</button>
           <button id="btn-leaderboard" class="btn small icon" title=""></button>
           <button id="btn-settings" class="btn small icon" title=""></button>
         </div>
@@ -70,8 +75,6 @@
               </div>
             </div>
           </div>
-          <!-- Banner sits under the classroom only — same chrome as the HUD/footer. -->
-          <div id="banner-dock" class="hidden"></div>
         </div>
 
         <aside id="shop">
@@ -101,10 +104,23 @@
         </aside>
       </main>
 
+      <!-- Portrait/landscape phones swap between the classroom and the kiosk. -->
+      <nav id="mobile-tabs" class="hidden" aria-label="Screens">
+        <button id="tab-classroom" class="mtab on" type="button"></button>
+        <button id="tab-shop" class="mtab" type="button"></button>
+      </nav>
+
+      <!--
+        Single, stable banner container. It keeps the same pixel box across
+        fullscreen transitions and is not rendered at all behind an ad blocker.
+      -->
+      <div id="banner-dock" class="hidden"></div>
+
       <footer id="site-footer">
         <p id="footer-tagline"></p>
         <nav id="footer-nav" aria-label="Site">
           <a href="./about.html" id="footer-about"></a>
+          <!-- Opens the in-game How to Play modal; the href keeps the page crawlable. -->
           <a href="./guide.html" id="footer-guide"></a>
           <a href="./privacy.html" id="footer-privacy"></a>
           <a href="./impressum.html" id="footer-impressum"></a>
@@ -112,6 +128,7 @@
       </footer>
     </div>
 
+    <div id="hint-root"></div>
     <div id="popover-root"></div>
     <div id="modal-root"></div>
     <div id="toast-root"></div>
@@ -121,7 +138,7 @@
         <div class="doc-titlebar">
           <span id="boss-doc-title">Mathe – Notizen</span>
           <span class="doc-meta">Zuletzt bearbeitet: heute</span>
-          <button id="boss-close" class="doc-btn">Schließen</button>
+          <button id="boss-close" class="doc-btn" title="">Schließen</button>
         </div>
         <div class="doc-toolbar">
           <span>Datei</span><span>Bearbeiten</span><span>Ansicht</span><span>Einfügen</span

@@ -547,23 +547,25 @@ export class Room {
     }
   }
 
+  /** Avatar changes are always allowed; names only for non-CrazyGames saves. */
   rename(playerId: string, name: string, avatar?: AvatarSpec): void {
     const p = this.online(playerId);
     if (!p) return;
-    if (p.cgUserId) {
-      // CrazyGames accounts always display the CrazyGames username.
-      this.out.send(p.id, { t: 'error', code: 'nameLocked' });
-      return;
-    }
-    if (name) {
-      const clean = sanitizeChosenName(name);
-      if (!clean) {
-        this.out.send(p.id, { t: 'error', code: 'nameBlocked' });
-        return;
-      }
-      p.name = clean;
-    }
     if (avatar) p.avatar = sanitizeAvatar(avatar);
+    if (name) {
+      if (p.cgUserId) {
+        // CrazyGames accounts always display the CrazyGames username.
+        this.out.send(p.id, { t: 'error', code: 'nameLocked' });
+      } else {
+        const clean = sanitizeChosenName(name);
+        if (!clean) {
+          this.out.send(p.id, { t: 'error', code: 'nameBlocked' });
+          if (!avatar) return;
+        } else {
+          p.name = clean;
+        }
+      }
+    }
     p.dirty = true;
     this.sendYou(p);
     this.out.broadcast({ t: 'roster', p: this.publicOf(p) });
