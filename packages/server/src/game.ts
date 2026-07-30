@@ -37,7 +37,7 @@ import {
   SUB_BUFF_MULT,
   UPGRADE_BY_ID,
 } from '@shared/balance.js';
-import { moderateChat } from '@shared/chatFilter.js';
+import { containsProfanity, moderateChat } from '@shared/moderation.js';
 import type {
   AvatarSpec,
   Buff,
@@ -95,6 +95,9 @@ export class Room {
     private now: () => number = Date.now,
     private rng: () => number = Math.random,
     eventGap?: { min: number; max: number },
+    /** Injectable for tests; production always verifies against CrazyGames. */
+    private verifyCgToken: (token: string) => Promise<CrazyGamesTokenPayload> =
+      verifyCrazyGamesToken,
   ) {
     this.eventGap = eventGap ?? { min: EVENT_MIN_GAP_MS, max: EVENT_MAX_GAP_MS };
     this.goalLevel = Number(db.getMeta('goal_level') ?? 0);
@@ -107,8 +110,14 @@ export class Room {
 
   /**
    * Handles a hello. Returns the player id, plus the raw token when a new
-   * account was created. Never trusts client-provided economy data.
-   * Optional `cgToken` (CrazyGames JWT) links / resumes progress by userId.
+   * guest account was created. Never trusts client-provided economy data.
+   *
+   * CrazyGames saves and guest saves are separate rows:
+   *
+   * - A verified `cgToken` always resolves to the row for that `userId`.
+   * - The first time an account is seen, the guest save behind `token` is
+   *   *copied* into it and stamped as migrated. Later logins never copy again,
+   *   so progress made while logged out stays in the guest save.
    */
   async hello(
     token: string | undefined,
@@ -121,32 +130,13 @@ export class Room {
     let cg: CrazyGamesTokenPayload | null = null;
     if (typeof cgToken === 'string' && cgToken.length > 20) {
       try {
-        cg = await verifyCrazyGamesToken(cgToken);
+        cg = await this.verifyCgToken(cgToken);
       } catch (err) {
         console.warn('cg token verify failed', err);
       }
     }
 
-    // Prefer CrazyGames account when the JWT verifies.
-    if (cg) {
-      const seatedCg = this.findSeatedByCgUserId(cg.userId);
-      if (seatedCg) {
-        this.settle(seatedCg, now);
-        seatedCg.online = true;
-        seatedCg.sleepUntil = 0;
-        this.syncCgProfile(seatedCg, cg);
-        this.out.broadcast({ t: 'join', p: this.publicOf(seatedCg) });
-        return { playerId: seatedCg.id };
-      }
-      const rowCg = this.db.loadPlayerByCgUserId(cg.userId);
-      if (rowCg) {
-        const offline = this.applyOfflineGains(rowCg, now);
-        this.syncCgProfile(rowCg, cg);
-        const p = this.seatPlayer(rowCg, now);
-        this.out.broadcast({ t: 'join', p: this.publicOf(p) });
-        return { playerId: p.id, offline };
-      }
-    }
+    if (cg) return this.helloCrazyGames(cg, token, avatar, now);
 
     if (token && /^[a-f0-9]{48}$/.test(token)) {
       const hash = hashToken(token);
@@ -156,14 +146,12 @@ export class Room {
         this.settle(seated, now);
         seated.online = true;
         seated.sleepUntil = 0;
-        if (cg) this.linkCgIfNeeded(seated, cg);
         this.out.broadcast({ t: 'join', p: this.publicOf(seated) });
         return { playerId: seated.id };
       }
       const row = this.db.loadPlayerByToken(hash);
       if (row) {
         const offline = this.applyOfflineGains(row, now);
-        if (cg) this.linkCgIfNeeded(row, cg);
         const p = this.seatPlayer(row, now);
         this.out.broadcast({ t: 'join', p: this.publicOf(p) });
         return { playerId: p.id, offline };
@@ -171,36 +159,91 @@ export class Room {
       // Unknown token (wiped DB?) -> fall through and create a fresh account.
     }
 
-    const id = crypto.randomBytes(6).toString('base64url');
     const newToken = crypto.randomBytes(24).toString('hex');
-    const displayName =
-      (cg ? sanitizeName(cg.username) : null) ??
-      sanitizeName(name) ??
-      `Schüler-${id.slice(0, 4)}`;
-    const row: PlayerRow = {
-      id,
-      name: displayName,
-      avatar: sanitizeAvatar(avatar),
-      bp: 0,
-      runBp: 0,
-      lifetimeBp: 0,
-      clicks: 0,
-      gens: GENERATORS.map(() => 0),
-      upgrades: [],
-      stars: 0,
-      grade: 0,
-      stolenTotal: 0,
-      lostTotal: 0,
-      lastStealAt: 0,
-      lastAdRewardAt: 0,
-      cgUserId: cg?.userId ?? null,
-      createdAt: now,
-      lastSeen: now,
-    };
+    const row = blankPlayer(newPlayerId(), sanitizeChosenName(name) ?? guestName(), avatar, now);
     this.db.createPlayer(row, hashToken(newToken));
     const p = this.seatPlayer(row, now);
     this.out.broadcast({ t: 'join', p: this.publicOf(p) });
-    return { playerId: id, newToken };
+    return { playerId: row.id, newToken };
+  }
+
+  private helloCrazyGames(
+    cg: CrazyGamesTokenPayload,
+    token: string | undefined,
+    avatar: AvatarSpec | undefined,
+    now: number,
+  ): { playerId: string; offline?: { ms: number; bp: number } } {
+    const seated = this.findSeatedByCgUserId(cg.userId);
+    if (seated) {
+      this.settle(seated, now);
+      seated.online = true;
+      seated.sleepUntil = 0;
+      this.syncCgProfile(seated, cg);
+      this.out.broadcast({ t: 'join', p: this.publicOf(seated) });
+      return { playerId: seated.id };
+    }
+
+    const existing = this.db.loadPlayerByCgUserId(cg.userId);
+    if (existing) {
+      // The account already has save data — guest progress is never merged in.
+      const offline = this.applyOfflineGains(existing, now);
+      this.syncCgProfile(existing, cg);
+      const p = this.seatPlayer(existing, now);
+      this.out.broadcast({ t: 'join', p: this.publicOf(p) });
+      return { playerId: p.id, offline };
+    }
+
+    const row = this.createCgAccount(cg, this.migratableGuest(token, now), avatar, now);
+    const p = this.seatPlayer(row, now);
+    this.out.broadcast({ t: 'join', p: this.publicOf(p) });
+    return { playerId: p.id };
+  }
+
+  /** The guest save eligible for a one-time copy into a new CrazyGames account. */
+  private migratableGuest(token: string | undefined, now: number): PlayerRow | null {
+    if (!token || !/^[a-f0-9]{48}$/.test(token)) return null;
+    const row = this.db.loadPlayerByToken(hashToken(token));
+    if (!row || row.cgUserId || row.cgMigratedAt > 0) return null;
+    // Prefer live in-memory state when the guest is still seated.
+    const live = this.players.get(row.id);
+    if (live) {
+      this.settle(live, now);
+      return { ...live };
+    }
+    this.applyOfflineGains(row, now);
+    return row;
+  }
+
+  /**
+   * Creates the row backing a CrazyGames account. Its token hash is internal
+   * and never handed to the client, so logging out drops back to the guest save
+   * instead of continuing the account's progress.
+   */
+  private createCgAccount(
+    cg: CrazyGamesTokenPayload,
+    source: PlayerRow | null,
+    avatar: AvatarSpec | undefined,
+    now: number,
+  ): PlayerRow {
+    const id = newPlayerId();
+    const base = source
+      ? { ...source, id, avatar: sanitizeAvatar(source.avatar) }
+      : blankPlayer(id, guestName(), avatar, now);
+    const row: PlayerRow = {
+      ...base,
+      name: sanitizeName(cg.username) ?? base.name,
+      cgUserId: cg.userId,
+      cgMigratedAt: 0,
+      createdAt: now,
+      lastSeen: now,
+    };
+    this.db.createPlayer(row, hashToken(crypto.randomBytes(24).toString('hex')));
+    if (source) {
+      this.db.markCgMigrated(source.id, now);
+      const live = this.players.get(source.id);
+      if (live) live.cgMigratedAt = now;
+    }
+    return row;
   }
 
   private findSeatedByCgUserId(cgUserId: string): PlayerState | null {
@@ -217,23 +260,6 @@ export class Room {
       if ('dirty' in p) (p as PlayerState).dirty = true;
       else this.db.savePlayer(p as PlayerRow);
     }
-  }
-
-  private linkCgIfNeeded(p: PlayerRow | PlayerState, cg: CrazyGamesTokenPayload): void {
-    if (p.cgUserId === cg.userId) {
-      this.syncCgProfile(p, cg);
-      return;
-    }
-    if (p.cgUserId) {
-      // Already linked to a different CG account — keep existing link.
-      return;
-    }
-    // Ensure this CG id is not already claimed.
-    if (this.db.loadPlayerByCgUserId(cg.userId)) return;
-    p.cgUserId = cg.userId;
-    this.syncCgProfile(p, cg);
-    this.db.linkCgUserId(p.id, cg.userId);
-    if ('dirty' in p) (p as PlayerState).dirty = true;
   }
 
   private findSeatedByTokenHash(hash: string): PlayerState | null {
@@ -524,8 +550,19 @@ export class Room {
   rename(playerId: string, name: string, avatar?: AvatarSpec): void {
     const p = this.online(playerId);
     if (!p) return;
-    const clean = sanitizeName(name);
-    if (clean) p.name = clean;
+    if (p.cgUserId) {
+      // CrazyGames accounts always display the CrazyGames username.
+      this.out.send(p.id, { t: 'error', code: 'nameLocked' });
+      return;
+    }
+    if (name) {
+      const clean = sanitizeChosenName(name);
+      if (!clean) {
+        this.out.send(p.id, { t: 'error', code: 'nameBlocked' });
+        return;
+      }
+      p.name = clean;
+    }
     if (avatar) p.avatar = sanitizeAvatar(avatar);
     p.dirty = true;
     this.sendYou(p);
@@ -714,6 +751,7 @@ export class Room {
       adRewardReadyAt: p.lastAdRewardAt + AD_REWARD_COOLDOWN_MS,
       stolenTotal: p.stolenTotal,
       lostTotal: p.lostTotal,
+      cgLinked: p.cgUserId !== null,
     };
   }
 
@@ -769,6 +807,45 @@ function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function newPlayerId(): string {
+  return crypto.randomBytes(6).toString('base64url');
+}
+
+/** Stylized guest name with a random suffix, e.g. `Student_0192`. */
+export function guestName(): string {
+  return `Student_${String(crypto.randomInt(10_000)).padStart(4, '0')}`;
+}
+
+function blankPlayer(
+  id: string,
+  name: string,
+  avatar: AvatarSpec | undefined,
+  now: number,
+): PlayerRow {
+  return {
+    id,
+    name,
+    avatar: sanitizeAvatar(avatar),
+    bp: 0,
+    runBp: 0,
+    lifetimeBp: 0,
+    clicks: 0,
+    gens: GENERATORS.map(() => 0),
+    upgrades: [],
+    stars: 0,
+    grade: 0,
+    stolenTotal: 0,
+    lostTotal: 0,
+    lastStealAt: 0,
+    lastAdRewardAt: 0,
+    cgUserId: null,
+    cgMigratedAt: 0,
+    createdAt: now,
+    lastSeen: now,
+  };
+}
+
+/** Character sanitation for trusted names (CrazyGames usernames). */
 export function sanitizeName(name: unknown): string | null {
   if (typeof name !== 'string') return null;
   const clean = name
@@ -777,6 +854,16 @@ export function sanitizeName(name: unknown): string | null {
     .trim()
     .slice(0, NAME_MAX);
   return clean.length >= NAME_MIN ? clean : null;
+}
+
+/**
+ * Sanitation for player-chosen names (self-hosted / non-CrazyGames builds).
+ * Returns null when the name is unusable or fails the profanity filter.
+ */
+export function sanitizeChosenName(name: unknown): string | null {
+  const clean = sanitizeName(name);
+  if (clean === null) return null;
+  return containsProfanity(clean) ? null : clean;
 }
 
 export function sanitizeAvatar(a: unknown): AvatarSpec {

@@ -172,7 +172,12 @@ export function deskTier(gens: readonly number[]): number {
 // ---------------------------------------------------------------------------
 // Prestige ("Versetzung")
 
-export const PRESTIGE_BASE = 1e9;
+/**
+ * Run BP needed for the first gold star. Tuned so a first graduation lands
+ * inside a single session — CrazyGames QA must be able to reach and verify the
+ * prestige flow without grinding for hours.
+ */
+export const PRESTIGE_BASE = 1e6;
 
 export function starsForRun(runBp: number): number {
   if (runBp < PRESTIGE_BASE) return 0;

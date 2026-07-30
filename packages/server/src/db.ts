@@ -20,6 +20,12 @@ export interface PlayerRow {
   lastStealAt: number;
   lastAdRewardAt: number;
   cgUserId: string | null;
+  /**
+   * Timestamp at which this guest save was copied into a CrazyGames account.
+   * Non-zero means "already migrated" — it must never be copied again, even if
+   * the player logs out, keeps playing, and logs back in.
+   */
+  cgMigratedAt: number;
   createdAt: number;
   lastSeen: number;
 }
@@ -51,6 +57,7 @@ CREATE TABLE IF NOT EXISTS players (
   last_steal_at INTEGER NOT NULL DEFAULT 0,
   last_ad_reward_at INTEGER NOT NULL DEFAULT 0,
   cg_user_id TEXT UNIQUE,
+  cg_migrated_at INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   last_seen INTEGER NOT NULL
 );
@@ -85,6 +92,9 @@ export class Db {
     if (!names.has('last_ad_reward_at')) {
       this.db.exec('ALTER TABLE players ADD COLUMN last_ad_reward_at INTEGER NOT NULL DEFAULT 0');
     }
+    if (!names.has('cg_migrated_at')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN cg_migrated_at INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   createPlayer(row: PlayerRow, tokenHash: string): void {
@@ -92,8 +102,8 @@ export class Db {
       .prepare(
         `INSERT INTO players (id, token_hash, name, avatar, bp, run_bp, lifetime_bp, clicks,
            gens, upgrades, stars, grade, stolen_total, lost_total, last_steal_at,
-           last_ad_reward_at, cg_user_id, created_at, last_seen)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           last_ad_reward_at, cg_user_id, cg_migrated_at, created_at, last_seen)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -113,6 +123,7 @@ export class Db {
         row.lastStealAt,
         row.lastAdRewardAt,
         row.cgUserId,
+        row.cgMigratedAt,
         row.createdAt,
         row.lastSeen,
       );
@@ -132,8 +143,9 @@ export class Db {
     return r ? decodeRow(r) : null;
   }
 
-  linkCgUserId(playerId: string, cgUserId: string): void {
-    this.db.prepare('UPDATE players SET cg_user_id = ? WHERE id = ?').run(cgUserId, playerId);
+  /** Stamp a guest save as already copied into a CrazyGames account. */
+  markCgMigrated(playerId: string, at: number): void {
+    this.db.prepare('UPDATE players SET cg_migrated_at = ? WHERE id = ?').run(at, playerId);
   }
 
   savePlayer(row: PlayerRow): void {
@@ -141,7 +153,8 @@ export class Db {
       .prepare(
         `UPDATE players SET name = ?, avatar = ?, bp = ?, run_bp = ?, lifetime_bp = ?, clicks = ?,
            gens = ?, upgrades = ?, stars = ?, grade = ?, stolen_total = ?, lost_total = ?,
-           last_steal_at = ?, last_ad_reward_at = ?, cg_user_id = ?, last_seen = ? WHERE id = ?`,
+           last_steal_at = ?, last_ad_reward_at = ?, cg_user_id = ?, cg_migrated_at = ?,
+           last_seen = ? WHERE id = ?`,
       )
       .run(
         row.name,
@@ -159,6 +172,7 @@ export class Db {
         row.lastStealAt,
         row.lastAdRewardAt,
         row.cgUserId,
+        row.cgMigratedAt,
         row.lastSeen,
         row.id,
       );
@@ -217,6 +231,7 @@ function decodeRow(r: Record<string, unknown>): PlayerRow {
     lastStealAt: r.last_steal_at as number,
     lastAdRewardAt: Number(r.last_ad_reward_at ?? 0),
     cgUserId: (r.cg_user_id as string | null) ?? null,
+    cgMigratedAt: Number(r.cg_migrated_at ?? 0),
     createdAt: r.created_at as number,
     lastSeen: r.last_seen as number,
   };
