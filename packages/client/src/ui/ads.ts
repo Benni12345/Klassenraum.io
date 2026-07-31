@@ -15,6 +15,21 @@ const BANNER_REFRESH_MS = 35_000;
 const BANNER_TICK_MS = 1_000;
 
 /**
+ * QA / test builds can disable banners via `VITE_NO_BANNER=true` at build time
+ * or `?noBanner=1` at runtime. Layout then matches the no-adblocker Basic Launch
+ * look (no reserved banner ledge).
+ */
+export function bannersDisabled(): boolean {
+  if (import.meta.env.VITE_NO_BANNER === 'true') return true;
+  try {
+    const v = new URLSearchParams(location.search).get('noBanner');
+    return v === '1' || v === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Midgame ads are only shown when the player graduates (prestige), after they
  * confirmed the reset — the only placement CrazyGames allows for clicker games.
  */
@@ -140,7 +155,7 @@ function sizeForViewport(available: number): BannerSize {
  *   they never request another ad.
  */
 export function mountBottomBanner(dock: HTMLElement): () => void {
-  if (!platform.enabled || platform.hasAdblock) return () => {};
+  if (!platform.enabled || platform.hasAdblock || bannersDisabled()) return () => {};
 
   dock.classList.remove('hidden');
   const slot = el('div', 'cg-banner-slot');

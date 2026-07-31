@@ -256,6 +256,13 @@ export function createCrazyGamesPlatform(): Platform {
 
     requestBanner(containerId: string, size: BannerSize) {
       if (hasAdblock) return;
+      // Runtime / build-time QA switch: never request banner inventory.
+      try {
+        const v = new URLSearchParams(location.search).get('noBanner');
+        if (v === '1' || v === 'true' || import.meta.env.VITE_NO_BANNER === 'true') return;
+      } catch {
+        if (import.meta.env.VITE_NO_BANNER === 'true') return;
+      }
       activeBanners.add(containerId);
       try {
         const result = sdk().banner.requestBanner({
