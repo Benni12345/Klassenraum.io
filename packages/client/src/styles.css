@@ -1723,3 +1723,113 @@ body.mobile.md-short .tut-body {
   margin-bottom: 6px;
   font-size: 12px;
 }
+
+/*
+ * Landscape phones: classroom + School Kiosk side-by-side so the short height
+ * is not stacked with Take notes / tabs / legal / banner on top of each other.
+ * Legal stays reachable from Settings.
+ */
+body.mobile.md-landscape #game {
+  flex-direction: row;
+}
+
+body.mobile.md-landscape #play-col {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex !important;
+}
+
+body.mobile.md-landscape #canvas-wrap {
+  flex: 1;
+  min-height: 0;
+}
+
+body.mobile.md-landscape #shop {
+  width: min(300px, 40vw);
+  flex: 0 0 auto;
+  min-height: 0;
+  height: auto;
+  border-left: 4px solid var(--ink);
+  border-top: none;
+  padding: 4px 6px;
+  gap: 4px;
+  display: flex !important;
+}
+
+body.mobile.md-landscape #shop-scroll {
+  display: flex !important;
+  min-height: 0;
+}
+
+body.mobile.md-landscape #shop-top {
+  gap: 4px;
+}
+
+body.mobile.md-landscape #btn-click {
+  padding: 6px 4px;
+  font-size: 13px;
+  gap: 0;
+}
+
+body.mobile.md-landscape #click-power {
+  font-size: 10px;
+}
+
+body.mobile.md-landscape .ad-boost {
+  padding: 4px;
+  gap: 2px;
+}
+
+body.mobile.md-landscape .ad-boost-hint {
+  display: none;
+}
+
+body.mobile.md-landscape .ad-boost-btn {
+  padding: 6px 4px;
+  font-size: 11px;
+  gap: 4px;
+}
+
+body.mobile.md-landscape .ad-play-badge {
+  width: 26px;
+  height: 22px;
+}
+
+body.mobile.md-landscape #mobile-tabs {
+  display: none !important;
+}
+
+body.mobile.md-landscape #site-footer {
+  display: none !important;
+}
+
+body.mobile.md-landscape #banner-dock {
+  padding: 2px 4px;
+  justify-content: center;
+}
+
+body.mobile.md-landscape #hud {
+  padding: 4px 8px;
+  gap: 4px 6px;
+}
+
+body.mobile.md-landscape .gen {
+  padding: 4px 6px;
+}
+
+body.mobile.md-landscape .shop-head h2,
+body.mobile.md-landscape #upgrades-title {
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+body.mobile.md-landscape #buy-qty {
+  gap: 2px;
+}
+
+body.mobile.md-landscape #buy-qty .qty,
+body.mobile.md-landscape #buy-qty #qty-max {
+  padding: 2px 6px;
+  font-size: 11px;
+}

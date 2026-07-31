@@ -10,7 +10,7 @@ import { getPrefs, hasHint, markHint, setPrefs } from '../prefs';
 import { t } from '../i18n';
 import { store } from '../state';
 import { el, id } from './dom';
-import { currentTab, isMobileLayout, onTabChange, setMobileTab, type MobileTab } from './mobile';
+import { currentTab, isLandscapeMobile, isMobileLayout, onTabChange, setMobileTab, type MobileTab } from './mobile';
 import { pushOverlay } from './overlay';
 
 interface Step {
@@ -150,13 +150,15 @@ const HINTS: readonly Hint[] = [
       const you = store.you;
       if (!you || you.bp < 15) return false;
       if (you.gens.some((n) => n > 0)) return false;
-      // Desktop always shows the kiosk; only nudge when it is hidden.
+      // Landscape already shows the kiosk beside the classroom.
+      if (isLandscapeMobile()) return false;
+      // Only nudge when the kiosk isn't on screen (phone portrait tabs).
       return isMobileLayout() && currentTab() !== 'shop';
     },
     done: () => {
       const you = store.you;
       if (you?.gens.some((n) => n > 0)) return true;
-      if (!isMobileLayout()) return true;
+      if (!isMobileLayout() || isLandscapeMobile()) return true;
       return currentTab() === 'shop';
     },
   },
