@@ -43,7 +43,8 @@ export function initChat(): void {
   }
 
   id('chat-toggle').addEventListener('click', () => panel.classList.toggle('collapsed'));
-  if (window.innerWidth < 900) panel.classList.add('collapsed');
+  // Start collapsed on every device — players open Notes when they want them.
+  panel.classList.add('collapsed');
 
   store.on('joined', () => {
     id('chat-log').innerHTML = '';
