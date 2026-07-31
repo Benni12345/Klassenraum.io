@@ -25,10 +25,12 @@ const DESK_TOP = 78;
 const CELL_W = 36;
 const ROW_H = 36;
 const GRID_X = 12;
-/** Characters that fit under one desk; hovering reveals the full username. */
-const DESK_LABEL_MAX = 12;
-/** Characters per chalkboard leaderboard entry (three entries share one line). */
-const BOARD_NAME_MAX = 9;
+/**
+ * Desk labels and chalkboard entries show up to NAME_MAX characters
+ * (CrazyGames usernames are typically 6–20). Hover still shows the full plate.
+ */
+const DESK_LABEL_MAX = NAME_MAX;
+const BOARD_NAME_MAX = NAME_MAX;
 
 export interface DeskHit {
   player: PlayerPublic;

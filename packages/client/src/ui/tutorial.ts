@@ -10,7 +10,7 @@ import { getPrefs, hasHint, markHint, setPrefs } from '../prefs';
 import { t } from '../i18n';
 import { store } from '../state';
 import { el, id } from './dom';
-import { setMobileTab, type MobileTab } from './mobile';
+import { currentTab, isMobileLayout, onTabChange, setMobileTab, type MobileTab } from './mobile';
 import { pushOverlay } from './overlay';
 
 interface Step {
@@ -24,6 +24,7 @@ const STEPS: readonly Step[] = [
   { key: 'welcome', tab: 'classroom' },
   { key: 'click', target: () => id('btn-click') },
   { key: 'shop', target: () => id('gen-list'), tab: 'shop' },
+  { key: 'goal', target: () => id('canvas-wrap'), tab: 'classroom' },
   { key: 'steal', target: () => id('canvas-wrap'), tab: 'classroom' },
   { key: 'boss' },
 ];
@@ -137,6 +138,29 @@ const HINTS: readonly Hint[] = [
     done: () => (store.you?.clicks ?? 0) > 0,
   },
   {
+    id: 'kiosk',
+    label: () => t('hint.kiosk'),
+    target: () => {
+      // On phones the kiosk sits behind a tab — point at that tab so players
+      // learn where upgrades live. On desktop the shop is already visible.
+      if (isMobileLayout() && currentTab() !== 'shop') return id('tab-shop');
+      return id('shop-title');
+    },
+    ready: () => {
+      const you = store.you;
+      if (!you || you.bp < 15) return false;
+      if (you.gens.some((n) => n > 0)) return false;
+      // Desktop always shows the kiosk; only nudge when it is hidden.
+      return isMobileLayout() && currentTab() !== 'shop';
+    },
+    done: () => {
+      const you = store.you;
+      if (you?.gens.some((n) => n > 0)) return true;
+      if (!isMobileLayout()) return true;
+      return currentTab() === 'shop';
+    },
+  },
+  {
     id: 'gen',
     label: () => t('hint.gen'),
     target: () => document.querySelector<HTMLElement>('#gen-list .gen.afford'),
@@ -232,4 +256,5 @@ export function initHints(): void {
   window.addEventListener('resize', refreshHints);
   store.on('you', refreshHints);
   store.on('joined', refreshHints);
+  onTabChange(refreshHints);
 }

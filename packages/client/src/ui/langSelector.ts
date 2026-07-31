@@ -1,4 +1,5 @@
 import { getLocale, LOCALES, setLocale, t, type Locale } from '../i18n';
+import { refreshBossTexts } from './boss';
 import { el } from './dom';
 import { applyStaticTexts } from './texts';
 
@@ -41,6 +42,7 @@ export function buildLangSelector(opts: LangSelectorOptions = {}): HTMLElement {
       if (getLocale() === l) return;
       setLocale(l);
       applyStaticTexts();
+      refreshBossTexts();
       refreshMounted();
       opts.onChange?.();
     };

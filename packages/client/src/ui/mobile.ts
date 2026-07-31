@@ -1,18 +1,21 @@
 /**
- * Phone layout: the classroom and the School Kiosk each get the full screen,
- * switched with a tab bar, so neither is squeezed into a sliver.
+ * Phone / tablet layout: the classroom and the School Kiosk each get the full
+ * screen, switched with a tab bar, so neither is squeezed into a sliver.
  *
- * The "Take notes!" button and the rewarded-ad slot stay docked above the tab
- * bar in both tabs, so the core loop works without switching back and forth.
- * The same layout is used in portrait and landscape.
+ * Desktop must keep the side-by-side classroom + kiosk layout even when the
+ * game is not fullscreen (short window heights used to flip into this mode via
+ * a max-height media query). Prefer CrazyGames SystemInfo when available;
+ * otherwise require a narrow viewport or a coarse pointer.
  */
 
+import { platform } from '../platform';
 import { id } from './dom';
 
 export type MobileTab = 'classroom' | 'shop';
 
-/** Narrow *or* short: landscape phones are wide but only ~400 px tall. */
-const MOBILE_QUERY = '(max-width: 900px), (max-height: 560px)';
+/** Narrow phones / tablets. Coarse pointer catches landscape phones >900 px wide. */
+const NARROW_QUERY = '(max-width: 900px)';
+const TOUCH_SHORT_QUERY = '(max-height: 560px) and (pointer: coarse)';
 
 let current: MobileTab = 'classroom';
 let isMobile = false;
@@ -41,13 +44,26 @@ export function setMobileTab(tab: MobileTab): void {
   for (const fn of listeners) fn(tab);
 }
 
+function shouldUseMobileLayout(): boolean {
+  // CrazyGames SystemInfo is authoritative when the SDK reports a device.
+  const device = platform.deviceType;
+  if (device === 'mobile' || device === 'tablet') return true;
+  if (device === 'desktop') return false;
+  return (
+    window.matchMedia(NARROW_QUERY).matches || window.matchMedia(TOUCH_SHORT_QUERY).matches
+  );
+}
+
 export function initMobileTabs(): void {
-  const mq = window.matchMedia(MOBILE_QUERY);
+  const narrow = window.matchMedia(NARROW_QUERY);
+  const touchShort = window.matchMedia(TOUCH_SHORT_QUERY);
+  const short = window.matchMedia('(max-height: 560px)');
   const tabs = id('mobile-tabs');
 
   const apply = () => {
-    isMobile = mq.matches;
+    isMobile = shouldUseMobileLayout();
     document.body.classList.toggle('mobile', isMobile);
+    document.body.classList.toggle('md-short', isMobile && short.matches);
     tabs.classList.toggle('hidden', !isMobile);
     if (isMobile) {
       setMobileTab(current);
@@ -58,6 +74,8 @@ export function initMobileTabs(): void {
 
   id('tab-classroom').addEventListener('click', () => setMobileTab('classroom'));
   id('tab-shop').addEventListener('click', () => setMobileTab('shop'));
-  mq.addEventListener('change', apply);
+  narrow.addEventListener('change', apply);
+  touchShort.addEventListener('change', apply);
+  short.addEventListener('change', apply);
   apply();
 }

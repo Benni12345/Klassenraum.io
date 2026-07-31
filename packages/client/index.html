@@ -133,29 +133,36 @@
     <div id="modal-root"></div>
     <div id="toast-root"></div>
 
-    <div id="boss-overlay" class="hidden">
+    <div id="boss-overlay" class="hidden" lang="en">
       <div class="doc-chrome">
         <div class="doc-titlebar">
-          <span id="boss-doc-title">Mathe – Notizen</span>
-          <span class="doc-meta">Zuletzt bearbeitet: heute</span>
-          <button id="boss-close" class="doc-btn" title="">Schließen</button>
+          <span id="boss-doc-title">Math – Notes</span>
+          <span id="boss-doc-meta" class="doc-meta">Last edited: today</span>
+          <button id="boss-close" class="doc-btn" title="">Close</button>
         </div>
         <div class="doc-toolbar">
-          <span>Datei</span><span>Bearbeiten</span><span>Ansicht</span><span>Einfügen</span
-          ><span>Format</span><span>Extras</span>
+          <span id="boss-menu-file">File</span><span id="boss-menu-edit">Edit</span
+          ><span id="boss-menu-view">View</span><span id="boss-menu-insert">Insert</span
+          ><span id="boss-menu-format">Format</span><span id="boss-menu-tools">Tools</span>
         </div>
         <div class="doc-page">
-          <h1>Quadratische Funktionen – Zusammenfassung</h1>
-          <p><b>Allgemeine Form:</b> f(x) = ax² + bx + c &nbsp;(a ≠ 0)</p>
-          <p><b>Scheitelpunktform:</b> f(x) = a(x − d)² + e, Scheitel S(d | e)</p>
-          <ul>
-            <li>a &gt; 0: Parabel nach oben geöffnet, a &lt; 0: nach unten</li>
-            <li>|a| &gt; 1: gestreckt, |a| &lt; 1: gestaucht</li>
-            <li>Nullstellen über Mitternachtsformel: x = (−b ± √(b² − 4ac)) / 2a</li>
-            <li>Diskriminante D = b² − 4ac entscheidet über Anzahl der Nullstellen</li>
+          <h1 id="boss-h1">Quadratic functions – summary</h1>
+          <p id="boss-p1">
+            <b>General form:</b> f(x) = ax² + bx + c &nbsp;(a ≠ 0)
+          </p>
+          <p id="boss-p2">
+            <b>Vertex form:</b> f(x) = a(x − d)² + e, vertex S(d | e)
+          </p>
+          <ul id="boss-list">
+            <li>a &gt; 0: parabola opens upward, a &lt; 0: opens downward</li>
+            <li>|a| &gt; 1: stretched, |a| &lt; 1: compressed</li>
+            <li>Roots via the quadratic formula: x = (−b ± √(b² − 4ac)) / 2a</li>
+            <li>Discriminant D = b² − 4ac decides how many real roots</li>
           </ul>
-          <p><b>Beispiel:</b> f(x) = 2x² − 4x + 1</p>
-          <p>⇒ f(x) = 2(x − 1)² − 1, Scheitel S(1 | −1), D = 8 &gt; 0 ⇒ zwei Nullstellen</p>
+          <p id="boss-ex"><b>Example:</b> f(x) = 2x² − 4x + 1</p>
+          <p id="boss-ex2">
+            ⇒ f(x) = 2(x − 1)² − 1, vertex S(1 | −1), D = 8 &gt; 0 ⇒ two real roots
+          </p>
           <p class="doc-cursor">|</p>
         </div>
       </div>

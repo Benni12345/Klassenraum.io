@@ -241,7 +241,12 @@ export class Room {
     if (source) {
       this.db.markCgMigrated(source.id, now);
       const live = this.players.get(source.id);
-      if (live) live.cgMigratedAt = now;
+      if (live) {
+        live.cgMigratedAt = now;
+        // Drop the guest seat so the classroom does not show two copies of the
+        // same player while the CrazyGames account takes over this connection.
+        this.disconnect(source.id);
+      }
     }
     return row;
   }

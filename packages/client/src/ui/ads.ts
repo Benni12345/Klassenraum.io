@@ -114,8 +114,18 @@ export function mountRewardedBoostButton(
 }
 
 function sizeForViewport(available: number): BannerSize {
-  if (window.matchMedia('(max-width: 900px)').matches) return { width: 320, height: 50 };
-  if (available >= 760) return { width: 728, height: 90 };
+  // Phones always get the slim banner.
+  if (
+    window.matchMedia('(max-width: 900px)').matches ||
+    window.matchMedia('(max-height: 560px) and (pointer: coarse)').matches
+  ) {
+    return { width: 320, height: 50 };
+  }
+  // Windowed desktop (not fullscreen) often has a short frame — the 728×90
+  // leaderboard eats the classroom. Prefer the medium banner unless the frame
+  // is clearly spacious.
+  const tall = window.innerHeight >= 720;
+  if (available >= 900 && tall) return { width: 728, height: 90 };
   if (available >= 500) return { width: 468, height: 60 };
   return { width: 320, height: 50 };
 }

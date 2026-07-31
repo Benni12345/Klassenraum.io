@@ -25,6 +25,7 @@ import {
   closeModal,
   closeTopModal,
   howToPlayModal,
+  infoPageModal,
   joinModal,
   leaderboardModal,
   prestigeModal,
@@ -115,6 +116,18 @@ async function boot(): Promise<void> {
   id('footer-guide').addEventListener('click', (ev) => {
     ev.preventDefault();
     howToPlayModal();
+  });
+  id('footer-about').addEventListener('click', (ev) => {
+    ev.preventDefault();
+    infoPageModal(t('footer.about'), './about.html');
+  });
+  id('footer-privacy').addEventListener('click', (ev) => {
+    ev.preventDefault();
+    infoPageModal(t('footer.privacy'), './privacy.html');
+  });
+  id('footer-impressum').addEventListener('click', (ev) => {
+    ev.preventDefault();
+    infoPageModal(t('footer.impressum'), './impressum.html');
   });
 
   // ------------------------------------------------------------- Multiplayer

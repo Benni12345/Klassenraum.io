@@ -18,15 +18,26 @@ export interface CrazyGamesGameSettings {
 
 export type InviteParams = Record<string, string>;
 
+export type DeviceType = 'desktop' | 'tablet' | 'mobile';
+
+export interface CrazyGamesSystemInfo {
+  countryCode?: string;
+  locale?: string;
+  device?: { type?: DeviceType | string };
+  os?: { name?: string; version?: string };
+  browser?: { name?: string; version?: string };
+  applicationType?: string;
+}
+
 export interface CrazyGamesSDK {
   init(): Promise<void>;
   environment: 'local' | 'crazygames' | 'disabled';
   game: {
-    loadingStart(): Promise<void>;
-    loadingStop(): Promise<void>;
-    gameplayStart(): Promise<void>;
-    gameplayStop(): Promise<void>;
-    happytime(): Promise<void>;
+    loadingStart(): Promise<void> | void;
+    loadingStop(): Promise<void> | void;
+    gameplayStart(): Promise<void> | void;
+    gameplayStop(): Promise<void> | void;
+    happytime(): Promise<void> | void;
     settings: CrazyGamesGameSettings;
     addSettingsChangeListener(listener: (s: CrazyGamesGameSettings) => void): void;
     removeSettingsChangeListener(listener: (s: CrazyGamesGameSettings) => void): void;
@@ -34,8 +45,8 @@ export interface CrazyGamesSDK {
       roomId?: string;
       isJoinable?: boolean;
       inviteParams?: InviteParams;
-    }): Promise<void>;
-    leftRoom?(): Promise<void>;
+    }): Promise<void> | void;
+    leftRoom?(): Promise<void> | void;
     addJoinRoomListener?(listener: (params: InviteParams) => void): void;
     removeJoinRoomListener?(listener: (params: InviteParams) => void): void;
     inviteLink?(params: InviteParams): string;
@@ -50,7 +61,11 @@ export interface CrazyGamesSDK {
     hasAdblock(): Promise<boolean>;
   };
   banner: {
-    requestBanner(opts: { id: string; width: number; height: number }): Promise<void>;
+    requestBanner(opts: {
+      id: string;
+      width: number;
+      height: number;
+    }): Promise<void> | void;
     clearBanner(id: string): void;
     clearAllBanners(): void;
   };
@@ -61,6 +76,10 @@ export interface CrazyGamesSDK {
     addAuthListener(listener: (user: CrazyGamesUser | null) => void): void;
     removeAuthListener(listener: (user: CrazyGamesUser | null) => void): void;
     showAuthPrompt(): Promise<CrazyGamesUser>;
+    /** v3 sync system info (device / locale / OS). */
+    systemInfo?: CrazyGamesSystemInfo;
+    /** Older SDK builds exposed an async getter instead. */
+    getSystemInfo?(): Promise<CrazyGamesSystemInfo>;
   };
   system?: {
     getInfo?(): { countryCode?: string; locale?: string };
@@ -92,6 +111,12 @@ export interface Platform {
   hasAdblock: boolean;
   /** True when the player launched straight into multiplayer from CrazyGames. */
   isInstantMultiplayer: boolean;
+  /**
+   * Device class from CrazyGames SystemInfo when available.
+   * `null` outside CrazyGames / when unknown — callers should fall back to
+   * viewport heuristics.
+   */
+  deviceType: DeviceType | null;
   init(): Promise<void>;
   loadingDone(): void;
   onGameplayStart(): void;

@@ -90,6 +90,10 @@ const de: Dict = {
   'prestige.warn':
     'Achtung: Eine Versetzung setzt deinen Fortschritt zurück. Hirnschmalz, alle Generatoren und alle Upgrades dieser Runde sind weg. Goldsterne und Klassenstufe behältst du.',
   'prestige.locked': 'Noch {v} HS in dieser Runde bis zum ersten Goldstern.',
+  'prestige.lockedNear':
+    'Fast geschafft — sammle noch ein bisschen Hirnschmalz in dieser Runde für deinen ersten Goldstern.',
+  'prestige.lockedHint':
+    'Goldsterne bekommst du durch Versetzung (dieses Menü). Das Klassenziel ist getrennt: Bei 100 % gibt es einen kurzen Klassen-Bonus (×3), keinen Goldstern.',
   'prestige.confirm': 'Versetzen!',
   'prestige.cancel': 'Doch nicht',
   'prestige.yes': 'Ja, versetzen',
@@ -183,6 +187,25 @@ const de: Dict = {
 
   'boss.title': 'Mathe – Notizen',
   'boss.hint': 'Tab zum Zurückkehren',
+  'boss.meta': 'Zuletzt bearbeitet: heute',
+  'boss.menu.file': 'Datei',
+  'boss.menu.edit': 'Bearbeiten',
+  'boss.menu.view': 'Ansicht',
+  'boss.menu.insert': 'Einfügen',
+  'boss.menu.format': 'Format',
+  'boss.menu.tools': 'Extras',
+  'boss.h1': 'Quadratische Funktionen – Zusammenfassung',
+  'boss.p1.label': 'Allgemeine Form:',
+  'boss.p1.body': 'f(x) = ax² + bx + c\u00a0(a ≠ 0)',
+  'boss.p2.label': 'Scheitelpunktform:',
+  'boss.p2.body': 'f(x) = a(x − d)² + e, Scheitel S(d | e)',
+  'boss.li1': 'a > 0: Parabel nach oben geöffnet, a < 0: nach unten',
+  'boss.li2': '|a| > 1: gestreckt, |a| < 1: gestaucht',
+  'boss.li3': 'Nullstellen über Mitternachtsformel: x = (−b ± √(b² − 4ac)) / 2a',
+  'boss.li4': 'Diskriminante D = b² − 4ac entscheidet über Anzahl der Nullstellen',
+  'boss.ex.label': 'Beispiel:',
+  'boss.ex.body': 'f(x) = 2x² − 4x + 1',
+  'boss.ex2': '⇒ f(x) = 2(x − 1)² − 1, Scheitel S(1 | −1), D = 8 > 0 ⇒ zwei Nullstellen',
 
   'ui.close': 'Schließen',
   'ui.back': 'Zurück',
@@ -203,10 +226,13 @@ const de: Dict = {
   'howto.events.h': '5. Klassen-Events',
   'howto.events.p':
     'Kurztest, Lehrer-Rundgang und Vertretungsstunde treffen alle gleichzeitig. Beim Kurztest bringt die richtige Antwort Bonus und ×2.',
-  'howto.prestige.h': '6. Versetzung',
+  'howto.goal.h': '6. Klassenziel',
+  'howto.goal.p':
+    'Alles Hirnschmalz der ganzen Klasse zählt fürs Klassenziel. Bei 100 % gibt es Hausaufgabenfrei: ×3 Produktion für alle — das ist kein Goldstern.',
+  'howto.prestige.h': '7. Versetzung',
   'howto.prestige.p':
     'Mit genug Hirnschmalz kannst du dich versetzen lassen: Die Runde startet neu, du behältst Goldsterne für dauerhaft mehr Produktion.',
-  'howto.boss.h': '7. Boss-Taste',
+  'howto.boss.h': '8. Boss-Taste',
   'howto.boss.p': 'Tab tarnt das Spiel als Mathe-Notizen. Noch mal Tab bringt dich zurück.',
 
   'tutorial.skip': 'Tutorial überspringen',
@@ -222,6 +248,9 @@ const de: Dict = {
   'tutorial.shop.h': 'Kauf im Schulkiosk',
   'tutorial.shop.p':
     'Generatoren produzieren automatisch weiter. Fang mit dem Bleistiftstummel an, danach werden neue Stufen freigeschaltet.',
+  'tutorial.goal.h': 'Klassenziel',
+  'tutorial.goal.p':
+    'Oben an der Tafel siehst du das Klassenziel. Alles HS der Klasse zählt mit. Bei 100 % gibt’s ×3 für alle — getrennt von deinen persönlichen Goldsternen.',
   'tutorial.steal.h': 'Klau deinen Mitschülern Punkte',
   'tutorial.steal.p':
     'Klick auf einen anderen Platz und wirf einen Papierflieger. Beim Lehrer-Rundgang riskierst du Nachsitzen.',
@@ -231,6 +260,7 @@ const de: Dict = {
 
   'hint.click': 'Hier klicken zum Mitschreiben!',
   'hint.gen': 'Jetzt kannst du dir das leisten!',
+  'hint.kiosk': 'Öffne den Schulkiosk für Upgrades!',
   'hint.upgrade': 'Upgrade verfügbar!',
   'hint.prestige': 'Versetzung möglich!',
 
@@ -324,6 +354,10 @@ const en: Dict = {
   'prestige.warn':
     'Careful: graduating resets your progress. Your brainpower, all generators and all upgrades from this run are gone. You keep your gold stars and grade.',
   'prestige.locked': '{v} BP left this run until your first gold star.',
+  'prestige.lockedNear':
+    'Almost there — keep earning brainpower this run to unlock your first gold star.',
+  'prestige.lockedHint':
+    'Gold stars come from graduating (this menu). Class Goal is separate: at 100% the whole class gets a short ×3 bonus — not a gold star.',
   'prestige.confirm': 'Graduate!',
   'prestige.cancel': 'Not yet',
   'prestige.yes': 'Yes, graduate',
@@ -417,6 +451,25 @@ const en: Dict = {
 
   'boss.title': 'Math – Notes',
   'boss.hint': 'Tab to return',
+  'boss.meta': 'Last edited: today',
+  'boss.menu.file': 'File',
+  'boss.menu.edit': 'Edit',
+  'boss.menu.view': 'View',
+  'boss.menu.insert': 'Insert',
+  'boss.menu.format': 'Format',
+  'boss.menu.tools': 'Tools',
+  'boss.h1': 'Quadratic functions – summary',
+  'boss.p1.label': 'General form:',
+  'boss.p1.body': 'f(x) = ax² + bx + c\u00a0(a ≠ 0)',
+  'boss.p2.label': 'Vertex form:',
+  'boss.p2.body': 'f(x) = a(x − d)² + e, vertex S(d | e)',
+  'boss.li1': 'a > 0: parabola opens upward, a < 0: opens downward',
+  'boss.li2': '|a| > 1: stretched, |a| < 1: compressed',
+  'boss.li3': 'Roots via the quadratic formula: x = (−b ± √(b² − 4ac)) / 2a',
+  'boss.li4': 'Discriminant D = b² − 4ac decides how many real roots',
+  'boss.ex.label': 'Example:',
+  'boss.ex.body': 'f(x) = 2x² − 4x + 1',
+  'boss.ex2': '⇒ f(x) = 2(x − 1)² − 1, vertex S(1 | −1), D = 8 > 0 ⇒ two real roots',
 
   'ui.close': 'Close',
   'ui.back': 'Back',
@@ -437,10 +490,13 @@ const en: Dict = {
   'howto.events.h': '5. Class events',
   'howto.events.p':
     'Pop quiz, teacher patrol and substitute period hit the whole room at once. Answer the quiz correctly for a bonus and a ×2 multiplier.',
-  'howto.prestige.h': '6. Graduating',
+  'howto.goal.h': '6. Class Goal',
+  'howto.goal.p':
+    'Every brainpower earned by anyone counts toward the Class Goal. At 100% the whole class gets a short ×3 “no homework” bonus — that is not a gold star.',
+  'howto.prestige.h': '7. Graduating',
   'howto.prestige.p':
     'With enough brainpower you can graduate: the run restarts, but you keep gold stars that permanently boost production.',
-  'howto.boss.h': '7. Boss key',
+  'howto.boss.h': '8. Boss key',
   'howto.boss.p': 'Tab disguises the game as a math notes document. Press Tab again to return.',
 
   'tutorial.skip': 'Skip tutorial',
@@ -456,6 +512,9 @@ const en: Dict = {
   'tutorial.shop.h': 'Shop in the School Kiosk',
   'tutorial.shop.p':
     'Generators keep producing on their own. Start with the Stubby Pencil; buying it unlocks the next tier.',
+  'tutorial.goal.h': 'Class Goal',
+  'tutorial.goal.p':
+    'The chalkboard tracks the Class Goal. Everyone’s BP counts. At 100% the whole class gets ×3 for a few minutes — separate from your personal gold stars.',
   'tutorial.steal.h': 'Steal from your classmates',
   'tutorial.steal.p':
     'Click another desk to throw a paper airplane. During a teacher patrol you risk detention.',
@@ -465,6 +524,7 @@ const en: Dict = {
 
   'hint.click': 'Click here to take notes!',
   'hint.gen': 'You can afford this now!',
+  'hint.kiosk': 'Open the School Kiosk for upgrades!',
   'hint.upgrade': 'Upgrade available!',
   'hint.prestige': 'You can graduate!',
 
