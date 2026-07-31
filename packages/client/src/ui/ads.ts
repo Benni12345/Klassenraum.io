@@ -15,6 +15,21 @@ const BANNER_REFRESH_MS = 35_000;
 const BANNER_TICK_MS = 1_000;
 
 /**
+ * QA / test builds can disable banners via `VITE_NO_BANNER=true` at build time
+ * or `?noBanner=1` at runtime. Layout then matches the no-adblocker Basic Launch
+ * look (no reserved banner ledge).
+ */
+export function bannersDisabled(): boolean {
+  if (import.meta.env.VITE_NO_BANNER === 'true') return true;
+  try {
+    const v = new URLSearchParams(location.search).get('noBanner');
+    return v === '1' || v === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Midgame ads are only shown when the player graduates (prestige), after they
  * confirmed the reset — the only placement CrazyGames allows for clicker games.
  */
@@ -114,8 +129,18 @@ export function mountRewardedBoostButton(
 }
 
 function sizeForViewport(available: number): BannerSize {
-  if (window.matchMedia('(max-width: 900px)').matches) return { width: 320, height: 50 };
-  if (available >= 760) return { width: 728, height: 90 };
+  // Phones always get the slim banner.
+  if (
+    window.matchMedia('(max-width: 900px)').matches ||
+    window.matchMedia('(max-height: 560px) and (pointer: coarse)').matches
+  ) {
+    return { width: 320, height: 50 };
+  }
+  // Windowed desktop (not fullscreen) often has a short frame — the 728×90
+  // leaderboard eats the classroom. Prefer the medium banner unless the frame
+  // is clearly spacious.
+  const tall = window.innerHeight >= 720;
+  if (available >= 900 && tall) return { width: 728, height: 90 };
   if (available >= 500) return { width: 468, height: 60 };
   return { width: 320, height: 50 };
 }
@@ -130,7 +155,7 @@ function sizeForViewport(available: number): BannerSize {
  *   they never request another ad.
  */
 export function mountBottomBanner(dock: HTMLElement): () => void {
-  if (!platform.enabled || platform.hasAdblock) return () => {};
+  if (!platform.enabled || platform.hasAdblock || bannersDisabled()) return () => {};
 
   dock.classList.remove('hidden');
   const slot = el('div', 'cg-banner-slot');

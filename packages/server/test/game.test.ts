@@ -3,7 +3,7 @@ import { PRESTIGE_BASE } from '../../shared/src/balance.js';
 import type { ServerMsg } from '../../shared/src/protocol.js';
 import type { CrazyGamesTokenPayload } from '../src/cgAuth.js';
 import { Db } from '../src/db.js';
-import { Room, guestName, sanitizeChosenName, sanitizeName } from '../src/game.js';
+import { Room, guestName, isLegacyGuestName, sanitizeChosenName, sanitizeName } from '../src/game.js';
 
 /** Fake CrazyGames JWT: `cg:<userId>:<username>` (long enough to be parsed). */
 async function fakeVerify(token: string): Promise<CrazyGamesTokenPayload> {
@@ -323,6 +323,27 @@ describe('name sanitization', () => {
 
   it('names guests with a random stylized suffix', () => {
     expect(guestName()).toMatch(/^Student_\d{4}$/);
+  });
+
+  it('detects legacy Schüler guest names', () => {
+    expect(isLegacyGuestName('Schüler-IJGJ')).toBe(true);
+    expect(isLegacyGuestName('Schueler_ab12')).toBe(true);
+    expect(isLegacyGuestName('Student_0192')).toBe(false);
+    expect(isLegacyGuestName('CoolPlayer')).toBe(false);
+  });
+
+  it('renames legacy Schüler guests to Student_#### on reconnect', async () => {
+    const { room, clock } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    const p = (room as any).players.get(guest.playerId);
+    p.name = 'Schüler-IJGJ';
+    room.disconnect(guest.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const back = await room.hello(guest.newToken, undefined, undefined);
+    expect(back.playerId).toBe(guest.playerId);
+    expect(room.youOf(guest.playerId)!.name).toMatch(/^Student_\d{4}$/);
   });
 
   it('keeps the CrazyGames username and blocks in-game renames', async () => {

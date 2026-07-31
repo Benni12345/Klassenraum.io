@@ -139,3 +139,34 @@ a:hover {
   transform: translate(1px, 1px);
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
 }
+
+/*
+ * Sticky action bar so “Back to the game” stays reachable without scrolling
+ * (matches the in-game How to Play / About / Privacy / Legal modals).
+ */
+.page-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--board);
+  border-bottom: 3px solid var(--board-dark);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+}
+
+.page-sticky .play-link {
+  margin-top: 0;
+}
+
+/* When the page is shown inside the in-game modal iframe, the modal already
+   provides a sticky Close — hide the duplicate chrome. */
+html.embedded .page-sticky {
+  display: none;
+}
+
+html.embedded .page-header {
+  margin-top: 0;
+}

@@ -96,8 +96,11 @@ Random event every 4–8 min:
 ## Multiplayer
 
 Classroom.io is a real multiplayer game: every player sits in the same global
-classroom over WebSockets. CrazyGames room data, invite link/button and the
-join-room listener are wired so friends can drop into the shared classroom.
+classroom over WebSockets. There is **one public room** (no private lobbies) —
+the desk grid grows new rows of 6 as more players join, so there is no hard
+player cap. CrazyGames room data, invite link/button and the join-room listener
+are wired so friends can drop into the shared classroom. Instant multiplayer
+(`isInstantMultiplayer`) routes straight into that same public room.
 
 ## Not in this version (stretch)
 

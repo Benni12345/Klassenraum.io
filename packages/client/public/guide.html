@@ -11,6 +11,9 @@
     <link rel="stylesheet" href="./pages.css" />
   </head>
   <body>
+    <div class="page-sticky">
+      <a class="play-link" href="./index.html">Back to the game</a>
+    </div>
     <header class="page-header">
       <h1>How to play</h1>
       <p>Tips and mechanics for Classroom.io</p>
@@ -115,5 +118,8 @@
         </nav>
       </article>
     </main>
-  </body>
+      <script>
+      if (window.self !== window.top) document.documentElement.classList.add('embedded');
+    </script>
+</body>
 </html>

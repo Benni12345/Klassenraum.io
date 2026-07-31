@@ -20,6 +20,7 @@ export function createNoopPlatform(): Platform {
     muteAudio,
     hasAdblock: false,
     isInstantMultiplayer: false,
+    deviceType: null,
     async init() {},
     loadingDone() {},
     onGameplayStart() {},

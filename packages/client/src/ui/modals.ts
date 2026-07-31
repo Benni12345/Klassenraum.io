@@ -233,7 +233,14 @@ export function prestigeModal(): void {
   openModal({ title: t('prestige.title') }, (body, foot, close) => {
     if (!eligible) {
       const missing = Math.max(0, PRESTIGE_BASE - you.runBp);
-      body.appendChild(el('p', '', t('prestige.locked', { v: fmt(missing) })));
+      // Clarify that Gold Stars come from graduating this run — Class Goal is a
+      // separate co-op bonus and is not required for the first star.
+      if (missing < 1) {
+        body.appendChild(el('p', '', t('prestige.lockedNear')));
+      } else {
+        body.appendChild(el('p', '', t('prestige.locked', { v: fmt(missing) })));
+      }
+      body.appendChild(el('p', 'settings-note', t('prestige.lockedHint')));
       const ok = el('button', 'btn', t('ui.close'));
       ok.type = 'button';
       ok.onclick = close;
@@ -307,7 +314,7 @@ store.on('leaderboard', (rows: LeaderboardRow[]) => {
 
 // -------------------------------------------------------------- How to play
 
-const HOWTO_SECTIONS = ['notes', 'shop', 'upgrades', 'steal', 'events', 'prestige', 'boss'];
+const HOWTO_SECTIONS = ['notes', 'shop', 'upgrades', 'steal', 'events', 'goal', 'prestige', 'boss'];
 
 export function howToPlayModal(): void {
   openModal({ title: t('howto.title') }, (body, foot, close) => {
@@ -315,6 +322,26 @@ export function howToPlayModal(): void {
       body.appendChild(el('h3', 'howto-h', t(`howto.${key}.h`)));
       body.appendChild(el('p', '', t(`howto.${key}.p`)));
     }
+    const ok = el('button', 'btn gold', t('ui.close'));
+    ok.type = 'button';
+    ok.onclick = close;
+    foot.appendChild(ok);
+  });
+}
+
+/**
+ * Opens a static site page (About / Privacy / Legal) inside a modal so the
+ * Close button stays sticky — same pattern as How to Play.
+ */
+export function infoPageModal(title: string, href: string): void {
+  openModal({ title }, (body, foot, close) => {
+    // Widen the shell for long legal copy.
+    const box = body.closest('.modal');
+    box?.classList.add('modal-page');
+    const frame = el('iframe', 'page-frame') as HTMLIFrameElement;
+    frame.src = href;
+    frame.title = title;
+    body.appendChild(frame);
     const ok = el('button', 'btn gold', t('ui.close'));
     ok.type = 'button';
     ok.onclick = close;
@@ -414,7 +441,8 @@ export function settingsModal(): void {
       }),
     );
 
-    // ---- Help
+    // ---- Help + legal (legal must stay reachable on mobile where the footer
+    // is a slim strip — Settings is the other always-available entry point)
     const helpRow = el('div', 'row');
     const howto = el('button', 'btn small', t('settings.howto'));
     howto.type = 'button';
@@ -432,6 +460,24 @@ export function settingsModal(): void {
     helpRow.appendChild(replay);
     body.appendChild(helpRow);
     body.appendChild(el('p', 'settings-note', t('settings.boss')));
+
+    body.appendChild(el('h3', 'settings-h', t('settings.legal')));
+    const legalRow = el('div', 'row');
+    const openLegal = (titleKey: string, href: string) => {
+      close();
+      infoPageModal(t(titleKey), href);
+    };
+    for (const [labelKey, href] of [
+      ['footer.about', './about.html'],
+      ['footer.privacy', './privacy.html'],
+      ['footer.impressum', './impressum.html'],
+    ] as const) {
+      const b = el('button', 'btn small', t(labelKey));
+      b.type = 'button';
+      b.onclick = () => openLegal(labelKey, href);
+      legalRow.appendChild(b);
+    }
+    body.appendChild(legalRow);
 
     // ---- Stats
     if (you) {

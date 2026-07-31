@@ -146,12 +146,14 @@ export class Room {
         this.settle(seated, now);
         seated.online = true;
         seated.sleepUntil = 0;
+        this.refreshLegacyGuestName(seated);
         this.out.broadcast({ t: 'join', p: this.publicOf(seated) });
         return { playerId: seated.id };
       }
       const row = this.db.loadPlayerByToken(hash);
       if (row) {
         const offline = this.applyOfflineGains(row, now);
+        this.refreshLegacyGuestName(row);
         const p = this.seatPlayer(row, now);
         this.out.broadcast({ t: 'join', p: this.publicOf(p) });
         return { playerId: p.id, offline };
@@ -241,7 +243,12 @@ export class Room {
     if (source) {
       this.db.markCgMigrated(source.id, now);
       const live = this.players.get(source.id);
-      if (live) live.cgMigratedAt = now;
+      if (live) {
+        live.cgMigratedAt = now;
+        // Drop the guest seat so the classroom does not show two copies of the
+        // same player while the CrazyGames account takes over this connection.
+        this.disconnect(source.id);
+      }
     }
     return row;
   }
@@ -260,6 +267,18 @@ export class Room {
       if ('dirty' in p) (p as PlayerState).dirty = true;
       else this.db.savePlayer(p as PlayerRow);
     }
+  }
+
+  /**
+   * Old builds named guests `Schüler-xxxx`. Rewrite those on reconnect so QA
+   * and returning players see `Student_####` without wiping progress.
+   */
+  private refreshLegacyGuestName(p: PlayerRow | PlayerState): void {
+    if (p.cgUserId) return;
+    if (!isLegacyGuestName(p.name)) return;
+    p.name = guestName();
+    if ('dirty' in p) (p as PlayerState).dirty = true;
+    else this.db.savePlayer(p as PlayerRow);
   }
 
   private findSeatedByTokenHash(hash: string): PlayerState | null {
@@ -816,6 +835,11 @@ function newPlayerId(): string {
 /** Stylized guest name with a random suffix, e.g. `Student_0192`. */
 export function guestName(): string {
   return `Student_${String(crypto.randomInt(10_000)).padStart(4, '0')}`;
+}
+
+/** True for pre-English guest names like `Schüler-IJGJ` / `Schueler_ab12`. */
+export function isLegacyGuestName(name: string): boolean {
+  return /^(sch(?:ü|ue)ler)[-_]/iu.test(name);
 }
 
 function blankPlayer(

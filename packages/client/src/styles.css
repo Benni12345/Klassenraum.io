@@ -23,6 +23,7 @@ html,
 body {
   margin: 0;
   height: 100%;
+  height: 100dvh;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font);
@@ -98,6 +99,12 @@ input {
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* Keep chrome clear of notches / CrazyGames mobile frame edges. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  box-sizing: border-box;
 }
 
 /* ------------------------------------------------------------------- HUD */
@@ -106,12 +113,13 @@ input {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 12px;
+  padding: 8px 12px;
   background: var(--board);
   border-bottom: 3px solid var(--board-dark);
   color: #eef3ea;
   min-height: 54px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .hud-left {
@@ -1042,6 +1050,28 @@ input {
   display: none;
 }
 
+/* In-game About / Privacy / Legal: sticky close stays outside the page iframe. */
+.modal.modal-page {
+  max-width: min(640px, 96vw);
+  max-height: min(90vh, 720px);
+  height: min(90vh, 720px);
+}
+
+.page-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  border: 0;
+  background: var(--paper);
+}
+
+.modal-page .modal-body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .modal h3 {
   margin: 14px 0 4px;
   font-size: 13px;
@@ -1491,162 +1521,315 @@ input {
 /* ------------------------------------------------------------- Responsive */
 
 /*
- * Phones (narrow *or* short, so landscape works too): the classroom and the
- * School Kiosk each take the whole play area and are swapped with the tab bar.
- * "Take notes!" and the rewarded-ad slot stay docked in both tabs.
+ * Phone / tablet layout is toggled via body.mobile from ui/mobile.ts (CrazyGames
+ * SystemInfo when available, otherwise narrow / coarse-pointer heuristics). Do
+ * NOT key this off max-height alone — windowed desktop was flipping into the
+ * tab layout, shrinking the classroom and hiding the kiosk on the right.
  */
-@media (max-width: 900px), (max-height: 560px) {
-  #game {
-    flex-direction: column;
-  }
+body.mobile #game {
+  flex-direction: column;
+}
 
-  #play-col {
-    flex: 1;
-    min-height: 0;
-  }
+body.mobile #play-col {
+  flex: 1;
+  min-height: 0;
+}
 
-  #canvas-wrap {
-    flex: 1;
-    min-height: 0;
-  }
+body.mobile #canvas-wrap {
+  flex: 1;
+  min-height: 0;
+}
 
-  #shop {
-    width: 100%;
-    flex: none;
-    border-left: none;
-    border-top: 4px solid var(--ink);
-    padding: 8px;
-    gap: 8px;
-  }
+body.mobile #shop {
+  width: 100%;
+  flex: none;
+  border-left: none;
+  border-top: 4px solid var(--ink);
+  padding: 8px;
+  gap: 8px;
+}
 
-  body.m-tab-classroom #shop-scroll {
-    display: none;
-  }
+body.mobile.m-tab-classroom #shop-scroll {
+  display: none;
+}
 
-  body.m-tab-shop #play-col {
-    display: none;
-  }
+body.mobile.m-tab-shop #play-col {
+  display: none;
+}
 
-  body.m-tab-shop #shop {
-    flex: 1;
-    min-height: 0;
-  }
+body.mobile.m-tab-shop #shop {
+  flex: 1;
+  min-height: 0;
+}
 
-  body.m-tab-shop #shop-scroll {
-    display: flex;
-  }
+body.mobile.m-tab-shop #shop-scroll {
+  display: flex;
+}
 
-  #btn-click {
-    padding: 10px;
-    font-size: 16px;
-  }
+body.mobile #btn-click {
+  padding: 10px;
+  font-size: 16px;
+}
 
-  #banner-dock {
-    justify-content: center;
-    padding: 6px 4px;
-  }
+body.mobile #banner-dock {
+  justify-content: center;
+  padding: 6px 4px;
+}
 
-  #bp-value {
-    font-size: 17px;
-    min-width: 0;
-  }
+body.mobile #bp-value {
+  font-size: 17px;
+  min-width: 0;
+}
 
-  #hud {
-    gap: 8px;
-    padding: 5px 8px;
-    min-height: 0;
-  }
+body.mobile #hud {
+  gap: 6px 8px;
+  padding: 8px 10px;
+  min-height: 0;
+}
 
-  .hud-right {
-    gap: 6px;
-  }
+body.mobile .hud-left {
+  flex-shrink: 0;
+}
 
-  #chat-log {
-    height: 90px;
-  }
+body.mobile .hud-right {
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+}
 
-  #chat-panel {
-    width: min(260px, calc(100% - 20px));
-  }
+body.mobile #hud-brain {
+  width: 28px;
+  height: 28px;
+}
 
-  #site-footer {
-    display: none;
-  }
+body.mobile #chat-log {
+  height: 90px;
+}
+
+body.mobile #chat-panel {
+  width: min(260px, calc(100% - 20px));
+}
+
+/*
+ * Keep About / Privacy / Legal reachable on phones: slim link row above the
+ * Classroom / Kiosk tabs (tagline hidden to save height).
+ */
+body.mobile #site-footer {
+  display: flex;
+  order: 2;
+  justify-content: center;
+  padding: 4px 8px;
+  gap: 8px;
+}
+
+body.mobile #footer-tagline {
+  display: none;
+}
+
+body.mobile #footer-nav {
+  justify-content: center;
+  gap: 8px 14px;
+  font-size: 11px;
+}
+
+body.mobile #mobile-tabs {
+  order: 3;
+}
+
+body.mobile #banner-dock {
+  order: 4;
+}
+
+body.mobile #game {
+  order: 1;
+}
+
+body.mobile #hud {
+  order: 0;
 }
 
 /*
  * Landscape phones are only ~390 px tall: squeeze the chrome into a single HUD
  * row so the School Kiosk keeps a usable amount of height.
  */
-@media (max-height: 560px) {
-  #hud {
-    flex-wrap: nowrap;
-    gap: 6px;
-    padding: 4px 8px;
-  }
+body.mobile.md-short #hud {
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  padding: 6px 8px;
+}
 
-  #lang-selector,
-  #btn-invite,
-  #player-chip {
-    display: none !important;
-  }
+body.mobile.md-short #lang-selector,
+body.mobile.md-short #btn-invite,
+body.mobile.md-short #player-chip {
+  display: none !important;
+}
 
-  #event-banner {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    padding: 2px 6px;
-    font-size: 11px;
-  }
+body.mobile.md-short #event-banner {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 6px;
+  font-size: 11px;
+}
 
-  #event-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+body.mobile.md-short #event-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  #bp-value {
-    font-size: 15px;
-  }
+body.mobile.md-short #bp-value {
+  font-size: 15px;
+}
 
-  #bps-value {
-    font-size: 10px;
-  }
+body.mobile.md-short #bps-value {
+  font-size: 10px;
+}
 
-  #hud-brain {
-    width: 24px;
-    height: 24px;
-  }
+body.mobile.md-short #hud-brain {
+  width: 24px;
+  height: 24px;
+}
 
-  #btn-click {
-    padding: 7px;
-    font-size: 14px;
-  }
+body.mobile.md-short #btn-click {
+  padding: 7px;
+  font-size: 14px;
+}
 
-  #shop {
-    padding: 6px;
-    gap: 6px;
-  }
+body.mobile.md-short #shop {
+  padding: 6px;
+  gap: 6px;
+}
 
-  .mtab {
-    padding: 7px 6px;
-    font-size: 12px;
-  }
+body.mobile.md-short .mtab {
+  padding: 7px 6px;
+  font-size: 12px;
+}
 
-  .ad-boost-hint {
-    display: none;
-  }
+body.mobile.md-short .ad-boost-hint {
+  display: none;
+}
 
-  .ad-boost {
-    padding: 6px;
-  }
+body.mobile.md-short .ad-boost {
+  padding: 6px;
+}
 
-  .tut-card {
-    padding: 8px 10px;
-  }
+body.mobile.md-short .tut-card {
+  padding: 8px 10px;
+}
 
-  .tut-body {
-    margin-bottom: 6px;
-    font-size: 12px;
-  }
+body.mobile.md-short .tut-body {
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+/*
+ * Landscape phones: classroom + School Kiosk side-by-side so the short height
+ * is not stacked with Take notes / tabs / legal / banner on top of each other.
+ * Legal stays reachable from Settings.
+ */
+body.mobile.md-landscape #game {
+  flex-direction: row;
+}
+
+body.mobile.md-landscape #play-col {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex !important;
+}
+
+body.mobile.md-landscape #canvas-wrap {
+  flex: 1;
+  min-height: 0;
+}
+
+body.mobile.md-landscape #shop {
+  width: min(300px, 40vw);
+  flex: 0 0 auto;
+  min-height: 0;
+  height: auto;
+  border-left: 4px solid var(--ink);
+  border-top: none;
+  padding: 4px 6px;
+  gap: 4px;
+  display: flex !important;
+}
+
+body.mobile.md-landscape #shop-scroll {
+  display: flex !important;
+  min-height: 0;
+}
+
+body.mobile.md-landscape #shop-top {
+  gap: 4px;
+}
+
+body.mobile.md-landscape #btn-click {
+  padding: 6px 4px;
+  font-size: 13px;
+  gap: 0;
+}
+
+body.mobile.md-landscape #click-power {
+  font-size: 10px;
+}
+
+body.mobile.md-landscape .ad-boost {
+  padding: 4px;
+  gap: 2px;
+}
+
+body.mobile.md-landscape .ad-boost-hint {
+  display: none;
+}
+
+body.mobile.md-landscape .ad-boost-btn {
+  padding: 6px 4px;
+  font-size: 11px;
+  gap: 4px;
+}
+
+body.mobile.md-landscape .ad-play-badge {
+  width: 26px;
+  height: 22px;
+}
+
+body.mobile.md-landscape #mobile-tabs {
+  display: none !important;
+}
+
+body.mobile.md-landscape #site-footer {
+  display: none !important;
+}
+
+body.mobile.md-landscape #banner-dock {
+  padding: 2px 4px;
+  justify-content: center;
+}
+
+body.mobile.md-landscape #hud {
+  padding: 4px 8px;
+  gap: 4px 6px;
+}
+
+body.mobile.md-landscape .gen {
+  padding: 4px 6px;
+}
+
+body.mobile.md-landscape .shop-head h2,
+body.mobile.md-landscape #upgrades-title {
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+body.mobile.md-landscape #buy-qty {
+  gap: 2px;
+}
+
+body.mobile.md-landscape #buy-qty .qty,
+body.mobile.md-landscape #buy-qty #qty-max {
+  padding: 2px 6px;
+  font-size: 11px;
 }

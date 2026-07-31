@@ -4,6 +4,7 @@ import type {
   BannerSize,
   CrazyGamesGameSettings,
   CrazyGamesUser,
+  DeviceType,
   InviteParams,
   Platform,
   PlatformUser,
@@ -73,6 +74,11 @@ function toPlatformUser(user: CrazyGamesUser | null): PlatformUser | null {
   return { username: user.username };
 }
 
+/** Some SDK methods return void instead of a Promise depending on the host build. */
+function settle(result: PromiseLike<unknown> | void): void {
+  void Promise.resolve(result).catch(() => {});
+}
+
 export function createCrazyGamesPlatform(): Platform {
   let gameplay = false;
   let loading = false;
@@ -81,6 +87,7 @@ export function createCrazyGamesPlatform(): Platform {
   let muteAudio = false;
   let hasAdblock = false;
   let instantMultiplayer = false;
+  let deviceType: DeviceType | null = null;
   const settingsListeners = new Set<(s: { disableChat: boolean; muteAudio: boolean }) => void>();
   const authListeners = new Set<(user: PlatformUser | null) => void>();
   const joinRoomListeners = new Set<() => void>();
@@ -121,6 +128,10 @@ export function createCrazyGamesPlatform(): Platform {
       return instantMultiplayer;
     },
 
+    get deviceType() {
+      return deviceType;
+    },
+
     async init() {
       await loadScript(SDK_URL);
       await sdk().init();
@@ -148,45 +159,63 @@ export function createCrazyGamesPlatform(): Platform {
         instantMultiplayer = false;
       }
       try {
+        // v3 exposes systemInfo as a sync property; older builds used getSystemInfo().
+        const user = sdk().user;
+        let info = user?.systemInfo ?? null;
+        if (!info && user && typeof user.getSystemInfo === 'function') {
+          info = await user.getSystemInfo();
+        }
+        const raw = info?.device?.type?.toLowerCase();
+        if (raw === 'mobile' || raw === 'tablet' || raw === 'desktop') deviceType = raw;
+      } catch {
+        deviceType = null;
+      }
+      try {
         hasAdblock = Boolean(await sdk().ad.hasAdblock());
       } catch {
         hasAdblock = false;
       }
-      await sdk().game.loadingStart();
+      settle(sdk().game.loadingStart());
       loading = true;
     },
 
     loadingDone() {
       if (!loading) return;
       loading = false;
-      void sdk().game.loadingStop();
+      settle(sdk().game.loadingStop());
     },
 
     onGameplayStart() {
       if (gameplay) return;
       gameplay = true;
-      void sdk().game.gameplayStart();
+      settle(sdk().game.gameplayStart());
     },
 
     onGameplayStop() {
       if (!gameplay) return;
       gameplay = false;
-      void sdk().game.gameplayStop();
+      settle(sdk().game.gameplayStop());
     },
 
     happytime() {
-      void sdk().game.happytime().catch(() => {});
+      settle(sdk().game.happytime());
     },
 
     markRoomJoinable() {
       // One global classroom: always open, so friends can always drop in.
-      void sdk()
-        .game.updateRoom({
-          roomId: CLASSROOM_ROOM_ID,
-          isJoinable: true,
-          inviteParams: ROOM_INVITE_PARAMS,
-        })
-        .catch(() => {});
+      // updateRoom may return void on some CrazyGames host builds — never call
+      // .catch on a non-Promise (that was the Uncaught TypeError in QA).
+      try {
+        settle(
+          sdk().game.updateRoom({
+            roomId: CLASSROOM_ROOM_ID,
+            isJoinable: true,
+            inviteParams: ROOM_INVITE_PARAMS,
+          }),
+        );
+      } catch {
+        /* room APIs optional outside multiplayer hosts */
+      }
     },
 
     showInviteButton() {
@@ -227,12 +256,26 @@ export function createCrazyGamesPlatform(): Platform {
 
     requestBanner(containerId: string, size: BannerSize) {
       if (hasAdblock) return;
+      // Runtime / build-time QA switch: never request banner inventory.
+      try {
+        const v = new URLSearchParams(location.search).get('noBanner');
+        if (v === '1' || v === 'true' || import.meta.env.VITE_NO_BANNER === 'true') return;
+      } catch {
+        if (import.meta.env.VITE_NO_BANNER === 'true') return;
+      }
       activeBanners.add(containerId);
-      void sdk()
-        .banner.requestBanner({ id: containerId, width: size.width, height: size.height })
-        .catch((err) => {
+      try {
+        const result = sdk().banner.requestBanner({
+          id: containerId,
+          width: size.width,
+          height: size.height,
+        });
+        void Promise.resolve(result).catch((err) => {
           if (import.meta.env.DEV) console.debug('[ads] banner error', containerId, err);
         });
+      } catch (err) {
+        if (import.meta.env.DEV) console.debug('[ads] banner error', containerId, err);
+      }
     },
 
     clearBanner(containerId: string) {
