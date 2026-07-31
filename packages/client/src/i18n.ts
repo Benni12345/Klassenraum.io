@@ -140,6 +140,7 @@ const de: Dict = {
   'settings.nameGuest': 'Melde dich bei CrazyGames an, um deinen Benutzernamen zu nutzen.',
   'settings.howto': 'Spielanleitung',
   'settings.tutorial': 'Tutorial erneut ansehen',
+  'settings.legal': 'Rechtliches',
 
   'conn.lost': 'Verbindung verloren — verbinde neu…',
   'conn.replaced': 'Der Klassenraum ist in einem anderen Tab geöffnet.',
@@ -404,6 +405,7 @@ const en: Dict = {
   'settings.nameGuest': 'Sign in with CrazyGames to play under your username.',
   'settings.howto': 'How to play',
   'settings.tutorial': 'Replay tutorial',
+  'settings.legal': 'Legal',
 
   'conn.lost': 'Connection lost — reconnecting…',
   'conn.replaced': 'The classroom is open in another tab.',

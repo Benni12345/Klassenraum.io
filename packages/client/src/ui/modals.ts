@@ -441,7 +441,8 @@ export function settingsModal(): void {
       }),
     );
 
-    // ---- Help
+    // ---- Help + legal (legal must stay reachable on mobile where the footer
+    // is a slim strip — Settings is the other always-available entry point)
     const helpRow = el('div', 'row');
     const howto = el('button', 'btn small', t('settings.howto'));
     howto.type = 'button';
@@ -459,6 +460,24 @@ export function settingsModal(): void {
     helpRow.appendChild(replay);
     body.appendChild(helpRow);
     body.appendChild(el('p', 'settings-note', t('settings.boss')));
+
+    body.appendChild(el('h3', 'settings-h', t('settings.legal')));
+    const legalRow = el('div', 'row');
+    const openLegal = (titleKey: string, href: string) => {
+      close();
+      infoPageModal(t(titleKey), href);
+    };
+    for (const [labelKey, href] of [
+      ['footer.about', './about.html'],
+      ['footer.privacy', './privacy.html'],
+      ['footer.impressum', './impressum.html'],
+    ] as const) {
+      const b = el('button', 'btn small', t(labelKey));
+      b.type = 'button';
+      b.onclick = () => openLegal(labelKey, href);
+      legalRow.appendChild(b);
+    }
+    body.appendChild(legalRow);
 
     // ---- Stats
     if (you) {
