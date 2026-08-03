@@ -852,7 +852,8 @@ function blankPlayer(
     id,
     name,
     avatar: sanitizeAvatar(avatar),
-    bp: 0,
+    // Enough for the first Stubby Pencil so the tutorial shop step is completable.
+    bp: 15,
     runBp: 0,
     lifetimeBp: 0,
     clicks: 0,

@@ -13,11 +13,14 @@ import { t } from '../i18n';
 import { platform } from '../platform';
 import { genIcon, iconDataUrl } from '../render/sprites';
 import { store } from '../state';
+import { getPrefs } from '../prefs';
 import { mountBottomBanner, mountRewardedBoostButton } from './ads';
 import { el, id } from './dom';
 import { bindCursorTip, type TipCard } from './tooltip';
+import { onTutorialEnd } from './tutorial';
 
 let qtySel = 1;
+let bannerMounted = false;
 
 interface GenRow {
   root: HTMLButtonElement;
@@ -78,9 +81,19 @@ export function initShop(): void {
     boostSlot.classList.remove('hidden');
     mountRewardedBoostButton(boostSlot);
 
-    // No dock at all behind an ad blocker: the layout keeps the Basic Launch
-    // proportions instead of reserving empty space for a banner.
-    mountBottomBanner(id('banner-dock'));
+    // Banner ads stay hidden during the guided tutorial for a cleaner first run.
+    const mountBannerOnce = () => {
+      if (bannerMounted) return;
+      bannerMounted = true;
+      // No dock at all behind an ad blocker: the layout keeps the Basic Launch
+      // proportions instead of reserving empty space for a banner.
+      mountBottomBanner(id('banner-dock'));
+    };
+    if (getPrefs().tutorialDone || platform.isInstantMultiplayer) {
+      mountBannerOnce();
+    } else {
+      onTutorialEnd(mountBannerOnce);
+    }
   }
 
   store.on('you', refresh);

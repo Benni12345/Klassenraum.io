@@ -5,11 +5,18 @@
  * localStorage is the anonymous account token plus these preferences. Writes
  * are throttled to at most one per 30 s (CrazyGames limits save operations for
  * clicker games), with a final flush when the page goes away.
+ *
+ * Tutorial completion is mirrored into the CrazyGames Data module from
+ * `main.ts` / `tutorial.ts` so returning players on the same account do not
+ * see the tutorial again in another browser.
  */
 
 const KEY = 'kr_prefs';
 const LEGACY_LANG_KEY = 'kr_lang';
 export const SAVE_INTERVAL_MS = 30_000;
+
+/** CrazyGames Data module key for cross-device tutorial completion. */
+export const CG_TUTORIAL_KEY = 'tutorialDone';
 
 export interface Prefs {
   lang: string | null;

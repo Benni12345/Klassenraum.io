@@ -13,6 +13,7 @@ import { fmt } from './format';
 import { gradeLabel, t } from './i18n';
 import { initMusic, syncMusic } from './music';
 import { platform } from './platform';
+import { CG_TUTORIAL_KEY, getPrefs, setPrefs } from './prefs';
 import { Scene } from './render/scene';
 import { brainIcon, gearIcon, iconDataUrl, trophyIcon } from './render/sprites';
 import { store } from './state';
@@ -43,6 +44,13 @@ async function boot(): Promise<void> {
   if (platform.enabled) {
     await platform.init();
     store.setCgTokenProvider(() => platform.getUserToken());
+    // Merge cloud tutorial completion before deciding whether to show onboarding.
+    const remote = platform.getDataItem(CG_TUTORIAL_KEY);
+    if (remote === '1' || remote === 'true') {
+      setPrefs({ tutorialDone: true });
+    } else if (getPrefs().tutorialDone) {
+      platform.setDataItem(CG_TUTORIAL_KEY, '1');
+    }
   }
 
   // Unlock Web Audio on the first user gesture (autoplay policies), then start
@@ -161,15 +169,22 @@ async function boot(): Promise<void> {
 
   store.on('joined', () => {
     closePopover();
-    platform.onGameplayStart();
     platform.markRoomJoinable();
     platform.showInviteButton();
     if (lastGrade === -1) {
       scene.scrollToOwnDesk();
       lastGrade = store.you?.grade ?? 0;
-      // Players arriving through instant multiplayer or a friend invite land
-      // straight in the room; they still get the interaction hints.
-      if (!platform.isInstantMultiplayer) startTutorial();
+      // First-time gameplayStart waits until the tutorial is finished or skipped.
+      // Instant multiplayer / returning players start immediately.
+      const showTutorial = !platform.isInstantMultiplayer && !getPrefs().tutorialDone;
+      if (showTutorial) {
+        startTutorial();
+      } else {
+        platform.onGameplayStart();
+      }
+    } else {
+      // Reconnect / reseat — gameplay was already running.
+      platform.onGameplayStart();
     }
   });
 

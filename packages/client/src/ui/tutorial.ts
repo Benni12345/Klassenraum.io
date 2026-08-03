@@ -6,8 +6,9 @@
  * affordable generator, then on Upgrades once one is affordable.
  */
 
-import { getPrefs, hasHint, markHint, setPrefs } from '../prefs';
+import { CG_TUTORIAL_KEY, flushPrefs, getPrefs, hasHint, markHint, setPrefs } from '../prefs';
 import { t } from '../i18n';
+import { platform } from '../platform';
 import { store } from '../state';
 import { el, id } from './dom';
 import { currentTab, isLandscapeMobile, isMobileLayout, onTabChange, setMobileTab, type MobileTab } from './mobile';
@@ -20,37 +21,84 @@ interface Step {
   tab?: MobileTab;
 }
 
-const STEPS: readonly Step[] = [
-  { key: 'welcome', tab: 'classroom' },
-  { key: 'click', target: () => id('btn-click') },
-  { key: 'shop', target: () => id('gen-list'), tab: 'shop' },
-  { key: 'goal', target: () => id('canvas-wrap'), tab: 'classroom' },
-  { key: 'steal', target: () => id('canvas-wrap'), tab: 'classroom' },
-  { key: 'boss' },
-];
+/**
+ * Prefer CrazyGames SystemInfo, but when the UI is already in the phone tab
+ * layout treat it as touch — Chromebooks / narrow desktops report "desktop"
+ * yet still use CLASSROOM / KIOSK tabs.
+ */
+function isTouchTutorial(): boolean {
+  if (isMobileLayout()) return true;
+  const device = platform.deviceType;
+  return device === 'mobile' || device === 'tablet';
+}
+
+/** Desktop gets the Tab/boss step; mobile/tablet stop after steal. */
+function buildSteps(): Step[] {
+  const touch = isTouchTutorial();
+  const steps: Step[] = [
+    { key: 'welcome', tab: 'classroom' },
+    {
+      key: touch ? 'clickTouch' : 'click',
+      target: () => id('btn-click'),
+    },
+    {
+      key: 'shop',
+      // Spotlight the Stubby Pencil row so the purchase action is obvious.
+      target: () => document.querySelector<HTMLElement>('#gen-list .gen') ?? id('gen-list'),
+      tab: 'shop',
+    },
+    { key: 'goal', target: () => id('canvas-wrap'), tab: 'classroom' },
+    { key: 'steal', target: () => id('canvas-wrap'), tab: 'classroom' },
+  ];
+  if (!touch) steps.push({ key: 'boss' });
+  return steps;
+}
 
 const hintRoot = () => id('hint-root');
 
-/** Distance from the viewport bottom that keeps overlays clear of the banner. */
-function bottomInset(): number {
-  let inset = 12;
+function isDisplayed(node: HTMLElement | null): node is HTMLElement {
+  if (!node || node.classList.contains('hidden')) return false;
+  const style = getComputedStyle(node);
+  return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+/** Hard chrome under the play area (never covered). */
+function bottomChrome(): number {
+  let inset = 10;
   for (const elementId of ['banner-dock', 'site-footer', 'mobile-tabs']) {
     const node = document.getElementById(elementId);
-    if (node && !node.classList.contains('hidden')) inset += node.offsetHeight;
+    if (!isDisplayed(node)) continue;
+    inset += node.getBoundingClientRect().height;
   }
   return inset;
+}
+
+function hudBottom(): number {
+  const hud = document.getElementById('hud');
+  return hud ? Math.max(8, hud.getBoundingClientRect().bottom + 8) : 8;
 }
 
 // ------------------------------------------------------------------ Tutorial
 
 let tutorialActive = false;
+const endListeners = new Set<() => void>();
+
+/** Fires once when the active tutorial finishes or is skipped. */
+export function onTutorialEnd(fn: () => void): () => void {
+  endListeners.add(fn);
+  return () => endListeners.delete(fn);
+}
 
 export function startTutorial(opts?: { force?: boolean }): void {
   if (tutorialActive) return;
   if (!opts?.force && getPrefs().tutorialDone) return;
   tutorialActive = true;
+  document.body.classList.add('tutoring');
   const release = pushOverlay();
+  // Guided tours should not count as active gameplay for CrazyGames.
+  platform.onGameplayStop();
 
+  const steps = buildSteps();
   let index = 0;
   const card = el('div', 'tut-card');
   const step = el('div', 'tut-step');
@@ -67,42 +115,104 @@ export function startTutorial(opts?: { force?: boolean }): void {
   card.appendChild(title);
   card.appendChild(bodyText);
   card.appendChild(actions);
-  hintRoot().appendChild(card);
+  // Mount on body so no parent stacking/overflow can hide the step card.
+  document.body.appendChild(card);
 
   let highlighted: HTMLElement | null = null;
 
+  /** True when the target is a large region (classroom), not a single control. */
+  const isRegionTarget = (node: HTMLElement | null): boolean => {
+    if (!node) return false;
+    return node.id === 'canvas-wrap' || node.id === 'gen-list';
+  };
+
+  /** Ceiling just above Take notes / the highlighted control when those sit low. */
+  const contentFloor = (): number => {
+    const vh = window.innerHeight;
+    let floor = vh - bottomChrome();
+    const candidates: HTMLElement[] = [];
+    if (highlighted && !isRegionTarget(highlighted)) candidates.push(highlighted);
+    const click = document.getElementById('btn-click');
+    if (isDisplayed(click) && click !== highlighted) candidates.push(click);
+    for (const node of candidates) {
+      const rect = node.getBoundingClientRect();
+      if (rect.height > 0 && rect.top > hudBottom() + 40) {
+        floor = Math.min(floor, rect.top - 8);
+      }
+    }
+    return floor;
+  };
+
+  /**
+   * Always pin the card below the HUD and above Take notes / bottom chrome so
+   * the step copy stays on top of the play area (never off-screen).
+   */
   const place = () => {
-    card.style.bottom = `${bottomInset()}px`;
+    const top = Math.min(hudBottom(), Math.floor(window.innerHeight * 0.2));
+    const floor = Math.max(top + 130, contentFloor());
+    const maxH = Math.max(130, floor - top);
+
+    card.style.position = 'fixed';
+    card.style.left = '8px';
+    card.style.right = '8px';
+    card.style.width = 'auto';
+    card.style.maxWidth = '420px';
+    card.style.marginLeft = 'auto';
+    card.style.marginRight = 'auto';
+    card.style.transform = 'none';
+    card.style.top = `${top}px`;
+    card.style.bottom = 'auto';
+    card.style.maxHeight = `${maxH}px`;
+    card.style.minHeight = '120px';
+    card.style.opacity = '1';
+    card.style.visibility = 'visible';
+    card.style.display = 'flex';
+    card.style.zIndex = '10000';
+    card.style.pointerEvents = 'auto';
   };
 
   const paint = () => {
-    const s = STEPS[index]!;
+    const s = steps[index]!;
     if (s.tab) setMobileTab(s.tab);
-    step.textContent = t('tutorial.step', { n: index + 1, total: STEPS.length });
+    step.textContent = t('tutorial.step', { n: index + 1, total: steps.length });
     title.textContent = t(`tutorial.${s.key}.h`);
     bodyText.textContent = t(`tutorial.${s.key}.p`);
-    next.textContent = index === STEPS.length - 1 ? t('tutorial.done') : t('tutorial.next');
+    next.textContent = index === steps.length - 1 ? t('tutorial.done') : t('tutorial.next');
     highlighted?.classList.remove('tut-target');
     highlighted = s.target?.() ?? null;
     highlighted?.classList.add('tut-target');
-    place();
+    // Bring small controls into view; skip huge regions (they fill the pane).
+    if (highlighted && !isRegionTarget(highlighted)) {
+      highlighted.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    requestAnimationFrame(() => {
+      place();
+      requestAnimationFrame(place);
+    });
   };
 
   const finish = () => {
     if (!tutorialActive) return;
     tutorialActive = false;
+    document.body.classList.remove('tutoring');
     highlighted?.classList.remove('tut-target');
     card.remove();
     window.removeEventListener('resize', place);
     release();
     setPrefs({ tutorialDone: true });
+    flushPrefs();
+    // Persist across browsers for the same CrazyGames account.
+    if (platform.enabled) platform.setDataItem(CG_TUTORIAL_KEY, '1');
+    // Resume gameplay only after the guided tour ends (or is skipped).
+    if (store.you && store.status === 'open') platform.onGameplayStart();
+    for (const fn of endListeners) fn();
     // Interaction hints take over from here.
     refreshHints();
   };
 
   skip.onclick = finish;
   next.onclick = () => {
-    if (index >= STEPS.length - 1) {
+    if (index >= steps.length - 1) {
       finish();
       return;
     }

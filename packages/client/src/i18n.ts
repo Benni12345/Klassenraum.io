@@ -246,12 +246,15 @@ const de: Dict = {
   'tutorial.click.h': 'Sammle Hirnschmalz',
   'tutorial.click.p':
     'Klick auf „Mitschreiben!“ — oder drück Leertaste. Das ist deine Einnahmequelle am Anfang.',
+  'tutorial.clickTouch.h': 'Sammle Hirnschmalz',
+  'tutorial.clickTouch.p':
+    'Tippe auf „Mitschreiben!“. Das ist deine Einnahmequelle am Anfang.',
   'tutorial.shop.h': 'Kauf im Schulkiosk',
   'tutorial.shop.p':
-    'Generatoren produzieren automatisch weiter. Fang mit dem Bleistiftstummel an, danach werden neue Stufen freigeschaltet.',
+    'Generatoren produzieren automatisch weiter. Kauf jetzt den Bleistiftstummel — danach werden neue Stufen freigeschaltet.',
   'tutorial.goal.h': 'Klassenziel',
   'tutorial.goal.p':
-    'Oben an der Tafel siehst du das Klassenziel. Alles HS der Klasse zählt mit. Bei 100 % gibt’s ×3 für alle — getrennt von deinen persönlichen Goldsternen.',
+    'An der Tafel siehst du das Klassenziel. Alles HS der Klasse zählt mit. Bei 100 % gibt’s ×3 für alle.',
   'tutorial.steal.h': 'Klau deinen Mitschülern Punkte',
   'tutorial.steal.p':
     'Klick auf einen anderen Platz und wirf einen Papierflieger. Beim Lehrer-Rundgang riskierst du Nachsitzen.',
@@ -511,12 +514,15 @@ const en: Dict = {
   'tutorial.click.h': 'Collect brainpower',
   'tutorial.click.p':
     'Click “Take notes!” — or press space. That is your income while you are starting out.',
+  'tutorial.clickTouch.h': 'Collect brainpower',
+  'tutorial.clickTouch.p':
+    'Tap “Take notes!”. That is your income while you are starting out.',
   'tutorial.shop.h': 'Shop in the School Kiosk',
   'tutorial.shop.p':
-    'Generators keep producing on their own. Start with the Stubby Pencil; buying it unlocks the next tier.',
+    'Generators keep producing on their own. Buy the Stubby Pencil now — that unlocks the next tier.',
   'tutorial.goal.h': 'Class Goal',
   'tutorial.goal.p':
-    'The chalkboard tracks the Class Goal. Everyone’s BP counts. At 100% the whole class gets ×3 for a few minutes — separate from your personal gold stars.',
+    'The chalkboard tracks the Class Goal. Everyone’s BP counts. At 100% the whole class gets ×3 for a few minutes.',
   'tutorial.steal.h': 'Steal from your classmates',
   'tutorial.steal.p':
     'Click another desk to throw a paper airplane. During a teacher patrol you risk detention.',
