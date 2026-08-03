@@ -69,6 +69,13 @@ export interface CrazyGamesSDK {
     clearBanner(id: string): void;
     clearAllBanners(): void;
   };
+  /** Cloud-synced key/value store (localStorage-compatible API). */
+  data?: {
+    clear(): void;
+    getItem(key: string): string | null;
+    removeItem(key: string): void;
+    setItem(key: string, value: string): void;
+  };
   user: {
     isUserAccountAvailable: boolean;
     getUser(): Promise<CrazyGamesUser | null>;
@@ -146,4 +153,10 @@ export interface Platform {
   showAuthPrompt(): Promise<PlatformUser | null>;
   onAuthChange(listener: (user: PlatformUser | null) => void): () => void;
   onSettingsChange(listener: (s: { disableChat: boolean; muteAudio: boolean }) => void): () => void;
+  /**
+   * CrazyGames Data module (cloud-synced for logged-in users). Returns null
+   * outside CrazyGames or when the module is disabled.
+   */
+  getDataItem(key: string): string | null;
+  setDataItem(key: string, value: string): void;
 }

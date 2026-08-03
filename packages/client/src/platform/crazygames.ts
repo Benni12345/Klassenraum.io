@@ -326,5 +326,21 @@ export function createCrazyGamesPlatform(): Platform {
       listener({ disableChat, muteAudio });
       return () => settingsListeners.delete(listener);
     },
+
+    getDataItem(key: string) {
+      try {
+        return sdk().data?.getItem(key) ?? null;
+      } catch {
+        return null;
+      }
+    },
+
+    setDataItem(key: string, value: string) {
+      try {
+        sdk().data?.setItem(key, value);
+      } catch {
+        /* data module may be disabled in the submission flow */
+      }
+    },
   };
 }

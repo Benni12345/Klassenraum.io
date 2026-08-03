@@ -58,6 +58,10 @@ export function createNoopPlatform(): Platform {
       listener({ disableChat: false, muteAudio });
       return () => {};
     },
+    getDataItem() {
+      return null;
+    },
+    setDataItem() {},
   };
 }
 

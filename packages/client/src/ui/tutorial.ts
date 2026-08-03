@@ -6,8 +6,9 @@
  * affordable generator, then on Upgrades once one is affordable.
  */
 
-import { getPrefs, hasHint, markHint, setPrefs } from '../prefs';
+import { CG_TUTORIAL_KEY, flushPrefs, getPrefs, hasHint, markHint, setPrefs } from '../prefs';
 import { t } from '../i18n';
+import { platform } from '../platform';
 import { store } from '../state';
 import { el, id } from './dom';
 import { currentTab, isLandscapeMobile, isMobileLayout, onTabChange, setMobileTab, type MobileTab } from './mobile';
@@ -20,18 +21,39 @@ interface Step {
   tab?: MobileTab;
 }
 
-const STEPS: readonly Step[] = [
-  { key: 'welcome', tab: 'classroom' },
-  { key: 'click', target: () => id('btn-click') },
-  { key: 'shop', target: () => id('gen-list'), tab: 'shop' },
-  { key: 'goal', target: () => id('canvas-wrap'), tab: 'classroom' },
-  { key: 'steal', target: () => id('canvas-wrap'), tab: 'classroom' },
-  { key: 'boss' },
-];
+/** True on mobile/tablet (CrazyGames SystemInfo when available). */
+function isTouchDevice(): boolean {
+  const device = platform.deviceType;
+  if (device === 'mobile' || device === 'tablet') return true;
+  if (device === 'desktop') return false;
+  return isMobileLayout();
+}
+
+/** Desktop gets the Tab/boss step; mobile/tablet stop after steal. */
+function buildSteps(): Step[] {
+  const touch = isTouchDevice();
+  const steps: Step[] = [
+    { key: 'welcome', tab: 'classroom' },
+    {
+      key: touch ? 'clickTouch' : 'click',
+      target: () => id('btn-click'),
+    },
+    {
+      key: 'shop',
+      // Spotlight the Stubby Pencil row so the purchase action is obvious.
+      target: () => document.querySelector<HTMLElement>('#gen-list .gen') ?? id('gen-list'),
+      tab: 'shop',
+    },
+    { key: 'goal', target: () => id('canvas-wrap'), tab: 'classroom' },
+    { key: 'steal', target: () => id('canvas-wrap'), tab: 'classroom' },
+  ];
+  if (!touch) steps.push({ key: 'boss' });
+  return steps;
+}
 
 const hintRoot = () => id('hint-root');
 
-/** Distance from the viewport bottom that keeps overlays clear of the banner. */
+/** Distance from the viewport bottom that keeps overlays clear of chrome. */
 function bottomInset(): number {
   let inset = 12;
   for (const elementId of ['banner-dock', 'site-footer', 'mobile-tabs']) {
@@ -44,13 +66,24 @@ function bottomInset(): number {
 // ------------------------------------------------------------------ Tutorial
 
 let tutorialActive = false;
+const endListeners = new Set<() => void>();
+
+/** Fires once when the active tutorial finishes or is skipped. */
+export function onTutorialEnd(fn: () => void): () => void {
+  endListeners.add(fn);
+  return () => endListeners.delete(fn);
+}
 
 export function startTutorial(opts?: { force?: boolean }): void {
   if (tutorialActive) return;
   if (!opts?.force && getPrefs().tutorialDone) return;
   tutorialActive = true;
+  document.body.classList.add('tutoring');
   const release = pushOverlay();
+  // Guided tours should not count as active gameplay for CrazyGames.
+  platform.onGameplayStop();
 
+  const steps = buildSteps();
   let index = 0;
   const card = el('div', 'tut-card');
   const step = el('div', 'tut-step');
@@ -71,38 +104,91 @@ export function startTutorial(opts?: { force?: boolean }): void {
 
   let highlighted: HTMLElement | null = null;
 
+  /** Place the card so it does not cover the highlighted control. */
   const place = () => {
-    card.style.bottom = `${bottomInset()}px`;
+    const margin = 10;
+    const inset = bottomInset();
+    const cardH = card.offsetHeight || 160;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    card.style.left = '50%';
+    card.style.transform = 'translateX(-50%)';
+    card.style.width = `${Math.min(420, vw - 24)}px`;
+
+    if (!highlighted) {
+      card.style.top = 'auto';
+      card.style.bottom = `${inset}px`;
+      return;
+    }
+
+    const rect = highlighted.getBoundingClientRect();
+    const spaceAbove = rect.top - margin;
+    const spaceBelow = vh - rect.bottom - inset - margin;
+    const preferAbove = spaceAbove >= cardH || spaceAbove >= spaceBelow;
+
+    if (preferAbove && spaceAbove > 48) {
+      const top = Math.max(margin, rect.top - cardH - margin);
+      card.style.top = `${top}px`;
+      card.style.bottom = 'auto';
+    } else if (spaceBelow > 48) {
+      const top = Math.min(rect.bottom + margin, vh - cardH - inset);
+      card.style.top = `${Math.max(margin, top)}px`;
+      card.style.bottom = 'auto';
+    } else {
+      // Not enough room either side — pin to the opposite half of the screen.
+      const targetMid = rect.top + rect.height / 2;
+      if (targetMid > vh / 2) {
+        card.style.top = `${margin + (isMobileLayout() ? 56 : 8)}px`;
+        card.style.bottom = 'auto';
+      } else {
+        card.style.top = 'auto';
+        card.style.bottom = `${inset}px`;
+      }
+    }
   };
 
   const paint = () => {
-    const s = STEPS[index]!;
+    const s = steps[index]!;
     if (s.tab) setMobileTab(s.tab);
-    step.textContent = t('tutorial.step', { n: index + 1, total: STEPS.length });
+    step.textContent = t('tutorial.step', { n: index + 1, total: steps.length });
     title.textContent = t(`tutorial.${s.key}.h`);
     bodyText.textContent = t(`tutorial.${s.key}.p`);
-    next.textContent = index === STEPS.length - 1 ? t('tutorial.done') : t('tutorial.next');
+    next.textContent = index === steps.length - 1 ? t('tutorial.done') : t('tutorial.next');
     highlighted?.classList.remove('tut-target');
     highlighted = s.target?.() ?? null;
     highlighted?.classList.add('tut-target');
-    place();
+    // Bring the control into view before measuring placement.
+    highlighted?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    requestAnimationFrame(() => {
+      place();
+      // Second pass after layout / tab switch settles.
+      requestAnimationFrame(place);
+    });
   };
 
   const finish = () => {
     if (!tutorialActive) return;
     tutorialActive = false;
+    document.body.classList.remove('tutoring');
     highlighted?.classList.remove('tut-target');
     card.remove();
     window.removeEventListener('resize', place);
     release();
     setPrefs({ tutorialDone: true });
+    flushPrefs();
+    // Persist across browsers for the same CrazyGames account.
+    if (platform.enabled) platform.setDataItem(CG_TUTORIAL_KEY, '1');
+    // Resume gameplay only after the guided tour ends (or is skipped).
+    if (store.you && store.status === 'open') platform.onGameplayStart();
+    for (const fn of endListeners) fn();
     // Interaction hints take over from here.
     refreshHints();
   };
 
   skip.onclick = finish;
   next.onclick = () => {
-    if (index >= STEPS.length - 1) {
+    if (index >= steps.length - 1) {
       finish();
       return;
     }

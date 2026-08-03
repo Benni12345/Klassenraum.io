@@ -111,9 +111,18 @@ describe('economy', () => {
   it('rejects unaffordable buys with an error', async () => {
     const { room, sent } = setup();
     const a = await room.hello(undefined, 'Anna', undefined);
-    room.buy(a.playerId, 8, 1); // galaxy brain on 0 BP
+    room.buy(a.playerId, 8, 1); // galaxy brain on starter BP
     const errs = (sent.get(a.playerId) ?? []).filter((m) => m.t === 'error');
     expect(errs.length).toBe(1);
+  });
+
+  it('starts new players with enough BP for the first Stubby Pencil', async () => {
+    const { room } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    expect(room.youOf(a.playerId)!.bp).toBe(15);
+    room.buy(a.playerId, 0, 1);
+    expect(room.youOf(a.playerId)!.gens[0]).toBe(1);
+    expect(room.youOf(a.playerId)!.bp).toBe(0);
   });
 
   it('applies upgrades only when threshold met and affordable', async () => {
@@ -140,13 +149,14 @@ describe('stealing', () => {
     const { room, sent, broadcasts } = setup();
     const a = await room.hello(undefined, 'Anna', undefined);
     const b = await room.hello(undefined, 'Ben', undefined);
-    room.click(b.playerId, 25); // victim has 25 BP
+    // Pin victim BP so steal math is independent of the starter grant.
+    (room as any).players.get(b.playerId).bp = 25;
     room.steal(a.playerId, b.playerId);
     const msg = broadcasts.find((m) => m.t === 'steal') as Extract<ServerMsg, { t: 'steal' }>;
     expect(msg).toBeDefined();
     expect(msg.caught).toBe(false);
     expect(msg.amount).toBeCloseTo(25 * 0.08, 1);
-    expect(room.youOf(a.playerId)!.bp).toBeCloseTo(2, 1);
+    expect(room.youOf(a.playerId)!.bp).toBeCloseTo(15 + 2, 1);
     expect(room.youOf(b.playerId)!.bp).toBeCloseTo(23, 1);
     room.steal(a.playerId, b.playerId);
     const errs = (sent.get(a.playerId) ?? []).filter(
@@ -159,7 +169,7 @@ describe('stealing', () => {
     const { room, broadcasts } = setup(() => 0.1); // rng below catch chance
     const a = await room.hello(undefined, 'Anna', undefined);
     const b = await room.hello(undefined, 'Ben', undefined);
-    room.click(b.playerId, 25);
+    (room as any).players.get(b.playerId).bp = 25;
     room.forceEvent('patrol');
     room.steal(a.playerId, b.playerId);
     const msg = broadcasts.filter((m) => m.t === 'steal').pop() as Extract<
