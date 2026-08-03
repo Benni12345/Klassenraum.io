@@ -56,38 +56,26 @@ function buildSteps(): Step[] {
 
 const hintRoot = () => id('hint-root');
 
-function visibleHeight(node: HTMLElement | null): number {
-  if (!node || node.classList.contains('hidden')) return 0;
+function isDisplayed(node: HTMLElement | null): node is HTMLElement {
+  if (!node || node.classList.contains('hidden')) return false;
   const style = getComputedStyle(node);
-  if (style.display === 'none' || style.visibility === 'hidden') return 0;
-  return node.getBoundingClientRect().height;
+  return style.display !== 'none' && style.visibility !== 'hidden';
 }
 
-/** Pixels reserved under the card (tabs, footer, Take notes when visible). */
-function bottomInset(): number {
+/** Hard chrome under the play area (never covered). */
+function bottomChrome(): number {
   let inset = 10;
   for (const elementId of ['banner-dock', 'site-footer', 'mobile-tabs']) {
-    inset += visibleHeight(document.getElementById(elementId));
-  }
-  // Portrait classroom tab: Take notes sits above the footer and must stay clear.
-  if (isMobileLayout() && !isLandscapeMobile() && currentTab() === 'classroom') {
-    inset += visibleHeight(document.getElementById('shop-top'));
+    const node = document.getElementById(elementId);
+    if (!isDisplayed(node)) continue;
+    inset += node.getBoundingClientRect().height;
   }
   return inset;
 }
 
-function topInset(): number {
+function hudBottom(): number {
   const hud = document.getElementById('hud');
-  let top = hud ? Math.max(10, hud.getBoundingClientRect().bottom + 8) : 10;
-  // Portrait kiosk tab: keep Take notes (shop-top) uncovered above the card.
-  if (isMobileLayout() && !isLandscapeMobile() && currentTab() === 'shop') {
-    const shopTop = document.getElementById('shop-top');
-    if (shopTop) {
-      const rect = shopTop.getBoundingClientRect();
-      if (rect.height > 0) top = Math.max(top, rect.bottom + 8);
-    }
-  }
-  return top;
+  return hud ? Math.max(8, hud.getBoundingClientRect().bottom + 8) : 8;
 }
 
 // ------------------------------------------------------------------ Tutorial
@@ -138,46 +126,82 @@ export function startTutorial(opts?: { force?: boolean }): void {
   };
 
   /**
-   * Size + position the card in the safe band between HUD and bottom chrome so
-   * full step copy stays readable and highlighted controls stay uncovered.
+   * Keep the card on-screen between the HUD and bottom chrome, and clear of
+   * the highlighted control (and Take notes when it is not the target).
    */
   const place = () => {
     const margin = 8;
-    const top = topInset();
-    const bottom = bottomInset();
-    const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const safeH = Math.max(120, vh - top - bottom - margin);
+    const vw = window.innerWidth;
+    const topMin = hudBottom();
+    const bottomMax = vh - bottomChrome();
 
     card.style.left = '50%';
     card.style.transform = 'translateX(-50%)';
     card.style.width = `${Math.min(420, vw - 16)}px`;
-    // Measure natural height first, then clamp to the safe band.
     card.style.maxHeight = 'none';
-    bodyText.style.maxHeight = '';
-    const natural = card.scrollHeight;
-    const cardH = Math.min(natural, safeH);
-    card.style.maxHeight = `${cardH}px`;
+    const natural = Math.max(card.scrollHeight, 1);
 
-    // Prefer sitting above a small control; for regions / no target, use the
-    // top of the safe band so Take notes / tabs stay fully visible.
-    let anchorTop = top;
+    // Soft obstacles: highlighted control, and Take notes when it isn't the focus.
+    const obstacles: DOMRect[] = [];
     if (highlighted && !isRegionTarget(highlighted)) {
       const rect = highlighted.getBoundingClientRect();
-      const spaceAbove = rect.top - top - margin;
-      const spaceBelow = vh - bottom - rect.bottom - margin;
-      if (spaceAbove >= cardH) {
-        anchorTop = rect.top - cardH - margin;
-      } else if (spaceBelow >= cardH) {
-        anchorTop = rect.bottom + margin;
-      } else if (rect.top + rect.height / 2 > vh / 2) {
-        anchorTop = top;
-      } else {
-        anchorTop = Math.max(top, vh - bottom - cardH - margin);
+      if (rect.height > 0) obstacles.push(rect);
+    } else {
+      const click = document.getElementById('btn-click');
+      if (isDisplayed(click)) {
+        const rect = click.getBoundingClientRect();
+        // Only treat as obstacle when it sits in the play column (mobile).
+        if (rect.height > 0 && rect.top < bottomMax && rect.width > vw * 0.4) {
+          obstacles.push(rect);
+        }
       }
     }
 
-    anchorTop = Math.min(Math.max(anchorTop, top), vh - bottom - cardH - margin);
+    // Largest gap in [topMin, bottomMax] that does not cover obstacles.
+    type Gap = { start: number; end: number };
+    const gaps: Gap[] = [{ start: topMin, end: bottomMax }];
+    for (const rect of obstacles) {
+      const next: Gap[] = [];
+      for (const gap of gaps) {
+        const obsTop = rect.top - margin;
+        const obsBottom = rect.bottom + margin;
+        if (obsBottom <= gap.start || obsTop >= gap.end) {
+          next.push(gap);
+          continue;
+        }
+        if (obsTop > gap.start) next.push({ start: gap.start, end: obsTop });
+        if (obsBottom < gap.end) next.push({ start: obsBottom, end: gap.end });
+      }
+      gaps.length = 0;
+      gaps.push(...next);
+    }
+
+    let best = gaps[0] ?? { start: topMin, end: bottomMax };
+    for (const gap of gaps) {
+      if (gap.end - gap.start > best.end - best.start) best = gap;
+    }
+
+    const gapH = Math.max(96, best.end - best.start);
+    const cardH = Math.min(natural, gapH);
+    card.style.maxHeight = `${cardH}px`;
+
+    // Prefer above a bottom control; otherwise top-align in the best gap.
+    let anchorTop = best.start;
+    if (highlighted && !isRegionTarget(highlighted)) {
+      const rect = highlighted.getBoundingClientRect();
+      const above = rect.top - margin - cardH;
+      if (above >= best.start && above + cardH <= best.end) {
+        anchorTop = above;
+      } else {
+        // Fall back to the top of the gap (still on-screen).
+        anchorTop = best.start;
+      }
+    }
+
+    // Final clamp — never leave the viewport.
+    const maxTop = Math.max(topMin, bottomMax - cardH);
+    anchorTop = Math.min(Math.max(anchorTop, topMin), maxTop);
     card.style.top = `${anchorTop}px`;
     card.style.bottom = 'auto';
   };
