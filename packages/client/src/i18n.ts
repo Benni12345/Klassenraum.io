@@ -254,7 +254,7 @@ const de: Dict = {
     'Generatoren produzieren automatisch weiter. Kauf jetzt den Bleistiftstummel — danach werden neue Stufen freigeschaltet.',
   'tutorial.goal.h': 'Klassenziel',
   'tutorial.goal.p':
-    'Oben an der Tafel siehst du das Klassenziel. Alles HS der Klasse zählt mit. Bei 100 % gibt’s ×3 für alle — getrennt von deinen persönlichen Goldsternen.',
+    'An der Tafel siehst du das Klassenziel. Alles HS der Klasse zählt mit. Bei 100 % gibt’s ×3 für alle.',
   'tutorial.steal.h': 'Klau deinen Mitschülern Punkte',
   'tutorial.steal.p':
     'Klick auf einen anderen Platz und wirf einen Papierflieger. Beim Lehrer-Rundgang riskierst du Nachsitzen.',
@@ -522,7 +522,7 @@ const en: Dict = {
     'Generators keep producing on their own. Buy the Stubby Pencil now — that unlocks the next tier.',
   'tutorial.goal.h': 'Class Goal',
   'tutorial.goal.p':
-    'The chalkboard tracks the Class Goal. Everyone’s BP counts. At 100% the whole class gets ×3 for a few minutes — separate from your personal gold stars.',
+    'The chalkboard tracks the Class Goal. Everyone’s BP counts. At 100% the whole class gets ×3 for a few minutes.',
   'tutorial.steal.h': 'Steal from your classmates',
   'tutorial.steal.p':
     'Click another desk to throw a paper airplane. During a teacher patrol you risk detention.',

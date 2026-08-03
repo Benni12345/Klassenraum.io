@@ -21,17 +21,20 @@ interface Step {
   tab?: MobileTab;
 }
 
-/** True on mobile/tablet (CrazyGames SystemInfo when available). */
-function isTouchDevice(): boolean {
+/**
+ * Prefer CrazyGames SystemInfo, but when the UI is already in the phone tab
+ * layout treat it as touch — Chromebooks / narrow desktops report "desktop"
+ * yet still use CLASSROOM / KIOSK tabs.
+ */
+function isTouchTutorial(): boolean {
+  if (isMobileLayout()) return true;
   const device = platform.deviceType;
-  if (device === 'mobile' || device === 'tablet') return true;
-  if (device === 'desktop') return false;
-  return isMobileLayout();
+  return device === 'mobile' || device === 'tablet';
 }
 
 /** Desktop gets the Tab/boss step; mobile/tablet stop after steal. */
 function buildSteps(): Step[] {
-  const touch = isTouchDevice();
+  const touch = isTouchTutorial();
   const steps: Step[] = [
     { key: 'welcome', tab: 'classroom' },
     {
@@ -53,14 +56,38 @@ function buildSteps(): Step[] {
 
 const hintRoot = () => id('hint-root');
 
-/** Distance from the viewport bottom that keeps overlays clear of chrome. */
+function visibleHeight(node: HTMLElement | null): number {
+  if (!node || node.classList.contains('hidden')) return 0;
+  const style = getComputedStyle(node);
+  if (style.display === 'none' || style.visibility === 'hidden') return 0;
+  return node.getBoundingClientRect().height;
+}
+
+/** Pixels reserved under the card (tabs, footer, Take notes when visible). */
 function bottomInset(): number {
-  let inset = 12;
+  let inset = 10;
   for (const elementId of ['banner-dock', 'site-footer', 'mobile-tabs']) {
-    const node = document.getElementById(elementId);
-    if (node && !node.classList.contains('hidden')) inset += node.offsetHeight;
+    inset += visibleHeight(document.getElementById(elementId));
+  }
+  // Portrait classroom tab: Take notes sits above the footer and must stay clear.
+  if (isMobileLayout() && !isLandscapeMobile() && currentTab() === 'classroom') {
+    inset += visibleHeight(document.getElementById('shop-top'));
   }
   return inset;
+}
+
+function topInset(): number {
+  const hud = document.getElementById('hud');
+  let top = hud ? Math.max(10, hud.getBoundingClientRect().bottom + 8) : 10;
+  // Portrait kiosk tab: keep Take notes (shop-top) uncovered above the card.
+  if (isMobileLayout() && !isLandscapeMobile() && currentTab() === 'shop') {
+    const shopTop = document.getElementById('shop-top');
+    if (shopTop) {
+      const rect = shopTop.getBoundingClientRect();
+      if (rect.height > 0) top = Math.max(top, rect.bottom + 8);
+    }
+  }
+  return top;
 }
 
 // ------------------------------------------------------------------ Tutorial
@@ -104,48 +131,55 @@ export function startTutorial(opts?: { force?: boolean }): void {
 
   let highlighted: HTMLElement | null = null;
 
-  /** Place the card so it does not cover the highlighted control. */
+  /** True when the target is a large region (classroom), not a single control. */
+  const isRegionTarget = (node: HTMLElement | null): boolean => {
+    if (!node) return false;
+    return node.id === 'canvas-wrap' || node.id === 'gen-list';
+  };
+
+  /**
+   * Size + position the card in the safe band between HUD and bottom chrome so
+   * full step copy stays readable and highlighted controls stay uncovered.
+   */
   const place = () => {
-    const margin = 10;
-    const inset = bottomInset();
-    const cardH = card.offsetHeight || 160;
+    const margin = 8;
+    const top = topInset();
+    const bottom = bottomInset();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    const safeH = Math.max(120, vh - top - bottom - margin);
 
     card.style.left = '50%';
     card.style.transform = 'translateX(-50%)';
-    card.style.width = `${Math.min(420, vw - 24)}px`;
+    card.style.width = `${Math.min(420, vw - 16)}px`;
+    // Measure natural height first, then clamp to the safe band.
+    card.style.maxHeight = 'none';
+    bodyText.style.maxHeight = '';
+    const natural = card.scrollHeight;
+    const cardH = Math.min(natural, safeH);
+    card.style.maxHeight = `${cardH}px`;
 
-    if (!highlighted) {
-      card.style.top = 'auto';
-      card.style.bottom = `${inset}px`;
-      return;
-    }
-
-    const rect = highlighted.getBoundingClientRect();
-    const spaceAbove = rect.top - margin;
-    const spaceBelow = vh - rect.bottom - inset - margin;
-    const preferAbove = spaceAbove >= cardH || spaceAbove >= spaceBelow;
-
-    if (preferAbove && spaceAbove > 48) {
-      const top = Math.max(margin, rect.top - cardH - margin);
-      card.style.top = `${top}px`;
-      card.style.bottom = 'auto';
-    } else if (spaceBelow > 48) {
-      const top = Math.min(rect.bottom + margin, vh - cardH - inset);
-      card.style.top = `${Math.max(margin, top)}px`;
-      card.style.bottom = 'auto';
-    } else {
-      // Not enough room either side — pin to the opposite half of the screen.
-      const targetMid = rect.top + rect.height / 2;
-      if (targetMid > vh / 2) {
-        card.style.top = `${margin + (isMobileLayout() ? 56 : 8)}px`;
-        card.style.bottom = 'auto';
+    // Prefer sitting above a small control; for regions / no target, use the
+    // top of the safe band so Take notes / tabs stay fully visible.
+    let anchorTop = top;
+    if (highlighted && !isRegionTarget(highlighted)) {
+      const rect = highlighted.getBoundingClientRect();
+      const spaceAbove = rect.top - top - margin;
+      const spaceBelow = vh - bottom - rect.bottom - margin;
+      if (spaceAbove >= cardH) {
+        anchorTop = rect.top - cardH - margin;
+      } else if (spaceBelow >= cardH) {
+        anchorTop = rect.bottom + margin;
+      } else if (rect.top + rect.height / 2 > vh / 2) {
+        anchorTop = top;
       } else {
-        card.style.top = 'auto';
-        card.style.bottom = `${inset}px`;
+        anchorTop = Math.max(top, vh - bottom - cardH - margin);
       }
     }
+
+    anchorTop = Math.min(Math.max(anchorTop, top), vh - bottom - cardH - margin);
+    card.style.top = `${anchorTop}px`;
+    card.style.bottom = 'auto';
   };
 
   const paint = () => {
@@ -158,11 +192,12 @@ export function startTutorial(opts?: { force?: boolean }): void {
     highlighted?.classList.remove('tut-target');
     highlighted = s.target?.() ?? null;
     highlighted?.classList.add('tut-target');
-    // Bring the control into view before measuring placement.
-    highlighted?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // Bring small controls into view; skip huge regions (they fill the pane).
+    if (highlighted && !isRegionTarget(highlighted)) {
+      highlighted.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
     requestAnimationFrame(() => {
       place();
-      // Second pass after layout / tab switch settles.
       requestAnimationFrame(place);
     });
   };
