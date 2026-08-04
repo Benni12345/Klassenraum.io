@@ -65,6 +65,8 @@ export interface PlayerYou {
    * the CrazyGames username and must not be editable in-game.
    */
   cgLinked: boolean;
+  /** Guided tutorial completed or skipped (persisted on the game backend). */
+  tutorialDone: boolean;
 }
 
 export type EventKind = 'quiz' | 'patrol' | 'sub';

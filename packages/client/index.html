@@ -134,11 +134,13 @@
     <div id="toast-root"></div>
 
     <div id="boss-overlay" class="hidden" lang="en">
+      <!-- Close is pinned to the overlay corner (not in the titlebar flex) so it
+           stays reachable on short Chromebook windows and iPhone notches. -->
+      <button id="boss-close" class="doc-btn" type="button" title="">Close</button>
       <div class="doc-chrome">
         <div class="doc-titlebar">
           <span id="boss-doc-title">Math – Notes</span>
           <span id="boss-doc-meta" class="doc-meta">Last edited: today</span>
-          <button id="boss-close" class="doc-btn" title="">Close</button>
         </div>
         <div class="doc-toolbar">
           <span id="boss-menu-file">File</span><span id="boss-menu-edit">Edit</span

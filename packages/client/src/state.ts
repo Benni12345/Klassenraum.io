@@ -3,7 +3,7 @@ import {
   clickMult,
   clickPower,
   DETENTION_FACTOR,
-  resolveBuy,
+  resolveTutorialBuy,
   starMult,
   UPGRADE_BY_ID,
 } from '@shared/balance';
@@ -156,7 +156,13 @@ class Store {
   buy(gen: number, qty: number): void {
     const y = this.you;
     if (!y) return;
-    const { qty: q, cost } = resolveBuy(gen, y.gens[gen] ?? 0, y.bp, qty);
+    const { qty: q, cost } = resolveTutorialBuy(
+      gen,
+      y.gens[gen] ?? 0,
+      y.bp,
+      qty,
+      y.tutorialDone,
+    );
     if (q <= 0) return;
     y.bp -= cost;
     y.gens[gen] = (y.gens[gen] ?? 0) + q;
@@ -164,6 +170,15 @@ class Store {
     this.net.send({ t: 'buy', gen, qty });
     this.emit('you', undefined);
     this.emit('change', undefined);
+  }
+
+  /** Persist guided-tutorial completion on the game backend. */
+  markTutorialDone(): void {
+    if (this.you) {
+      this.you.tutorialDone = true;
+      this.emit('you', undefined);
+    }
+    this.net.send({ t: 'tutorialDone' });
   }
 
   buyUpgrade(id: string): void {

@@ -23,6 +23,7 @@ const de: Dict = {
   'shop.tip.each': 'Pro Stück',
   'shop.tip.total': 'Gesamt',
   'shop.tip.buy': 'Kauf',
+  'shop.tip.free': 'Gratis',
   'shop.tip.base': 'Basis-Produktion',
   'shop.tip.locked': 'Noch gesperrt — kauf zuerst die vorherige Stufe.',
   'shop.tip.cantAfford': 'Nicht genug Hirnschmalz!',
@@ -251,7 +252,7 @@ const de: Dict = {
     'Tippe auf „Mitschreiben!“. Das ist deine Einnahmequelle am Anfang.',
   'tutorial.shop.h': 'Kauf im Schulkiosk',
   'tutorial.shop.p':
-    'Generatoren produzieren automatisch weiter. Kauf jetzt den Bleistiftstummel — danach werden neue Stufen freigeschaltet.',
+    'Generatoren produzieren automatisch weiter. Der erste Bleistiftstummel ist gratis — tippe darauf, um weiterzukommen.',
   'tutorial.goal.h': 'Klassenziel',
   'tutorial.goal.p':
     'An der Tafel siehst du das Klassenziel. Alles HS der Klasse zählt mit. Bei 100 % gibt’s ×3 für alle.',
@@ -291,6 +292,7 @@ const en: Dict = {
   'shop.tip.each': 'Per unit',
   'shop.tip.total': 'Total',
   'shop.tip.buy': 'Purchase',
+  'shop.tip.free': 'Free',
   'shop.tip.base': 'Base production',
   'shop.tip.locked': 'Locked — buy the previous tier first.',
   'shop.tip.cantAfford': 'Not enough brainpower!',
@@ -519,7 +521,7 @@ const en: Dict = {
     'Tap “Take notes!”. That is your income while you are starting out.',
   'tutorial.shop.h': 'Shop in the School Kiosk',
   'tutorial.shop.p':
-    'Generators keep producing on their own. Buy the Stubby Pencil now — that unlocks the next tier.',
+    'Generators keep producing on their own. Your first Stubby Pencil is free — tap it to continue.',
   'tutorial.goal.h': 'Class Goal',
   'tutorial.goal.p':
     'The chalkboard tracks the Class Goal. Everyone’s BP counts. At 100% the whole class gets ×3 for a few minutes.',

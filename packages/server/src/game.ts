@@ -27,7 +27,7 @@ import {
   QUIZ_BUFF_MULT,
   QUIZ_MS,
   quizReward,
-  resolveBuy,
+  resolveTutorialBuy,
   SEAT_GRACE_MS,
   starMult,
   starsForRun,
@@ -304,6 +304,11 @@ export class Room {
   }
 
   private seatPlayer(row: PlayerRow, now: number): PlayerState {
+    // Returning players who still need the tutorial (e.g. saves from before the
+    // 15 BP starter) get topped up so Step 3 is completable immediately.
+    if (!row.tutorialDone && row.gens.every((n) => n === 0) && row.bp < 15) {
+      row.bp = 15;
+    }
     let seat = this.seats.indexOf(null);
     if (seat === -1) {
       seat = this.seats.length;
@@ -411,13 +416,28 @@ export class Room {
     if (qty !== 1 && qty !== 10 && qty !== -1) qty = 1;
     const now = this.now();
     this.settle(p, now);
-    const { qty: q, cost } = resolveBuy(gen, p.gens[gen] ?? 0, p.bp, qty);
+    const { qty: q, cost } = resolveTutorialBuy(
+      gen,
+      p.gens[gen] ?? 0,
+      p.bp,
+      qty,
+      p.tutorialDone,
+    );
     if (q <= 0) {
       this.out.send(p.id, { t: 'error', code: 'poor' });
       return;
     }
     p.bp -= cost;
     p.gens[gen] = (p.gens[gen] ?? 0) + q;
+    p.dirty = true;
+    this.sendYou(p);
+  }
+
+  /** Mark the guided tutorial as finished/skipped on this save. */
+  markTutorialDone(playerId: string): void {
+    const p = this.online(playerId);
+    if (!p || p.tutorialDone) return;
+    p.tutorialDone = true;
     p.dirty = true;
     this.sendYou(p);
   }
@@ -773,6 +793,7 @@ export class Room {
       stolenTotal: p.stolenTotal,
       lostTotal: p.lostTotal,
       cgLinked: p.cgUserId !== null,
+      tutorialDone: p.tutorialDone,
     };
   }
 
@@ -852,7 +873,8 @@ function blankPlayer(
     id,
     name,
     avatar: sanitizeAvatar(avatar),
-    // Enough for the first Stubby Pencil so the tutorial shop step is completable.
+    // Enough for the first Stubby Pencil so the tutorial shop step is completable
+    // even when the free-first-pencil path is not used (e.g. qty display).
     bp: 15,
     runBp: 0,
     lifetimeBp: 0,
@@ -867,6 +889,7 @@ function blankPlayer(
     lastAdRewardAt: 0,
     cgUserId: null,
     cgMigratedAt: 0,
+    tutorialDone: false,
     createdAt: now,
     lastSeen: now,
   };

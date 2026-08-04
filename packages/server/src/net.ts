@@ -166,6 +166,9 @@ export class Net implements Outbox {
       case 'adBoost':
         this.room.adBoost(id);
         return;
+      case 'tutorialDone':
+        this.room.markTutorialDone(id);
+        return;
       default:
         return;
     }

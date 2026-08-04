@@ -26,6 +26,8 @@ export interface PlayerRow {
    * the player logs out, keeps playing, and logs back in.
    */
   cgMigratedAt: number;
+  /** Guided tutorial completed or skipped. */
+  tutorialDone: boolean;
   createdAt: number;
   lastSeen: number;
 }
@@ -58,6 +60,7 @@ CREATE TABLE IF NOT EXISTS players (
   last_ad_reward_at INTEGER NOT NULL DEFAULT 0,
   cg_user_id TEXT UNIQUE,
   cg_migrated_at INTEGER NOT NULL DEFAULT 0,
+  tutorial_done INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   last_seen INTEGER NOT NULL
 );
@@ -95,6 +98,9 @@ export class Db {
     if (!names.has('cg_migrated_at')) {
       this.db.exec('ALTER TABLE players ADD COLUMN cg_migrated_at INTEGER NOT NULL DEFAULT 0');
     }
+    if (!names.has('tutorial_done')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN tutorial_done INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   createPlayer(row: PlayerRow, tokenHash: string): void {
@@ -102,8 +108,8 @@ export class Db {
       .prepare(
         `INSERT INTO players (id, token_hash, name, avatar, bp, run_bp, lifetime_bp, clicks,
            gens, upgrades, stars, grade, stolen_total, lost_total, last_steal_at,
-           last_ad_reward_at, cg_user_id, cg_migrated_at, created_at, last_seen)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           last_ad_reward_at, cg_user_id, cg_migrated_at, tutorial_done, created_at, last_seen)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -124,6 +130,7 @@ export class Db {
         row.lastAdRewardAt,
         row.cgUserId,
         row.cgMigratedAt,
+        row.tutorialDone ? 1 : 0,
         row.createdAt,
         row.lastSeen,
       );
@@ -154,7 +161,7 @@ export class Db {
         `UPDATE players SET name = ?, avatar = ?, bp = ?, run_bp = ?, lifetime_bp = ?, clicks = ?,
            gens = ?, upgrades = ?, stars = ?, grade = ?, stolen_total = ?, lost_total = ?,
            last_steal_at = ?, last_ad_reward_at = ?, cg_user_id = ?, cg_migrated_at = ?,
-           last_seen = ? WHERE id = ?`,
+           tutorial_done = ?, last_seen = ? WHERE id = ?`,
       )
       .run(
         row.name,
@@ -173,6 +180,7 @@ export class Db {
         row.lastAdRewardAt,
         row.cgUserId,
         row.cgMigratedAt,
+        row.tutorialDone ? 1 : 0,
         row.lastSeen,
         row.id,
       );
@@ -232,6 +240,7 @@ function decodeRow(r: Record<string, unknown>): PlayerRow {
     lastAdRewardAt: Number(r.last_ad_reward_at ?? 0),
     cgUserId: (r.cg_user_id as string | null) ?? null,
     cgMigratedAt: Number(r.cg_migrated_at ?? 0),
+    tutorialDone: Number(r.tutorial_done ?? 0) !== 0,
     createdAt: r.created_at as number,
     lastSeen: r.last_seen as number,
   };

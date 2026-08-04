@@ -12,6 +12,7 @@ import {
   maxAffordable,
   PRESTIGE_BASE,
   resolveBuy,
+  resolveTutorialBuy,
   starMult,
   starsForRun,
   stealAmount,
@@ -59,6 +60,15 @@ describe('generator costs', () => {
     const partial = resolveBuy(0, 0, 40, 10); // wants 10, can afford 2 (15 + 17.25)
     expect(partial.qty).toBe(2);
     expect(partial.cost).toBeLessThanOrEqual(40);
+  });
+
+  it('resolveTutorialBuy gives the first Stubby Pencil free', () => {
+    expect(resolveTutorialBuy(0, 0, 0, 1, false)).toEqual({ qty: 1, cost: 0 });
+    expect(resolveTutorialBuy(0, 0, 0, 10, false)).toEqual({ qty: 1, cost: 0 });
+    // After owning one (or tutorial done) normal pricing applies.
+    expect(resolveTutorialBuy(0, 1, 0, 1, false)).toEqual({ qty: 0, cost: 0 });
+    expect(resolveTutorialBuy(0, 0, 0, 1, true)).toEqual({ qty: 0, cost: 0 });
+    expect(resolveTutorialBuy(0, 0, 15, 1, true)).toEqual({ qty: 1, cost: 15 });
   });
 });
 
