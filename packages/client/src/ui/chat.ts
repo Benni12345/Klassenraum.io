@@ -42,9 +42,18 @@ export function initChat(): void {
     emoteRow.appendChild(b);
   }
 
-  id('chat-toggle').addEventListener('click', () => panel.classList.toggle('collapsed'));
+  const setCollapsed = (collapsed: boolean) => {
+    panel.classList.toggle('collapsed', collapsed);
+  };
+
+  id('chat-toggle').addEventListener('click', () => setCollapsed(false));
+  id('chat-close').addEventListener('click', () => {
+    setCollapsed(true);
+    // Blur the input so iOS/Android keyboards don't keep the panel stuck open.
+    input.blur();
+  });
   // Start collapsed on every device — players open Notes when they want them.
-  panel.classList.add('collapsed');
+  setCollapsed(true);
 
   store.on('joined', () => {
     id('chat-log').innerHTML = '';

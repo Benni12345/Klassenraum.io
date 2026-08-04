@@ -833,9 +833,16 @@ body.tutoring #banner-dock {
   position: absolute;
   left: 10px;
   bottom: 10px;
+  /* Never taller than the classroom pane — keeps Close on-screen on short
+     Chromebook / iPhone frames where overflow:hidden would clip the top. */
+  max-height: calc(100% - 20px);
   width: min(300px, calc(100% - 20px));
   z-index: 4;
   font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 #chat-toggle {
@@ -844,6 +851,13 @@ body.tutoring #banner-dock {
   padding: 3px 10px;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
   margin-bottom: 4px;
+  align-self: flex-start;
+  flex: 0 0 auto;
+}
+
+/* Expanded: open via the panel header Close — hide the outer toggle. */
+#chat-panel:not(.collapsed) #chat-toggle {
+  display: none;
 }
 
 #chat-body {
@@ -852,14 +866,62 @@ body.tutoring #banner-dock {
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 #chat-panel.collapsed #chat-body {
   display: none;
 }
 
+#chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 8px;
+  border-bottom: 2px solid var(--ink);
+  flex: 0 0 auto;
+  min-width: 0;
+  background: var(--paper);
+}
+
+#chat-head-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-close {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  line-height: 1;
+  font-size: 22px;
+  padding: 0;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  z-index: 2;
+}
+
+.chat-close:hover,
+.chat-close:focus-visible {
+  background: var(--red);
+  color: #fff;
+}
+
 #chat-log {
-  height: 140px;
+  flex: 1 1 140px;
+  min-height: 48px;
+  max-height: 160px;
   overflow-y: auto;
   padding: 6px 8px;
   display: flex;
@@ -894,6 +956,8 @@ body.tutoring #banner-dock {
   display: flex;
   gap: 4px;
   padding: 4px 8px 0;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
 }
 
 .emote-btn {
@@ -916,6 +980,8 @@ body.tutoring #banner-dock {
   display: flex;
   gap: 4px;
   padding: 6px 8px 8px;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 #chat-input {
@@ -1736,11 +1802,21 @@ body.mobile #hud-brain {
 }
 
 body.mobile #chat-log {
-  height: 90px;
+  flex-basis: 90px;
+  max-height: none;
 }
 
 body.mobile #chat-panel {
-  width: min(260px, calc(100% - 20px));
+  width: min(280px, calc(100% - 16px));
+  left: 8px;
+  bottom: 8px;
+  max-height: calc(100% - 16px);
+}
+
+body.mobile .chat-close {
+  width: 36px;
+  height: 36px;
+  font-size: 24px;
 }
 
 /*
