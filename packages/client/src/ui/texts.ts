@@ -12,6 +12,10 @@ export function applyStaticTexts(): void {
   id<HTMLInputElement>('chat-input').placeholder = t('chat.placeholder');
   id('chat-send').textContent = t('chat.send');
   id('chat-toggle').textContent = t('chat.title');
+  id('chat-head-title').textContent = t('chat.title');
+  const chatClose = id('chat-close');
+  chatClose.title = t('ui.close');
+  chatClose.setAttribute('aria-label', t('ui.close'));
   id('btn-my-desk').textContent = t('misc.myDesk');
   id('btn-prestige').textContent = t('prestige.button');
   id('btn-leaderboard').title = t('leaderboard.title');

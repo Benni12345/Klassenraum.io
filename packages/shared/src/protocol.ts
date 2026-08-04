@@ -31,7 +31,9 @@ export type ClientMsg =
   | { t: 'leaderboard' }
   | { t: 'rename'; name: string; avatar?: AvatarSpec }
   | { t: 'ping'; ts: number }
-  | { t: 'adBoost' };
+  | { t: 'adBoost' }
+  /** Persist guided-tutorial completion on the player's save. */
+  | { t: 'tutorialDone' };
 
 // ---------------------------------------------------------------------------
 // Server -> Client

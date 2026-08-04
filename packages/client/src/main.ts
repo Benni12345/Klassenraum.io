@@ -13,7 +13,7 @@ import { fmt } from './format';
 import { gradeLabel, t } from './i18n';
 import { initMusic, syncMusic } from './music';
 import { platform } from './platform';
-import { CG_TUTORIAL_KEY, getPrefs, setPrefs } from './prefs';
+import { getPrefs, setPrefs } from './prefs';
 import { Scene } from './render/scene';
 import { brainIcon, gearIcon, iconDataUrl, trophyIcon } from './render/sprites';
 import { store } from './state';
@@ -44,13 +44,6 @@ async function boot(): Promise<void> {
   if (platform.enabled) {
     await platform.init();
     store.setCgTokenProvider(() => platform.getUserToken());
-    // Merge cloud tutorial completion before deciding whether to show onboarding.
-    const remote = platform.getDataItem(CG_TUTORIAL_KEY);
-    if (remote === '1' || remote === 'true') {
-      setPrefs({ tutorialDone: true });
-    } else if (getPrefs().tutorialDone) {
-      platform.setDataItem(CG_TUTORIAL_KEY, '1');
-    }
   }
 
   // Unlock Web Audio on the first user gesture (autoplay policies), then start
@@ -174,9 +167,17 @@ async function boot(): Promise<void> {
     if (lastGrade === -1) {
       scene.scrollToOwnDesk();
       lastGrade = store.you?.grade ?? 0;
+      // Source of truth is the backend save; local prefs are a fast cache +
+      // migration bridge for players who finished the tour before this field
+      // existed on the server.
+      const serverDone = store.you?.tutorialDone === true;
+      const localDone = getPrefs().tutorialDone;
+      if (serverDone && !localDone) setPrefs({ tutorialDone: true });
+      if (!serverDone && localDone) store.markTutorialDone();
       // First-time gameplayStart waits until the tutorial is finished or skipped.
       // Instant multiplayer / returning players start immediately.
-      const showTutorial = !platform.isInstantMultiplayer && !getPrefs().tutorialDone;
+      const showTutorial =
+        !platform.isInstantMultiplayer && !(store.you?.tutorialDone || getPrefs().tutorialDone);
       if (showTutorial) {
         startTutorial();
       } else {

@@ -115,6 +115,23 @@ export function resolveBuy(
   return q > 0 ? { qty: q, cost } : { qty: 0, cost: 0 };
 }
 
+/**
+ * Like `resolveBuy`, but the first Stubby Pencil is free while the guided
+ * tutorial is still incomplete — so Step 3 is completable without grinding BP.
+ */
+export function resolveTutorialBuy(
+  gi: number,
+  owned: number,
+  bp: number,
+  qty: number,
+  tutorialDone: boolean,
+): { qty: number; cost: number } {
+  if (!tutorialDone && gi === 0 && owned === 0) {
+    return { qty: 1, cost: 0 };
+  }
+  return resolveBuy(gi, owned, bp, qty);
+}
+
 // ---------------------------------------------------------------------------
 // Production
 

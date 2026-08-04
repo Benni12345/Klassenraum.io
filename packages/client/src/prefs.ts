@@ -1,30 +1,27 @@
 /**
- * Local preferences (audio, language, onboarding state).
+ * Local preferences (audio, language, onboarding cache).
  *
  * Game progress itself lives on the server — the only thing kept in
  * localStorage is the anonymous account token plus these preferences. Writes
  * are throttled to at most one per 30 s (CrazyGames limits save operations for
  * clicker games), with a final flush when the page goes away.
  *
- * Tutorial completion is mirrored into the CrazyGames Data module from
- * `main.ts` / `tutorial.ts` so returning players on the same account do not
- * see the tutorial again in another browser.
+ * Tutorial completion is stored on the player save (`tutorialDone`). Local
+ * prefs keep a cache so Settings / boot can react before the welcome packet
+ * arrives, and to migrate older clients that only had the local flag.
  */
 
 const KEY = 'kr_prefs';
 const LEGACY_LANG_KEY = 'kr_lang';
 export const SAVE_INTERVAL_MS = 30_000;
 
-/** CrazyGames Data module key for cross-device tutorial completion. */
-export const CG_TUTORIAL_KEY = 'tutorialDone';
-
 export interface Prefs {
   lang: string | null;
   music: boolean;
   sfx: boolean;
-  /** Tutorial completed or skipped. */
+  /** Tutorial completed or skipped (cache; authoritative copy is on the server). */
   tutorialDone: boolean;
-  /** Ids of one-off interaction hints already shown. */
+  /** Ids of one-shot interaction hints already shown. */
   hints: string[];
 }
 

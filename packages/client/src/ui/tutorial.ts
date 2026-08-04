@@ -4,9 +4,12 @@
  * The hints are deliberately independent of the tutorial — a player who skips
  * the tutorial still gets an arrow on "Take notes!", then on the first
  * affordable generator, then on Upgrades once one is affordable.
+ *
+ * Tutorial completion is persisted on the game backend (player save), not the
+ * CrazyGames Data module — mixing those stores causes sync issues.
  */
 
-import { CG_TUTORIAL_KEY, flushPrefs, getPrefs, hasHint, markHint, setPrefs } from '../prefs';
+import { flushPrefs, getPrefs, hasHint, markHint, setPrefs } from '../prefs';
 import { t } from '../i18n';
 import { platform } from '../platform';
 import { store } from '../state';
@@ -19,6 +22,8 @@ interface Step {
   target?: () => HTMLElement | null;
   /** Phone layout: which tab must be visible for the target to exist. */
   tab?: MobileTab;
+  /** Auto-advance when this returns true (e.g. after buying the pencil). */
+  advanceWhen?: () => boolean;
 }
 
 /**
@@ -46,6 +51,8 @@ function buildSteps(): Step[] {
       // Spotlight the Stubby Pencil row so the purchase action is obvious.
       target: () => document.querySelector<HTMLElement>('#gen-list .gen') ?? id('gen-list'),
       tab: 'shop',
+      // Step 3 completes as soon as the first pencil is owned.
+      advanceWhen: () => (store.you?.gens[0] ?? 0) > 0,
     },
     { key: 'goal', target: () => id('canvas-wrap'), tab: 'classroom' },
     { key: 'steal', target: () => id('canvas-wrap'), tab: 'classroom' },
@@ -91,7 +98,7 @@ export function onTutorialEnd(fn: () => void): () => void {
 
 export function startTutorial(opts?: { force?: boolean }): void {
   if (tutorialActive) return;
-  if (!opts?.force && getPrefs().tutorialDone) return;
+  if (!opts?.force && (store.you?.tutorialDone || getPrefs().tutorialDone)) return;
   tutorialActive = true;
   document.body.classList.add('tutoring');
   const release = pushOverlay();
@@ -171,6 +178,15 @@ export function startTutorial(opts?: { force?: boolean }): void {
     card.style.pointerEvents = 'auto';
   };
 
+  const goNext = () => {
+    if (index >= steps.length - 1) {
+      finish();
+      return;
+    }
+    index += 1;
+    paint();
+  };
+
   const paint = () => {
     const s = steps[index]!;
     if (s.tab) setMobileTab(s.tab);
@@ -184,6 +200,11 @@ export function startTutorial(opts?: { force?: boolean }): void {
     // Bring small controls into view; skip huge regions (they fill the pane).
     if (highlighted && !isRegionTarget(highlighted)) {
       highlighted.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    // Auto-advance (e.g. after buying the Stubby Pencil on Step 3).
+    if (s.advanceWhen?.()) {
+      goNext();
+      return;
     }
     requestAnimationFrame(() => {
       place();
@@ -201,8 +222,8 @@ export function startTutorial(opts?: { force?: boolean }): void {
     release();
     setPrefs({ tutorialDone: true });
     flushPrefs();
-    // Persist across browsers for the same CrazyGames account.
-    if (platform.enabled) platform.setDataItem(CG_TUTORIAL_KEY, '1');
+    // Persist on the game backend (same save as BP / generators).
+    store.markTutorialDone();
     // Resume gameplay only after the guided tour ends (or is skipped).
     if (store.you && store.status === 'open') platform.onGameplayStart();
     for (const fn of endListeners) fn();
@@ -211,14 +232,13 @@ export function startTutorial(opts?: { force?: boolean }): void {
   };
 
   skip.onclick = finish;
-  next.onclick = () => {
-    if (index >= steps.length - 1) {
-      finish();
-      return;
-    }
-    index += 1;
-    paint();
-  };
+  next.onclick = goNext;
+
+  store.on('you', () => {
+    if (!tutorialActive) return;
+    const s = steps[index];
+    if (s?.advanceWhen?.()) goNext();
+  });
 
   window.addEventListener('resize', place);
   paint();

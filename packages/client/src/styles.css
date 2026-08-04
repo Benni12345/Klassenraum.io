@@ -833,9 +833,16 @@ body.tutoring #banner-dock {
   position: absolute;
   left: 10px;
   bottom: 10px;
+  /* Never taller than the classroom pane — keeps Close on-screen on short
+     Chromebook / iPhone frames where overflow:hidden would clip the top. */
+  max-height: calc(100% - 20px);
   width: min(300px, calc(100% - 20px));
   z-index: 4;
   font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 #chat-toggle {
@@ -844,6 +851,13 @@ body.tutoring #banner-dock {
   padding: 3px 10px;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
   margin-bottom: 4px;
+  align-self: flex-start;
+  flex: 0 0 auto;
+}
+
+/* Expanded: open via the panel header Close — hide the outer toggle. */
+#chat-panel:not(.collapsed) #chat-toggle {
+  display: none;
 }
 
 #chat-body {
@@ -852,14 +866,62 @@ body.tutoring #banner-dock {
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 #chat-panel.collapsed #chat-body {
   display: none;
 }
 
+#chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 8px;
+  border-bottom: 2px solid var(--ink);
+  flex: 0 0 auto;
+  min-width: 0;
+  background: var(--paper);
+}
+
+#chat-head-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-close {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  line-height: 1;
+  font-size: 22px;
+  padding: 0;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  z-index: 2;
+}
+
+.chat-close:hover,
+.chat-close:focus-visible {
+  background: var(--red);
+  color: #fff;
+}
+
 #chat-log {
-  height: 140px;
+  flex: 1 1 140px;
+  min-height: 48px;
+  max-height: 160px;
   overflow-y: auto;
   padding: 6px 8px;
   display: flex;
@@ -894,6 +956,8 @@ body.tutoring #banner-dock {
   display: flex;
   gap: 4px;
   padding: 4px 8px 0;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
 }
 
 .emote-btn {
@@ -916,6 +980,8 @@ body.tutoring #banner-dock {
   display: flex;
   gap: 4px;
   padding: 6px 8px 8px;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 #chat-input {
@@ -1314,11 +1380,6 @@ body.tutoring #banner-dock {
   z-index: 100;
   font-family: Arial, Helvetica, sans-serif;
   font-weight: 400;
-  /* Keep the Close control clear of notches / home indicators / CG chrome. */
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
   box-sizing: border-box;
 }
 
@@ -1329,11 +1390,18 @@ body.tutoring #banner-dock {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  /* Push document chrome clear of notches / home indicators. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
 }
 
 .doc-titlebar {
   background: #fff;
-  padding: 10px 12px;
+  /* Reserve room on the right so title text never sits under Close. */
+  padding: 10px 88px 10px 12px;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -1341,10 +1409,13 @@ body.tutoring #banner-dock {
   font-size: 14px;
   flex-shrink: 0;
   min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
 }
 
 #boss-doc-title {
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1353,37 +1424,66 @@ body.tutoring #banner-dock {
 .doc-meta {
   color: #999;
   font-size: 12px;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 42%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.doc-btn {
-  margin-left: auto;
-  flex: 0 0 auto;
+/*
+ * Pin Close to the overlay's top-right with explicit safe-area insets (parent
+ * padding does not offset absolute children). Keeps the control reachable on
+ * Chromebook windowed (~820×400) and iPhone portrait/landscape.
+ */
+#boss-close.doc-btn {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  right: max(8px, env(safe-area-inset-right, 0px));
+  margin: 0;
+  flex: none;
   border: 1px solid #ccc;
   background: #f6f6f6;
-  padding: 6px 14px;
-  font-size: 13px;
+  padding: 8px 14px;
+  font-size: 14px;
+  line-height: 1.2;
   color: #444;
   white-space: nowrap;
-  z-index: 2;
+  z-index: 3;
+  /* Minimum tap target for mobile. */
+  min-height: 36px;
+  min-width: 64px;
 }
 
-@media (max-width: 520px) {
+/* Hide secondary meta early — long DE copy was shoving Close off narrow frames. */
+@media (max-width: 900px), (max-height: 520px) {
   .doc-meta {
     display: none;
   }
 
   .doc-titlebar {
-    padding: 8px 10px;
+    padding: 8px 80px 8px 10px;
     gap: 8px;
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 520px), (max-height: 420px) {
+  #boss-close.doc-btn {
+    padding: 10px 16px;
+    font-size: 15px;
+    min-height: 40px;
   }
 
-  .doc-btn {
-    padding: 8px 14px;
-    font-size: 14px;
+  .doc-toolbar {
+    display: none;
+  }
+
+  .doc-page {
+    margin: 12px auto;
+    padding: 24px 28px;
+    width: calc(100% - 24px);
   }
 }
 
@@ -1702,11 +1802,21 @@ body.mobile #hud-brain {
 }
 
 body.mobile #chat-log {
-  height: 90px;
+  flex-basis: 90px;
+  max-height: none;
 }
 
 body.mobile #chat-panel {
-  width: min(260px, calc(100% - 20px));
+  width: min(280px, calc(100% - 16px));
+  left: 8px;
+  bottom: 8px;
+  max-height: calc(100% - 16px);
+}
+
+body.mobile .chat-close {
+  width: 36px;
+  height: 36px;
+  font-size: 24px;
 }
 
 /*

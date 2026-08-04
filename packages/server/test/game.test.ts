@@ -116,13 +116,58 @@ describe('economy', () => {
     expect(errs.length).toBe(1);
   });
 
-  it('starts new players with enough BP for the first Stubby Pencil', async () => {
+  it('starts new players with enough BP and a free first Stubby Pencil', async () => {
     const { room } = setup();
     const a = await room.hello(undefined, 'Anna', undefined);
     expect(room.youOf(a.playerId)!.bp).toBe(15);
+    expect(room.youOf(a.playerId)!.tutorialDone).toBe(false);
+    // First pencil is free while the tutorial is incomplete.
+    room.buy(a.playerId, 0, 1);
+    expect(room.youOf(a.playerId)!.gens[0]).toBe(1);
+    expect(room.youOf(a.playerId)!.bp).toBe(15);
+  });
+
+  it('gives the first Stubby Pencil free even at 0 BP during the tutorial', async () => {
+    const { room } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    (room as any).players.get(a.playerId).bp = 0;
     room.buy(a.playerId, 0, 1);
     expect(room.youOf(a.playerId)!.gens[0]).toBe(1);
     expect(room.youOf(a.playerId)!.bp).toBe(0);
+  });
+
+  it('charges normal pencil price after the tutorial is marked done', async () => {
+    const { room, sent } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    room.markTutorialDone(a.playerId);
+    expect(room.youOf(a.playerId)!.tutorialDone).toBe(true);
+    (room as any).players.get(a.playerId).bp = 0;
+    room.buy(a.playerId, 0, 1);
+    const errs = (sent.get(a.playerId) ?? []).filter((m) => m.t === 'error' && m.code === 'poor');
+    expect(errs.length).toBe(1);
+    expect(room.youOf(a.playerId)!.gens[0]).toBe(0);
+  });
+
+  it('tops up starter BP for returning tutorial players with an empty desk', async () => {
+    const { room, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    (room as any).players.get(a.playerId).bp = 0;
+    room.disconnect(a.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+    const back = await room.hello(a.newToken, undefined, undefined);
+    expect(room.youOf(back.playerId)!.bp).toBe(15);
+  });
+
+  it('persists tutorialDone on the player save', async () => {
+    const { room, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    room.markTutorialDone(a.playerId);
+    room.disconnect(a.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+    const back = await room.hello(a.newToken, undefined, undefined);
+    expect(room.youOf(back.playerId)!.tutorialDone).toBe(true);
   });
 
   it('applies upgrades only when threshold met and affordable', async () => {
