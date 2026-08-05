@@ -170,6 +170,16 @@ describe('economy', () => {
     expect(room.youOf(back.playerId)!.tutorialDone).toBe(true);
   });
 
+  it('flushes tutorialDone immediately so a quick reconnect still sees it', async () => {
+    const { room } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    room.markTutorialDone(a.playerId);
+    // No disconnect/flush tick — simulate Skip then an instant new session.
+    room.disconnect(a.playerId);
+    const back = await room.hello(a.newToken, undefined, undefined);
+    expect(room.youOf(back.playerId)!.tutorialDone).toBe(true);
+  });
+
   it('applies upgrades only when threshold met and affordable', async () => {
     const { room, clock } = setup();
     const a = await room.hello(undefined, 'Anna', undefined);
@@ -452,6 +462,53 @@ describe('CrazyGames account linking', () => {
     const back = await room.hello(guest.newToken, undefined, undefined, cgToken('u1', 'Player'));
     expect(back.playerId).toBe(linked.playerId);
     expect(room.youOf(back.playerId)!.gens[0]).toBe(2);
+  });
+
+  it('migrates guest tutorialDone onto a new CrazyGames account and keeps it without the guest token', async () => {
+    const { room, clock } = setup();
+
+    // QA flow: guest skips the tutorial, then logs into a fresh CG account.
+    const guest = await room.hello(undefined, undefined, undefined);
+    room.markTutorialDone(guest.playerId);
+    expect(room.youOf(guest.playerId)!.tutorialDone).toBe(true);
+    room.disconnect(guest.playerId);
+
+    const linked = await room.hello(guest.newToken, undefined, undefined, cgToken('uTut', 'Skipper'));
+    expect(linked.playerId).not.toBe(guest.playerId);
+    expect(room.youOf(linked.playerId)!.tutorialDone).toBe(true);
+    room.disconnect(linked.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    // New incognito: no guest token, only the CrazyGames account.
+    const freshBrowser = await room.hello(undefined, undefined, undefined, cgToken('uTut', 'Skipper'));
+    expect(freshBrowser.playerId).toBe(linked.playerId);
+    expect(room.youOf(freshBrowser.playerId)!.tutorialDone).toBe(true);
+  });
+
+  it('merges guest tutorialDone into an existing CrazyGames account', async () => {
+    const { room, clock } = setup();
+
+    // Account already exists (e.g. prior login) without tutorial completion.
+    const linked = await room.hello(undefined, undefined, undefined, cgToken('uOld', 'Veteran'));
+    expect(room.youOf(linked.playerId)!.tutorialDone).toBe(false);
+    room.disconnect(linked.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    // Later guest session skips the tutorial, then logs into that account.
+    const guest = await room.hello(undefined, undefined, undefined);
+    room.markTutorialDone(guest.playerId);
+    room.disconnect(guest.playerId);
+
+    const back = await room.hello(guest.newToken, undefined, undefined, cgToken('uOld', 'Veteran'));
+    expect(back.playerId).toBe(linked.playerId);
+    expect(room.youOf(back.playerId)!.tutorialDone).toBe(true);
+    room.disconnect(back.playerId);
+
+    // Persists for a brand-new browser that only has the CG token.
+    const fresh = await room.hello(undefined, undefined, undefined, cgToken('uOld', 'Veteran'));
+    expect(room.youOf(fresh.playerId)!.tutorialDone).toBe(true);
   });
 
   it('never copies an already-migrated guest save into another account', async () => {

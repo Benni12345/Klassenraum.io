@@ -1,7 +1,7 @@
 import {
   GENERATORS,
   genMult,
-  maxAffordable,
+  quoteBuy,
   resolveTutorialBuy,
   UPGRADE_BY_ID,
   UPGRADES,
@@ -105,21 +105,17 @@ function tryBuyGen(gi: number): void {
   const you = store.you;
   if (!you) return;
   const owned = you.gens[gi] ?? 0;
-  const { qty, cost } = resolveBuyQty(gi, owned, you.bp, you.tutorialDone);
+  // Purchase path clamps to what is affordable (and free-first pencil).
+  const { qty, cost } = resolveTutorialBuy(gi, owned, you.bp, qtySel, you.tutorialDone);
   if (qty > 0 && you.bp >= cost) {
     store.buy(gi, qtySel);
     sfxBuy();
   }
 }
 
-function resolveBuyQty(
-  gi: number,
-  owned: number,
-  bp: number,
-  tutorialDone: boolean,
-): { qty: number; cost: number } {
-  const qty = qtySel === -1 ? Math.max(1, maxAffordable(gi, owned, bp)) : qtySel;
-  return resolveTutorialBuy(gi, owned, bp, qty, tutorialDone);
+/** Display/tooltip quote — always shows the real price, never a bogus `0`. */
+function priceQuote(gi: number, owned: number, bp: number, tutorialDone: boolean) {
+  return quoteBuy(gi, owned, bp, qtySel, tutorialDone);
 }
 
 function isGenRevealed(gi: number, you: NonNullable<typeof store.you>): boolean {
@@ -146,10 +142,8 @@ function genTip(gi: number): TipCard | null {
   const owned = you.gens[gi] ?? 0;
   const each = g.baseBps * genMult(gi, you.upgrades);
   const total = each * owned;
-  const { qty, cost } = resolveBuyQty(gi, owned, you.bp, you.tutorialDone);
-  const afford = you.bp >= cost;
+  const { qty, cost, free, affordable } = priceQuote(gi, owned, you.bp, you.tutorialDone);
   const qtyLabel = qtySel === -1 ? `×${qty}` : qty > 1 ? `×${qty}` : '×1';
-  const freeFirst = !you.tutorialDone && gi === 0 && owned === 0;
 
   const stats: TipCard['stats'] = [
     { label: t('shop.tip.base'), value: `${fmt(g.baseBps)} ${t('unit')}/s` },
@@ -161,17 +155,17 @@ function genTip(gi: number): TipCard | null {
   }
   stats.push({
     label: `${t('shop.tip.buy')} (${qtyLabel})`,
-    value: freeFirst ? t('shop.tip.free') : `${fmt(cost)} ${t('unit')}`,
-    accent: afford,
-    warn: !afford,
+    value: free ? t('shop.tip.free') : `${fmt(cost)} ${t('unit')}`,
+    accent: affordable,
+    warn: !affordable,
   });
 
   return {
     title: t(`gen.${g.id}.name`),
     body: t(`gen.${g.id}.flavor`),
     stats,
-    footer: afford ? undefined : t('shop.tip.cantAfford'),
-    warnFooter: !afford,
+    footer: affordable ? undefined : t('shop.tip.cantAfford'),
+    warnFooter: !affordable,
   };
 }
 
@@ -195,10 +189,8 @@ function refresh(): void {
     }
 
     row.name.textContent = t(`gen.${g.id}.name`);
-    const { qty, cost } = resolveBuyQty(gi, owned, you.bp, you.tutorialDone);
+    const { qty, cost, free, affordable } = priceQuote(gi, owned, you.bp, you.tutorialDone);
     const each = g.baseBps * genMult(gi, you.upgrades);
-    const afford = you.bp >= cost;
-    const freeFirst = !you.tutorialDone && gi === 0 && owned === 0;
 
     if (owned > 0) {
       row.owned.textContent = `×${owned}`;
@@ -210,11 +202,11 @@ function refresh(): void {
     row.rate.textContent = `${fmt(each)}/s`;
     if (owned > 0) row.rate.textContent += ` · ${fmt(each * owned)}/s`;
 
-    row.cost.textContent = freeFirst ? t('shop.tip.free') : fmt(cost);
-    if (!freeFirst && qtySel === -1 && qty > 1) row.cost.textContent = `×${qty} ${fmt(cost)}`;
+    row.cost.textContent = free ? t('shop.tip.free') : fmt(cost);
+    if (!free && qtySel === -1 && qty > 1) row.cost.textContent = `×${qty} ${fmt(cost)}`;
 
-    row.root.classList.toggle('afford', afford);
-    row.root.classList.toggle('cant', !afford);
+    row.root.classList.toggle('afford', affordable);
+    row.root.classList.toggle('cant', !affordable);
   });
 
   refreshUpgrades();

@@ -11,6 +11,7 @@ import {
   goalTarget,
   maxAffordable,
   PRESTIGE_BASE,
+  quoteBuy,
   resolveBuy,
   resolveTutorialBuy,
   starMult,
@@ -69,6 +70,43 @@ describe('generator costs', () => {
     expect(resolveTutorialBuy(0, 1, 0, 1, false)).toEqual({ qty: 0, cost: 0 });
     expect(resolveTutorialBuy(0, 0, 0, 1, true)).toEqual({ qty: 0, cost: 0 });
     expect(resolveTutorialBuy(0, 0, 15, 1, true)).toEqual({ qty: 1, cost: 15 });
+  });
+
+  it('quoteBuy shows real prices when unaffordable (never a bogus 0)', () => {
+    // Sticky Notes base 100, Calculator base 1100 — player has only 12 BP.
+    expect(quoteBuy(1, 0, 12, 1, true)).toEqual({
+      qty: 1,
+      cost: 100,
+      free: false,
+      affordable: false,
+    });
+    expect(quoteBuy(2, 0, 12, 1, true)).toEqual({
+      qty: 1,
+      cost: 1_100,
+      free: false,
+      affordable: false,
+    });
+    // Stubby Pencil still shows 15 when tutorial is done and BP is short.
+    expect(quoteBuy(0, 0, 12, 1, true)).toEqual({
+      qty: 1,
+      cost: 15,
+      free: false,
+      affordable: false,
+    });
+    // Free first pencil during the tutorial.
+    expect(quoteBuy(0, 0, 12, 1, false)).toEqual({
+      qty: 1,
+      cost: 0,
+      free: true,
+      affordable: true,
+    });
+    // Max with empty pockets still quotes the 1× price.
+    expect(quoteBuy(1, 0, 0, -1, true)).toEqual({
+      qty: 1,
+      cost: 100,
+      free: false,
+      affordable: false,
+    });
   });
 });
 

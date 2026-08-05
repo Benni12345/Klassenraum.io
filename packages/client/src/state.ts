@@ -58,6 +58,8 @@ class Store {
   private timeOffset = 0;
   private lastFrame = performance.now();
   private clickQueue = 0;
+  /** Retry tutorialDone if it was marked while the socket was down. */
+  private pendingTutorialDone = false;
   private handlers = new Map<keyof Events, Set<Handler<never>>>();
 
   constructor() {
@@ -172,13 +174,19 @@ class Store {
     this.emit('change', undefined);
   }
 
-  /** Persist guided-tutorial completion on the game backend. */
+  /** Persist guided-tutorial completion on the game backend (Skip counts). */
   markTutorialDone(): void {
     if (this.you) {
       this.you.tutorialDone = true;
       this.emit('you', undefined);
     }
-    this.net.send({ t: 'tutorialDone' });
+    if (this.net.isOpen) {
+      this.pendingTutorialDone = false;
+      this.net.send({ t: 'tutorialDone' });
+    } else {
+      // Welcome/reconnect will flush this so Skip is not lost on a blip.
+      this.pendingTutorialDone = true;
+    }
   }
 
   buyUpgrade(id: string): void {
@@ -246,6 +254,14 @@ class Store {
         this.event = msg.event;
         this.goal = msg.goal;
         this.chatLog = msg.chat;
+        // Re-send a Skip/Done that happened while disconnected.
+        if (this.pendingTutorialDone && !this.you.tutorialDone) {
+          this.you.tutorialDone = true;
+          this.pendingTutorialDone = false;
+          this.net.send({ t: 'tutorialDone' });
+        } else if (this.you.tutorialDone) {
+          this.pendingTutorialDone = false;
+        }
         this.emit('joined', undefined);
         if (msg.offline) this.emit('offline', msg.offline);
         this.emit('roster', undefined);
