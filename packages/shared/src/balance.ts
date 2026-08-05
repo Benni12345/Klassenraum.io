@@ -132,6 +132,26 @@ export function resolveTutorialBuy(
   return resolveBuy(gi, owned, bp, qty);
 }
 
+/**
+ * Shop price quote for display/tooltips. Unlike `resolveBuy`, this never
+ * collapses an unaffordable purchase to `{ cost: 0 }` — rows always show the
+ * real price of the requested quantity (or of 1× when Max can afford none).
+ */
+export function quoteBuy(
+  gi: number,
+  owned: number,
+  bp: number,
+  qty: number,
+  tutorialDone: boolean,
+): { qty: number; cost: number; free: boolean; affordable: boolean } {
+  if (!tutorialDone && gi === 0 && owned === 0) {
+    return { qty: 1, cost: 0, free: true, affordable: true };
+  }
+  const desired = qty === -1 ? Math.max(1, maxAffordable(gi, owned, bp)) : Math.max(1, Math.floor(qty));
+  const cost = genCost(gi, owned, desired);
+  return { qty: desired, cost, free: false, affordable: bp >= cost };
+}
+
 // ---------------------------------------------------------------------------
 // Production
 

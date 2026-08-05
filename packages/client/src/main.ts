@@ -167,9 +167,9 @@ async function boot(): Promise<void> {
     if (lastGrade === -1) {
       scene.scrollToOwnDesk();
       lastGrade = store.you?.grade ?? 0;
-      // Source of truth is the backend save; local prefs are a fast cache +
-      // migration bridge for players who finished the tour before this field
-      // existed on the server.
+      // Source of truth is the backend player save. Local prefs are a same-
+      // browser cache and a bridge for older clients; always heal toward the
+      // server so Skip/Done survives new browsers / incognito sessions.
       const serverDone = store.you?.tutorialDone === true;
       const localDone = getPrefs().tutorialDone;
       if (serverDone && !localDone) setPrefs({ tutorialDone: true });

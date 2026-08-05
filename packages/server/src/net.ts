@@ -125,6 +125,13 @@ export class Net implements Outbox {
       return;
     }
 
+    // Tutorial completion must not be dropped by the action rate limiter —
+    // Skip/Done is a one-shot account flag that has to reach the save.
+    if (msg.t === 'tutorialDone') {
+      this.room.markTutorialDone(st.playerId);
+      return;
+    }
+
     if (!this.takeToken(st)) return;
     const id = st.playerId;
 
@@ -165,9 +172,6 @@ export class Net implements Outbox {
         return;
       case 'adBoost':
         this.room.adBoost(id);
-        return;
-      case 'tutorialDone':
-        this.room.markTutorialDone(id);
         return;
       default:
         return;

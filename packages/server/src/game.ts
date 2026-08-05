@@ -187,7 +187,13 @@ export class Room {
 
     const existing = this.db.loadPlayerByCgUserId(cg.userId);
     if (existing) {
-      // The account already has save data — guest progress is never merged in.
+      // Economy progress stays on the account, but tutorial completion is a
+      // one-way flag: if this browser's guest already finished/skipped the tour,
+      // carry that onto the account so a new session does not replay it.
+      if (!existing.tutorialDone && this.guestTutorialDone(token, now)) {
+        existing.tutorialDone = true;
+        this.db.savePlayer(existing);
+      }
       const offline = this.applyOfflineGains(existing, now);
       this.syncCgProfile(existing, cg);
       const p = this.seatPlayer(existing, now);
@@ -214,6 +220,23 @@ export class Room {
     }
     this.applyOfflineGains(row, now);
     return row;
+  }
+
+  /**
+   * Whether the guest save behind `token` has finished/skipped the tutorial.
+   * Unlike migratableGuest, this still reads already-migrated guest rows so a
+   * later Skip on the guest can update an existing CrazyGames account flag.
+   */
+  private guestTutorialDone(token: string | undefined, now: number): boolean {
+    if (!token || !/^[a-f0-9]{48}$/.test(token)) return false;
+    const row = this.db.loadPlayerByToken(hashToken(token));
+    if (!row || row.cgUserId) return false;
+    const live = this.players.get(row.id);
+    if (live) {
+      this.settle(live, now);
+      return live.tutorialDone;
+    }
+    return row.tutorialDone;
   }
 
   /**
@@ -439,6 +462,9 @@ export class Room {
     if (!p || p.tutorialDone) return;
     p.tutorialDone = true;
     p.dirty = true;
+    // Flush immediately — skip/finish must survive a quick tab close or login
+    // reload, not wait for the periodic dirty flush.
+    this.savePlayer(p);
     this.sendYou(p);
   }
 

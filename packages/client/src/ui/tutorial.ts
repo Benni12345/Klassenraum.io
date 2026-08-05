@@ -5,8 +5,8 @@
  * the tutorial still gets an arrow on "Take notes!", then on the first
  * affordable generator, then on Upgrades once one is affordable.
  *
- * Tutorial completion is persisted on the game backend (player save), not the
- * CrazyGames Data module — mixing those stores causes sync issues.
+ * Tutorial completion (including Skip) is persisted on the game backend player
+ * save so it follows the CrazyGames account across browsers and incognito.
  */
 
 import { flushPrefs, getPrefs, hasHint, markHint, setPrefs } from '../prefs';
