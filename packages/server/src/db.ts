@@ -155,6 +155,15 @@ export class Db {
     this.db.prepare('UPDATE players SET cg_migrated_at = ? WHERE id = ?').run(at, playerId);
   }
 
+  /** Durable per-CrazyGames-account tutorial flag (survives odd save migrations). */
+  setCgTutorialDone(cgUserId: string): void {
+    this.setMeta(`cg_tut:${cgUserId}`, '1');
+  }
+
+  isCgTutorialDone(cgUserId: string): boolean {
+    return this.getMeta(`cg_tut:${cgUserId}`) === '1';
+  }
+
   savePlayer(row: PlayerRow): void {
     this.db
       .prepare(

@@ -13,7 +13,7 @@ import { fmt } from './format';
 import { gradeLabel, t } from './i18n';
 import { initMusic, syncMusic } from './music';
 import { platform } from './platform';
-import { CG_TUTORIAL_KEY, getPrefs, setPrefs } from './prefs';
+import { CG_TUTORIAL_KEY, isTutorialDoneLocally, rememberTutorialDoneLocally } from './prefs';
 import { Scene } from './render/scene';
 import { brainIcon, gearIcon, iconDataUrl, trophyIcon } from './render/sprites';
 import { store } from './state';
@@ -46,11 +46,12 @@ async function boot(): Promise<void> {
     store.setCgTokenProvider(() => platform.getUserToken());
     // CrazyGames Data is cloud-synced per account. Merge it into local prefs
     // before hello so Skip follows the player across browsers / incognito.
+    // sessionStorage covers the same-tab auth reload when CG restores empty
+    // account localStorage over the guest prefs.
     const remote = platform.getDataItem(CG_TUTORIAL_KEY);
-    if (remote === '1' || remote === 'true') {
-      setPrefs({ tutorialDone: true });
-    } else if (getPrefs().tutorialDone) {
-      platform.setDataItem(CG_TUTORIAL_KEY, '1');
+    if (remote === '1' || remote === 'true' || isTutorialDoneLocally()) {
+      rememberTutorialDoneLocally();
+      if (remote !== '1' && remote !== 'true') platform.setDataItem(CG_TUTORIAL_KEY, '1');
     }
   }
 
@@ -178,8 +179,8 @@ async function boot(): Promise<void> {
       // Tutorial completion is one-way across server save, local prefs, and
       // CrazyGames Data. Heal any lagging store so Skip survives new browsers.
       const serverDone = store.you?.tutorialDone === true;
-      const localDone = getPrefs().tutorialDone;
-      if (serverDone && !localDone) setPrefs({ tutorialDone: true });
+      const localDone = isTutorialDoneLocally();
+      if (serverDone || localDone) rememberTutorialDoneLocally();
       if (!serverDone && localDone) store.markTutorialDone();
       if ((serverDone || localDone) && platform.enabled) {
         platform.setDataItem(CG_TUTORIAL_KEY, '1');
@@ -187,7 +188,7 @@ async function boot(): Promise<void> {
       // First-time gameplayStart waits until the tutorial is finished or skipped.
       // Instant multiplayer / returning players start immediately.
       const showTutorial =
-        !platform.isInstantMultiplayer && !(store.you?.tutorialDone || getPrefs().tutorialDone);
+        !platform.isInstantMultiplayer && !(store.you?.tutorialDone || isTutorialDoneLocally());
       if (showTutorial) {
         startTutorial();
       } else {
@@ -265,6 +266,12 @@ async function boot(): Promise<void> {
       const next = user?.username ?? null;
       if (next === knownUser) return;
       knownUser = next;
+      // Stash Skip before CG reloads / restores account storage over guest data.
+      if (store.you?.tutorialDone || isTutorialDoneLocally()) {
+        rememberTutorialDoneLocally();
+        platform.setDataItem(CG_TUTORIAL_KEY, '1');
+        store.markTutorialDone();
+      }
       location.reload();
     });
   }

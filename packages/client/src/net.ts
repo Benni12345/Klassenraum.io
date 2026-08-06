@@ -1,6 +1,6 @@
 import type { ClientMsg, ServerMsg } from '@shared/protocol';
 import type { AvatarSpec } from '@shared/types';
-import { getPrefs } from './prefs';
+import { isTutorialDoneLocally } from './prefs';
 
 export type NetStatus = 'connecting' | 'open' | 'reconnecting' | 'replaced';
 
@@ -107,7 +107,7 @@ export class Net {
     if (ws.readyState !== WebSocket.OPEN) return;
     // Carry local/Data tutorial completion on hello so Skip survives an
     // immediate login reload and restores onto the CrazyGames account.
-    const tutorialDone = this.joinInfo.tutorialDone === true || getPrefs().tutorialDone;
+    const tutorialDone = this.joinInfo.tutorialDone === true || isTutorialDoneLocally();
     const hello: ClientMsg = {
       t: 'hello',
       ...(token ? { token } : {}),

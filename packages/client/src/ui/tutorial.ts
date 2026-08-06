@@ -10,7 +10,7 @@
  * CrazyGames account across browsers and incognito sessions.
  */
 
-import { CG_TUTORIAL_KEY, flushPrefs, getPrefs, hasHint, markHint, setPrefs } from '../prefs';
+import { CG_TUTORIAL_KEY, hasHint, isTutorialDoneLocally, markHint, rememberTutorialDoneLocally } from '../prefs';
 import { t } from '../i18n';
 import { platform } from '../platform';
 import { store } from '../state';
@@ -99,7 +99,7 @@ export function onTutorialEnd(fn: () => void): () => void {
 
 export function startTutorial(opts?: { force?: boolean }): void {
   if (tutorialActive) return;
-  if (!opts?.force && (store.you?.tutorialDone || getPrefs().tutorialDone)) return;
+  if (!opts?.force && (store.you?.tutorialDone || isTutorialDoneLocally())) return;
   tutorialActive = true;
   document.body.classList.add('tutoring');
   const release = pushOverlay();
@@ -221,8 +221,7 @@ export function startTutorial(opts?: { force?: boolean }): void {
     card.remove();
     window.removeEventListener('resize', place);
     release();
-    setPrefs({ tutorialDone: true });
-    flushPrefs();
+    rememberTutorialDoneLocally();
     // Mirror to CrazyGames Data so a later browser on the same account sees it.
     if (platform.enabled) platform.setDataItem(CG_TUTORIAL_KEY, '1');
     // Persist on the game backend (same save as BP / generators).

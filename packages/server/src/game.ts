@@ -193,6 +193,7 @@ export class Room {
       seated.online = true;
       seated.sleepUntil = 0;
       this.syncCgProfile(seated, cg);
+      this.restoreCgTutorialFlag(seated, cg.userId);
       this.out.broadcast({ t: 'join', p: this.publicOf(seated) });
       return { playerId: seated.id };
     }
@@ -206,6 +207,7 @@ export class Room {
         existing.tutorialDone = true;
         this.db.savePlayer(existing);
       }
+      this.restoreCgTutorialFlag(existing, cg.userId);
       const offline = this.applyOfflineGains(existing, now);
       this.syncCgProfile(existing, cg);
       const p = this.seatPlayer(existing, now);
@@ -214,6 +216,7 @@ export class Room {
     }
 
     const row = this.createCgAccount(cg, this.migratableGuest(token, now), avatar, now);
+    this.restoreCgTutorialFlag(row, cg.userId);
     const p = this.seatPlayer(row, now);
     this.out.broadcast({ t: 'join', p: this.publicOf(p) });
     return { playerId: p.id };
@@ -275,6 +278,7 @@ export class Room {
       lastSeen: now,
     };
     this.db.createPlayer(row, hashToken(crypto.randomBytes(24).toString('hex')));
+    if (row.tutorialDone) this.db.setCgTutorialDone(cg.userId);
     if (source) {
       this.db.markCgMigrated(source.id, now);
       const live = this.players.get(source.id);
@@ -471,12 +475,17 @@ export class Room {
   /** Mark the guided tutorial as finished/skipped on this save. */
   markTutorialDone(playerId: string): void {
     const p = this.online(playerId);
-    if (!p || p.tutorialDone) return;
+    if (!p) return;
+    if (p.tutorialDone) {
+      if (p.cgUserId) this.db.setCgTutorialDone(p.cgUserId);
+      return;
+    }
     p.tutorialDone = true;
     p.dirty = true;
     // Flush immediately — skip/finish must survive a quick tab close or login
     // reload, not wait for the periodic dirty flush.
     this.savePlayer(p);
+    if (p.cgUserId) this.db.setCgTutorialDone(p.cgUserId);
     this.sendYou(p);
   }
 
@@ -487,6 +496,25 @@ export class Room {
   private applyClientTutorialDone(playerId: string, clientTutorialDone?: boolean): void {
     if (!clientTutorialDone) return;
     this.markTutorialDone(playerId);
+  }
+
+  /**
+   * Re-apply a durable per-account tutorial flag written on a previous Skip.
+   * Keeps new browsers honest even if a player-row migration missed the field.
+   */
+  private restoreCgTutorialFlag(p: PlayerRow | PlayerState, cgUserId: string): void {
+    if (p.tutorialDone) {
+      this.db.setCgTutorialDone(cgUserId);
+      return;
+    }
+    if (!this.db.isCgTutorialDone(cgUserId)) return;
+    p.tutorialDone = true;
+    if ('dirty' in p) {
+      (p as PlayerState).dirty = true;
+      this.savePlayer(p as PlayerState);
+    } else {
+      this.db.savePlayer(p as PlayerRow);
+    }
   }
 
   buyUpgrade(playerId: string, id: string): void {

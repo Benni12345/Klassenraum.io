@@ -13,6 +13,7 @@ import { gradeLabel, t } from '../i18n';
 import { syncMusic } from '../music';
 import { iconDataUrl, studentSprite } from '../render/sprites';
 import { platform } from '../platform';
+import { CG_TUTORIAL_KEY, isTutorialDoneLocally, rememberTutorialDoneLocally } from '../prefs';
 import { store } from '../state';
 import { mountRewardedBoostButton, showPrestigeMidgameAd } from './ads';
 import { el, id } from './dom';
@@ -505,6 +506,12 @@ export function settingsModal(): void {
         loginBtn.type = 'button';
         loginBtn.title = t('settings.cgLoginHint');
         loginBtn.onclick = async () => {
+          // Stash Skip before CG auth reloads and may restore empty account storage.
+          if (store.you?.tutorialDone || isTutorialDoneLocally()) {
+            rememberTutorialDoneLocally();
+            platform.setDataItem(CG_TUTORIAL_KEY, '1');
+            store.markTutorialDone();
+          }
           const user = await platform.showAuthPrompt();
           if (user) {
             stopAd?.();
