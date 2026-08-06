@@ -1,5 +1,6 @@
 import type { ClientMsg, ServerMsg } from '@shared/protocol';
 import type { AvatarSpec } from '@shared/types';
+import { getPrefs } from './prefs';
 
 export type NetStatus = 'connecting' | 'open' | 'reconnecting' | 'replaced';
 
@@ -21,6 +22,8 @@ export interface JoinInfo {
   avatar?: AvatarSpec;
   /** CrazyGames JWT for server-side account linking. */
   cgToken?: string;
+  /** Force tutorialDone on hello (in addition to prefs / Data cache). */
+  tutorialDone?: boolean;
 }
 
 /**
@@ -102,12 +105,16 @@ export class Net {
       }
     }
     if (ws.readyState !== WebSocket.OPEN) return;
+    // Carry local/Data tutorial completion on hello so Skip survives an
+    // immediate login reload and restores onto the CrazyGames account.
+    const tutorialDone = this.joinInfo.tutorialDone === true || getPrefs().tutorialDone;
     const hello: ClientMsg = {
       t: 'hello',
       ...(token ? { token } : {}),
       ...(this.joinInfo.name ? { name: this.joinInfo.name } : {}),
       ...(this.joinInfo.avatar ? { avatar: this.joinInfo.avatar } : {}),
       ...(cgToken ? { cgToken } : {}),
+      ...(tutorialDone ? { tutorialDone: true } : {}),
     };
     ws.send(JSON.stringify(hello));
   }

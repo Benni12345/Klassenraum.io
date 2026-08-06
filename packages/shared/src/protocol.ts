@@ -19,6 +19,11 @@ export type ClientMsg =
       avatar?: AvatarSpec;
       /** CrazyGames JWT — verified server-side for account linking. */
       cgToken?: string;
+      /**
+       * Client cache of tutorial completion (local prefs / CrazyGames Data).
+       * One-way: server may set tutorialDone true from this, never clear it.
+       */
+      tutorialDone?: boolean;
     }
   | { t: 'click'; n: number }
   | { t: 'buy'; gen: number; qty: number } // qty: 1 | 10 | -1 (max)

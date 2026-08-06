@@ -6,20 +6,24 @@
  * are throttled to at most one per 30 s (CrazyGames limits save operations for
  * clicker games), with a final flush when the page goes away.
  *
- * Tutorial completion is stored on the player save (`tutorialDone`). Local
- * prefs keep a cache so Settings / boot can react before the welcome packet
- * arrives, and to migrate older clients that only had the local flag.
+ * Tutorial completion is a one-way flag mirrored to:
+ * - the game backend player save (`tutorialDone`)
+ * - local prefs (same-browser cache)
+ * - the CrazyGames Data module (cloud-synced per CrazyGames account)
  */
 
 const KEY = 'kr_prefs';
 const LEGACY_LANG_KEY = 'kr_lang';
 export const SAVE_INTERVAL_MS = 30_000;
 
+/** CrazyGames Data module key — syncs across browsers for the same CG account. */
+export const CG_TUTORIAL_KEY = 'tutorialDone';
+
 export interface Prefs {
   lang: string | null;
   music: boolean;
   sfx: boolean;
-  /** Tutorial completed or skipped (cache; authoritative copy is on the server). */
+  /** Tutorial completed or skipped (cache; also on server + CG Data). */
   tutorialDone: boolean;
   /** Ids of one-shot interaction hints already shown. */
   hints: string[];

@@ -118,12 +118,17 @@ export class Room {
    * - The first time an account is seen, the guest save behind `token` is
    *   *copied* into it and stamped as migrated. Later logins never copy again,
    *   so progress made while logged out stays in the guest save.
+   *
+   * `clientTutorialDone` is a one-way hint from local prefs / CrazyGames Data
+   * so Skip still lands on the account when the dedicated WS mark was lost
+   * (e.g. skip → immediate login reload) or when a new browser restores Data.
    */
   async hello(
     token: string | undefined,
     name: string | undefined,
     avatar: AvatarSpec | undefined,
     cgToken?: string,
+    clientTutorialDone?: boolean,
   ): Promise<{ playerId: string; newToken?: string; offline?: { ms: number; bp: number } }> {
     const now = this.now();
 
@@ -136,7 +141,11 @@ export class Room {
       }
     }
 
-    if (cg) return this.helloCrazyGames(cg, token, avatar, now);
+    if (cg) {
+      const result = this.helloCrazyGames(cg, token, avatar, now);
+      this.applyClientTutorialDone(result.playerId, clientTutorialDone);
+      return result;
+    }
 
     if (token && /^[a-f0-9]{48}$/.test(token)) {
       const hash = hashToken(token);
@@ -147,6 +156,7 @@ export class Room {
         seated.online = true;
         seated.sleepUntil = 0;
         this.refreshLegacyGuestName(seated);
+        this.applyClientTutorialDone(seated.id, clientTutorialDone);
         this.out.broadcast({ t: 'join', p: this.publicOf(seated) });
         return { playerId: seated.id };
       }
@@ -155,6 +165,7 @@ export class Room {
         const offline = this.applyOfflineGains(row, now);
         this.refreshLegacyGuestName(row);
         const p = this.seatPlayer(row, now);
+        this.applyClientTutorialDone(p.id, clientTutorialDone);
         this.out.broadcast({ t: 'join', p: this.publicOf(p) });
         return { playerId: p.id, offline };
       }
@@ -165,6 +176,7 @@ export class Room {
     const row = blankPlayer(newPlayerId(), sanitizeChosenName(name) ?? guestName(), avatar, now);
     this.db.createPlayer(row, hashToken(newToken));
     const p = this.seatPlayer(row, now);
+    this.applyClientTutorialDone(p.id, clientTutorialDone);
     this.out.broadcast({ t: 'join', p: this.publicOf(p) });
     return { playerId: row.id, newToken };
   }
@@ -466,6 +478,15 @@ export class Room {
     // reload, not wait for the periodic dirty flush.
     this.savePlayer(p);
     this.sendYou(p);
+  }
+
+  /**
+   * One-way apply of a client-side tutorial cache (prefs / CrazyGames Data)
+   * onto the seated save during hello.
+   */
+  private applyClientTutorialDone(playerId: string, clientTutorialDone?: boolean): void {
+    if (!clientTutorialDone) return;
+    this.markTutorialDone(playerId);
   }
 
   buyUpgrade(playerId: string, id: string): void {

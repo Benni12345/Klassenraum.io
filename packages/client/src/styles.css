@@ -29,6 +29,10 @@ body {
   font-family: var(--font);
   font-weight: 700;
   overflow: hidden;
+  /* iOS long-press must not start text selection mid-tap. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .hidden {
@@ -90,9 +94,14 @@ button {
   cursor: pointer;
 }
 
-input {
+input,
+textarea {
   font-family: var(--font);
   font-weight: 700;
+  /* Chat / rename fields still need a caret and selection. */
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 #app {

@@ -190,6 +190,7 @@ export class Net implements Outbox {
       name,
       msg.avatar,
       typeof msg.cgToken === 'string' ? msg.cgToken : undefined,
+      msg.tutorialDone === true,
     );
 
     // One live socket per player: replace an older tab.
