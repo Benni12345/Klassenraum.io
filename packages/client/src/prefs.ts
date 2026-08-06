@@ -6,20 +6,27 @@
  * are throttled to at most one per 30 s (CrazyGames limits save operations for
  * clicker games), with a final flush when the page goes away.
  *
- * Tutorial completion is stored on the player save (`tutorialDone`). Local
- * prefs keep a cache so Settings / boot can react before the welcome packet
- * arrives, and to migrate older clients that only had the local flag.
+ * Tutorial completion is a one-way flag mirrored to:
+ * - the game backend player save (`tutorialDone`)
+ * - local prefs (same-browser cache)
+ * - sessionStorage (survives CrazyGames login wiping/restoring localStorage)
+ * - the CrazyGames Data module (cloud-synced per CrazyGames account)
  */
 
 const KEY = 'kr_prefs';
 const LEGACY_LANG_KEY = 'kr_lang';
+/** Survives CG account-login localStorage restores within the same tab. */
+const SESSION_TUTORIAL_KEY = 'kr_tutorial_done';
 export const SAVE_INTERVAL_MS = 30_000;
+
+/** CrazyGames Data module key — syncs across browsers for the same CG account. */
+export const CG_TUTORIAL_KEY = 'tutorialDone';
 
 export interface Prefs {
   lang: string | null;
   music: boolean;
   sfx: boolean;
-  /** Tutorial completed or skipped (cache; authoritative copy is on the server). */
+  /** Tutorial completed or skipped (cache; also on server + CG Data). */
   tutorialDone: boolean;
   /** Ids of one-shot interaction hints already shown. */
   hints: string[];
@@ -32,6 +39,22 @@ const DEFAULTS: Prefs = {
   tutorialDone: false,
   hints: [],
 };
+
+function readSessionTutorialDone(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_TUTORIAL_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeSessionTutorialDone(): void {
+  try {
+    sessionStorage.setItem(SESSION_TUTORIAL_KEY, '1');
+  } catch {
+    /* private mode */
+  }
+}
 
 function read(): Prefs {
   let stored: Partial<Prefs> = {};
@@ -50,6 +73,9 @@ function read(): Prefs {
     }
   }
   if (!Array.isArray(prefs.hints)) prefs.hints = [];
+  // CG login can restore an empty account localStorage over guest prefs; the
+  // session flag still carries Skip across the auth reload in this tab.
+  if (!prefs.tutorialDone && readSessionTutorialDone()) prefs.tutorialDone = true;
   return prefs;
 }
 
@@ -71,6 +97,7 @@ function write(): void {
   } catch {
     /* private mode / quota — preferences simply don't persist */
   }
+  if (prefs.tutorialDone) writeSessionTutorialDone();
 }
 
 function schedule(): void {
@@ -83,6 +110,11 @@ export function getPrefs(): Readonly<Prefs> {
   return prefs;
 }
 
+/** True when any same-tab cache says the tutorial was finished/skipped. */
+export function isTutorialDoneLocally(): boolean {
+  return prefs.tutorialDone || readSessionTutorialDone();
+}
+
 /** Applies a change immediately in memory; persists it on the next slot. */
 export function setPrefs(patch: Partial<Prefs>): void {
   let changed = false;
@@ -93,8 +125,19 @@ export function setPrefs(patch: Partial<Prefs>): void {
     changed = true;
   }
   if (!changed) return;
+  if (patch.tutorialDone === true) writeSessionTutorialDone();
   dirty = true;
   schedule();
+}
+
+/**
+ * One-way mark that the tutorial is done in every client-side cache that can
+ * survive a CrazyGames auth reload (prefs, sessionStorage).
+ */
+export function rememberTutorialDoneLocally(): void {
+  writeSessionTutorialDone();
+  setPrefs({ tutorialDone: true });
+  flushPrefs();
 }
 
 export function hasHint(id: string): boolean {
@@ -109,6 +152,7 @@ export function markHint(id: string): void {
 /** Write pending changes right away (page unload, tab hide). */
 export function flushPrefs(): void {
   if (dirty) write();
+  else if (prefs.tutorialDone) writeSessionTutorialDone();
 }
 
 if (typeof window !== 'undefined') {

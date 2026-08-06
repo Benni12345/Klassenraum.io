@@ -5,11 +5,12 @@
  * the tutorial still gets an arrow on "Take notes!", then on the first
  * affordable generator, then on Upgrades once one is affordable.
  *
- * Tutorial completion (including Skip) is persisted on the game backend player
- * save so it follows the CrazyGames account across browsers and incognito.
+ * Tutorial completion (including Skip) is a one-way flag mirrored to the game
+ * backend, local prefs, and the CrazyGames Data module so it follows the
+ * CrazyGames account across browsers and incognito sessions.
  */
 
-import { flushPrefs, getPrefs, hasHint, markHint, setPrefs } from '../prefs';
+import { CG_TUTORIAL_KEY, hasHint, isTutorialDoneLocally, markHint, rememberTutorialDoneLocally } from '../prefs';
 import { t } from '../i18n';
 import { platform } from '../platform';
 import { store } from '../state';
@@ -98,7 +99,7 @@ export function onTutorialEnd(fn: () => void): () => void {
 
 export function startTutorial(opts?: { force?: boolean }): void {
   if (tutorialActive) return;
-  if (!opts?.force && (store.you?.tutorialDone || getPrefs().tutorialDone)) return;
+  if (!opts?.force && (store.you?.tutorialDone || isTutorialDoneLocally())) return;
   tutorialActive = true;
   document.body.classList.add('tutoring');
   const release = pushOverlay();
@@ -220,8 +221,9 @@ export function startTutorial(opts?: { force?: boolean }): void {
     card.remove();
     window.removeEventListener('resize', place);
     release();
-    setPrefs({ tutorialDone: true });
-    flushPrefs();
+    rememberTutorialDoneLocally();
+    // Mirror to CrazyGames Data so a later browser on the same account sees it.
+    if (platform.enabled) platform.setDataItem(CG_TUTORIAL_KEY, '1');
     // Persist on the game backend (same save as BP / generators).
     store.markTutorialDone();
     // Resume gameplay only after the guided tour ends (or is skipped).

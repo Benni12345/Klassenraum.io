@@ -180,6 +180,68 @@ describe('economy', () => {
     expect(room.youOf(back.playerId)!.tutorialDone).toBe(true);
   });
 
+  it('applies client tutorialDone from hello onto a CrazyGames account', async () => {
+    const { room, clock } = setup();
+    // Fresh CG account, no guest — client reports tutorialDone (Data / prefs).
+    const linked = await room.hello(
+      undefined,
+      undefined,
+      undefined,
+      cgToken('uData', 'Synced'),
+      true,
+    );
+    expect(room.youOf(linked.playerId)!.tutorialDone).toBe(true);
+    room.disconnect(linked.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    // New browser with only the CG token still sees completion.
+    const fresh = await room.hello(undefined, undefined, undefined, cgToken('uData', 'Synced'));
+    expect(room.youOf(fresh.playerId)!.tutorialDone).toBe(true);
+  });
+
+  it('applies client tutorialDone when linking a guest that never got the WS mark', async () => {
+    const { room, clock } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    expect(room.youOf(guest.playerId)!.tutorialDone).toBe(false);
+    room.disconnect(guest.playerId);
+
+    // Skip landed in local prefs only; hello carries the flag during CG login.
+    const linked = await room.hello(
+      guest.newToken,
+      undefined,
+      undefined,
+      cgToken('uRace', 'Racer'),
+      true,
+    );
+    expect(room.youOf(linked.playerId)!.tutorialDone).toBe(true);
+    room.disconnect(linked.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const fresh = await room.hello(undefined, undefined, undefined, cgToken('uRace', 'Racer'));
+    expect(room.youOf(fresh.playerId)!.tutorialDone).toBe(true);
+  });
+
+  it('remembers CrazyGames tutorialDone via durable cg_user meta across fresh rows', async () => {
+    const { room, db, clock } = setup();
+    const linked = await room.hello(undefined, undefined, undefined, cgToken('uMeta', 'Meta'));
+    room.markTutorialDone(linked.playerId);
+    expect(db.isCgTutorialDone('uMeta')).toBe(true);
+    room.disconnect(linked.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    // Simulate a player row that lost the column but still has the meta flag.
+    const row = db.loadPlayerByCgUserId('uMeta');
+    expect(row).not.toBeNull();
+    row!.tutorialDone = false;
+    db.savePlayer(row!);
+
+    const back = await room.hello(undefined, undefined, undefined, cgToken('uMeta', 'Meta'));
+    expect(room.youOf(back.playerId)!.tutorialDone).toBe(true);
+  });
+
   it('applies upgrades only when threshold met and affordable', async () => {
     const { room, clock } = setup();
     const a = await room.hello(undefined, 'Anna', undefined);
