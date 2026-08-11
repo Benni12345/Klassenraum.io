@@ -25,12 +25,13 @@ const DESK_TOP = 78;
 const CELL_W = 36;
 const ROW_H = 36;
 const GRID_X = 12;
-/**
- * Desk labels and chalkboard entries show up to NAME_MAX characters
- * (CrazyGames usernames are typically 6–20). Hover still shows the full plate.
- */
-const DESK_LABEL_MAX = NAME_MAX;
+/** Chalkboard leaderboard entries show the full username (up to NAME_MAX). */
 const BOARD_NAME_MAX = NAME_MAX;
+/**
+ * Desk captions must fit in one seat cell so neighbouring names don't collide.
+ * Longer names are ellipsised; hover still reveals the full plate.
+ */
+const DESK_LABEL_MAX_W = CELL_W - 2;
 
 export interface DeskHit {
   player: PlayerPublic;
@@ -43,6 +44,23 @@ export function seatPos(seat: number): { x: number; y: number } {
     x: GRID_X + (seat % SEATS_PER_ROW) * CELL_W,
     y: DESK_TOP + Math.floor(seat / SEATS_PER_ROW) * ROW_H,
   };
+}
+
+/** Ellipsis-truncate a desk username so the caption stays within one seat cell. */
+function deskLabel(name: string, grade: number): string {
+  const gradeSuffix = grade > 0 ? `★${grade}` : '';
+  const full = name.toUpperCase();
+  const budget = Math.max(0, DESK_LABEL_MAX_W - textWidth(gradeSuffix));
+  if (textWidth(full) <= budget) return full + gradeSuffix;
+  const ellipsis = '...';
+  const ellipsisW = textWidth(ellipsis);
+  let cut = '';
+  for (const ch of full) {
+    const next = cut + ch;
+    if (textWidth(next) + ellipsisW > budget) break;
+    cut = next;
+  }
+  return cut + ellipsis + gradeSuffix;
 }
 
 export class Scene {
@@ -382,9 +400,9 @@ export class Scene {
       ctx.globalAlpha = 1;
 
       // Name caption below the student, like a class photo. A desk cell is only
-      // 36 world px wide, so the caption is capped — hovering shows the full
-      // username on a plate that may overlap neighbouring desks.
-      const label = p.name.toUpperCase().slice(0, DESK_LABEL_MAX) + (p.grade > 0 ? `★${p.grade}` : '');
+      // 36 world px wide, so long usernames are ellipsised — hovering shows the
+      // full username on a plate that may overlap neighbouring desks.
+      const label = deskLabel(p.name, p.grade);
       const nameColor = isYou ? '#ffd869' : sleeping ? '#8d94a0' : '#fdfaf2';
       drawText(ctx, label, pos.x + DESK_W / 2, pos.y + 24, nameColor, {
         align: 'center',

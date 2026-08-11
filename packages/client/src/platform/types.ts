@@ -142,8 +142,10 @@ export interface Platform {
   /**
    * Requests a banner into an already sized, fully visible container. Callers
    * own the refresh cadence — the platform never re-requests on its own.
+   * Resolves `true` when an ad was rendered, `false` on noFill / errors so the
+   * caller can hide an empty placeholder.
    */
-  requestBanner(containerId: string, size: BannerSize): void;
+  requestBanner(containerId: string, size: BannerSize): Promise<boolean>;
   clearBanner(containerId: string): void;
   /** Logged-in CrazyGames user, if any. */
   getUser(): Promise<PlatformUser | null>;
