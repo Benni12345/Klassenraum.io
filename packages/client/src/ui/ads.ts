@@ -146,10 +146,12 @@ function sizeForViewport(available: number): BannerSize {
 }
 
 /**
- * Persistent CrazyGames banner on the board-green ledge under the classroom.
+ * Persistent CrazyGames banner overlaid on the classroom floor (bottom-center).
  *
  * - Nothing is mounted at all when an adblocker is detected, so the layout
  *   falls back to the Basic Launch look with no reserved space.
+ * - No board-green chrome around the slot — when the network returns noFill
+ *   the dock is hidden so an empty placeholder never sits on screen.
  * - A new banner is requested on mount and then every 35 s. Frame resizes
  *   (including entering / leaving fullscreen) only re-apply the container box,
  *   they never request another ad.
@@ -163,7 +165,9 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
   slot.setAttribute('aria-label', 'Advertisement');
   dock.appendChild(slot);
 
-  let size = sizeForViewport(dock.clientWidth || window.innerWidth);
+  let size = sizeForViewport(
+    dock.clientWidth || dock.parentElement?.clientWidth || window.innerWidth,
+  );
   let requested = false;
   let uncoveredMs = 0;
 
@@ -189,18 +193,32 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
     );
   };
 
+  const availableWidth = () =>
+    dock.clientWidth || dock.parentElement?.clientWidth || window.innerWidth;
+
   const request = () => {
-    const next = sizeForViewport(dock.clientWidth || window.innerWidth);
+    const next = sizeForViewport(availableWidth());
     size = next;
+    // Reveal the dock before measuring / requesting so CrazyGames sees a
+    // fully visible container (hidden empty docks are re-shown each refresh).
+    const wasHidden = dock.classList.contains('hidden');
+    dock.classList.remove('hidden');
     applySize();
-    // CrazyGames rejects containers that are clipped or not laid out yet.
-    if (!fullyVisible()) {
-      if (import.meta.env.DEV) console.debug('[ads] banner slot not fully visible yet');
-      return;
-    }
-    platform.requestBanner(BANNER_ID, size);
-    requested = true;
-    uncoveredMs = 0;
+    requestAnimationFrame(() => {
+      if (!slot.isConnected) return;
+      // CrazyGames rejects containers that are clipped or not laid out yet.
+      if (!fullyVisible()) {
+        if (import.meta.env.DEV) console.debug('[ads] banner slot not fully visible yet');
+        if (wasHidden) dock.classList.add('hidden');
+        return;
+      }
+      void platform.requestBanner(BANNER_ID, size).then((filled) => {
+        requested = true;
+        uncoveredMs = 0;
+        // noFill / errors: hide the dock so no empty frame sits on the floor.
+        dock.classList.toggle('hidden', !filled);
+      });
+    });
   };
 
   applySize();

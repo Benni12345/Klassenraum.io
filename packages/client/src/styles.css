@@ -329,11 +329,12 @@ textarea {
   color: var(--gold);
 }
 
-/* Classroom column: canvas + optional banner ledge underneath */
+/* Classroom column: canvas fills the column; banner overlays the floor. */
 #play-col {
   flex: 1;
   display: flex;
   flex-direction: column;
+  position: relative;
   min-width: 0;
   min-height: 0;
 }
@@ -481,31 +482,35 @@ textarea {
 }
 
 /*
- * Banner ledge under the classroom (inside #play-col) — board-green chrome like
- * the HUD/footer, so the ad reads as part of the game frame. Centered under the
- * classroom view; the shop sidebar stretches to match canvas + banner height.
- * The dock is only rendered when a banner was actually requested (never behind
- * an ad blocker), so the classroom keeps the full height in that case.
+ * Bottom-center CrazyGames banner overlay on the classroom floor. No board-green
+ * chrome or border — when the network returns noFill the dock is hidden so an
+ * empty placeholder never sits on screen. Players can scroll the classroom to
+ * reach desks under the ad.
  */
 #banner-dock {
-  flex-shrink: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
   display: flex;
   justify-content: center;
-  align-items: center;
-  padding: 8px 16px;
-  background: var(--board);
-  border-top: 3px solid var(--board-dark);
-  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.06);
+  align-items: flex-end;
+  padding: 0 8px 6px;
+  pointer-events: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
-/* Hide the banner ledge for the whole guided tour (including Settings replay). */
+/* Hide the banner for the whole guided tour (including Settings replay). */
 body.tutoring #banner-dock {
   display: none !important;
 }
 
 /*
- * The slot keeps an exact pixel box. Ad iframes are clamped to it so leaving
- * fullscreen can never leave the container stretched.
+ * Exact pixel box for the ad iframe. Transparent — no fill, border, or shadow —
+ * so an unfilled request does not leave a visible empty frame.
  */
 .cg-banner-slot {
   flex: 0 0 auto;
@@ -515,9 +520,10 @@ body.tutoring #banner-dock {
   overflow: hidden;
   width: 468px;
   height: 60px;
-  background: var(--board-dark);
-  border: 3px solid var(--ink);
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .cg-banner-wide {
@@ -1778,10 +1784,10 @@ body.mobile #btn-click {
 
 body.mobile #banner-dock {
   justify-content: center;
-  padding: 6px 4px;
+  padding: 0 4px 4px;
 }
 
-/* Banner lives inside #play-col — no separate flex order needed. */
+/* Banner overlays #play-col — no separate flex order needed. */
 
 body.mobile #bp-value {
   font-size: 17px;
@@ -2018,7 +2024,7 @@ body.mobile.md-landscape #site-footer {
 }
 
 body.mobile.md-landscape #banner-dock {
-  padding: 2px 4px;
+  padding: 0 4px 2px;
   justify-content: center;
 }
 

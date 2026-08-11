@@ -40,7 +40,9 @@ export function createNoopPlatform(): Platform {
     async requestRewardedAd() {
       return false;
     },
-    requestBanner() {},
+    async requestBanner() {
+      return false;
+    },
     clearBanner() {},
     async getUser() {
       return null;

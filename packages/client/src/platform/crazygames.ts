@@ -254,27 +254,27 @@ export function createCrazyGamesPlatform(): Platform {
       });
     },
 
-    requestBanner(containerId: string, size: BannerSize) {
-      if (hasAdblock) return;
+    async requestBanner(containerId: string, size: BannerSize) {
+      if (hasAdblock) return false;
       // Runtime / build-time QA switch: never request banner inventory.
       try {
         const v = new URLSearchParams(location.search).get('noBanner');
-        if (v === '1' || v === 'true' || import.meta.env.VITE_NO_BANNER === 'true') return;
+        if (v === '1' || v === 'true' || import.meta.env.VITE_NO_BANNER === 'true') return false;
       } catch {
-        if (import.meta.env.VITE_NO_BANNER === 'true') return;
+        if (import.meta.env.VITE_NO_BANNER === 'true') return false;
       }
       activeBanners.add(containerId);
       try {
-        const result = sdk().banner.requestBanner({
+        await sdk().banner.requestBanner({
           id: containerId,
           width: size.width,
           height: size.height,
         });
-        void Promise.resolve(result).catch((err) => {
-          if (import.meta.env.DEV) console.debug('[ads] banner error', containerId, err);
-        });
+        return true;
       } catch (err) {
         if (import.meta.env.DEV) console.debug('[ads] banner error', containerId, err);
+        document.getElementById(containerId)?.replaceChildren();
+        return false;
       }
     },
 
