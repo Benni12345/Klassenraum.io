@@ -159,7 +159,23 @@ textarea {
   }
 
   #shop {
-    width: min(320px, 42vw);
+    width: min(320px, 42%);
+  }
+
+  #modal-root:not(:empty) {
+    padding: 8px;
+  }
+
+  .modal-head {
+    padding: 8px 10px;
+  }
+
+  .modal-body {
+    padding: 10px;
+  }
+
+  .modal-foot {
+    padding: 8px 10px;
   }
 }
 
@@ -659,7 +675,7 @@ body.tutoring #banner-dock {
 .kr-tip {
   position: fixed;
   z-index: 30;
-  width: min(270px, calc(100vw - 20px));
+  width: min(270px, calc(100% - 20px));
   padding: 10px 12px;
   background: var(--paper);
   color: var(--ink);
@@ -1094,13 +1110,16 @@ body.tutoring #banner-dock {
   display: grid;
   place-items: center;
   z-index: 20;
-  padding: 16px;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
 /*
  * Modals are a sticky header + scrolling body + sticky action bar, so the close
  * button and the primary action are always reachable without scrolling to the
  * end of a long page (How to play, Settings).
+ * Sizes use % of the fixed modal-root (iframe), not vh/vw — those units can
+ * resolve to the parent CrazyGames page and clip the dialog on all edges.
  */
 .modal {
   background: var(--paper);
@@ -1108,7 +1127,7 @@ body.tutoring #banner-dock {
   box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.45);
   max-width: 460px;
   width: 100%;
-  max-height: min(86vh, 640px);
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1174,9 +1193,9 @@ body.tutoring #banner-dock {
 
 /* In-game About / Privacy / Legal: sticky close stays outside the page iframe. */
 .modal.modal-page {
-  max-width: min(640px, 96vw);
-  max-height: min(90vh, 720px);
-  height: min(90vh, 720px);
+  max-width: min(640px, 100%);
+  max-height: 100%;
+  height: min(720px, 100%);
 }
 
 .page-frame {
@@ -1401,7 +1420,7 @@ body.tutoring #banner-dock {
   padding: 6px 14px;
   font-size: 12px;
   animation: toast-in 0.15s;
-  max-width: 82vw;
+  max-width: 82%;
 }
 
 .toast.gold {
@@ -2000,7 +2019,7 @@ body.mobile.md-landscape #canvas-wrap {
 }
 
 body.mobile.md-landscape #shop {
-  width: min(300px, 40vw);
+  width: min(300px, 40%);
   flex: 0 0 auto;
   min-height: 0;
   height: auto;
