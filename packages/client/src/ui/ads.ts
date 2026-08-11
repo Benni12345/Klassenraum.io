@@ -13,6 +13,8 @@ const BANNER_ID = 'cg-bottom-banner';
 /** CrazyGames requires the lower-left banner to refresh every 35 s. */
 const BANNER_REFRESH_MS = 35_000;
 const BANNER_TICK_MS = 1_000;
+/** Inset from the iframe edge so CG never sees a 1px-clipped container. */
+const BANNER_EDGE_PAD = 4;
 
 /**
  * QA / test builds can disable banners via `VITE_NO_BANNER=true` at build time
@@ -128,18 +130,18 @@ export function mountRewardedBoostButton(
   };
 }
 
-function sizeForViewport(available: number): BannerSize {
-  // Phones always get the slim banner.
-  if (
+function sizeForViewport(available: number, availableHeight: number): BannerSize {
+  // Short frames (Chromebook windowed / phones) always get the slim banner so
+  // the slot stays inside the visible classroom instead of overflowing.
+  const short =
+    availableHeight < 560 ||
     window.matchMedia('(max-width: 900px)').matches ||
-    window.matchMedia('(max-height: 560px) and (pointer: coarse)').matches
-  ) {
-    return { width: 320, height: 50 };
-  }
+    window.matchMedia('(max-height: 560px) and (pointer: coarse)').matches;
+  if (short) return { width: 320, height: 50 };
   // Windowed desktop (not fullscreen) often has a short frame — the 728×90
   // leaderboard eats the classroom. Prefer the medium banner unless the frame
   // is clearly spacious.
-  const tall = window.innerHeight >= 720;
+  const tall = availableHeight >= 720;
   if (available >= 900 && tall) return { width: 728, height: 90 };
   if (available >= 500) return { width: 468, height: 60 };
   return { width: 320, height: 50 };
@@ -152,24 +154,33 @@ function sizeForViewport(available: number): BannerSize {
  *   falls back to the Basic Launch look with no reserved space.
  * - No board-green chrome around the slot — when the network returns noFill
  *   the dock is hidden so an empty placeholder never sits on screen.
- * - A new banner is requested on mount and then every 35 s. Frame resizes
- *   (including entering / leaving fullscreen) only re-apply the container box,
- *   they never request another ad.
+ * - Only one request is in flight at a time (CrazyGames enforces a 30 s
+ *   cooldown per container). Refresh every 35 s of uncovered time.
+ * - Frame resizes only re-apply the container box; they never request another ad.
  */
 export function mountBottomBanner(dock: HTMLElement): () => void {
   if (!platform.enabled || platform.hasAdblock || bannersDisabled()) return () => {};
 
+  const playCol = dock.parentElement;
   dock.classList.remove('hidden');
   const slot = el('div', 'cg-banner-slot');
   slot.id = BANNER_ID;
   slot.setAttribute('aria-label', 'Advertisement');
   dock.appendChild(slot);
 
-  let size = sizeForViewport(
-    dock.clientWidth || dock.parentElement?.clientWidth || window.innerWidth,
-  );
-  let requested = false;
+  let size = sizeForViewport(availableWidth(), availableHeight());
+  /** True once we have successfully handed a request to the SDK (or cooldown). */
+  let settled = false;
+  let inFlight = false;
   let uncoveredMs = 0;
+
+  function availableWidth(): number {
+    return dock.clientWidth || playCol?.clientWidth || window.innerWidth;
+  }
+
+  function availableHeight(): number {
+    return playCol?.clientHeight || dock.clientHeight || window.innerHeight;
+  }
 
   /** Keeps the container at exactly the requested pixel box. */
   const applySize = () => {
@@ -179,67 +190,137 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
     slot.style.height = `${size.height}px`;
     slot.style.maxWidth = `${size.width}px`;
     slot.style.maxHeight = `${size.height}px`;
+    // Notes (chat) sits above the ad so it never covers the CG container —
+    // covering it triggers notVisible and breaks load on short Chromebook frames.
+    if (playCol) {
+      playCol.style.setProperty('--banner-reserve', `${size.height + 8}px`);
+      playCol.classList.add('has-banner');
+    }
   };
 
+  const clearReserve = () => {
+    if (!playCol) return;
+    playCol.style.setProperty('--banner-reserve', '0px');
+    playCol.classList.remove('has-banner');
+  };
+
+  /**
+   * CrazyGames rejects containers that are clipped or off-screen. Check against
+   * the play column (visible game frame) and the iframe window, with a small
+   * inset so 1px subpixel clipping on Chromebooks does not trip notVisible.
+   */
   const fullyVisible = () => {
     const rect = slot.getBoundingClientRect();
-    return (
-      rect.width >= size.width - 1 &&
-      rect.height >= size.height - 1 &&
-      rect.top >= 0 &&
-      rect.left >= 0 &&
-      rect.bottom <= window.innerHeight + 1 &&
-      rect.right <= window.innerWidth + 1
-    );
+    const host = (playCol ?? dock).getBoundingClientRect();
+    if (rect.width < size.width - 1 || rect.height < size.height - 1) return false;
+    if (rect.top < host.top + BANNER_EDGE_PAD - 1) return false;
+    if (rect.bottom > host.bottom - BANNER_EDGE_PAD + 1) return false;
+    if (rect.left < host.left + BANNER_EDGE_PAD - 1) return false;
+    if (rect.right > host.right - BANNER_EDGE_PAD + 1) return false;
+    if (rect.top < BANNER_EDGE_PAD) return false;
+    if (rect.left < BANNER_EDGE_PAD) return false;
+    if (rect.bottom > window.innerHeight - BANNER_EDGE_PAD) return false;
+    if (rect.right > window.innerWidth - BANNER_EDGE_PAD) return false;
+    return true;
   };
 
-  const availableWidth = () =>
-    dock.clientWidth || dock.parentElement?.clientWidth || window.innerWidth;
+  /** Keep the slot fully inside the play column (centered, clamped). */
+  const placeHorizontally = () => {
+    const hostW = availableWidth();
+    const pad = 8;
+    let left = Math.round((hostW - size.width) / 2);
+    if (left < pad) left = pad;
+    if (left + size.width > hostW - pad) {
+      left = Math.max(pad, hostW - pad - size.width);
+    }
+    dock.style.justifyContent = 'flex-start';
+    dock.style.paddingLeft = `${left}px`;
+    dock.style.paddingRight = `${pad}px`;
+  };
 
   const request = () => {
-    const next = sizeForViewport(availableWidth());
+    if (inFlight || !slot.isConnected) return;
+    const next = sizeForViewport(availableWidth(), availableHeight());
     size = next;
     // Reveal the dock before measuring / requesting so CrazyGames sees a
     // fully visible container (hidden empty docks are re-shown each refresh).
     const wasHidden = dock.classList.contains('hidden');
     dock.classList.remove('hidden');
     applySize();
+    placeHorizontally();
+    inFlight = true;
     requestAnimationFrame(() => {
-      if (!slot.isConnected) return;
-      // CrazyGames rejects containers that are clipped or not laid out yet.
-      if (!fullyVisible()) {
-        if (import.meta.env.DEV) console.debug('[ads] banner slot not fully visible yet');
-        if (wasHidden) dock.classList.add('hidden');
-        return;
-      }
-      void platform.requestBanner(BANNER_ID, size).then((filled) => {
-        requested = true;
-        uncoveredMs = 0;
-        // noFill / errors: hide the dock so no empty frame sits on the floor.
-        dock.classList.toggle('hidden', !filled);
+      requestAnimationFrame(() => {
+        if (!slot.isConnected) {
+          inFlight = false;
+          return;
+        }
+        // CrazyGames rejects containers that are clipped or not laid out yet.
+        if (!fullyVisible()) {
+          if (import.meta.env.DEV) console.debug('[ads] banner slot not fully visible yet');
+          inFlight = false;
+          if (wasHidden && !settled) {
+            dock.classList.add('hidden');
+            clearReserve();
+          }
+          return;
+        }
+        void platform.requestBanner(BANNER_ID, size).then((result) => {
+          inFlight = false;
+          uncoveredMs = 0;
+          if (result === 'filled') {
+            settled = true;
+            dock.classList.remove('hidden');
+            applySize();
+            return;
+          }
+          if (result === 'retry') {
+            // Keep unsettled so the 1 s tick retries after layout settles.
+            // Leave the dock visible (sized empty slot) only briefly — hide if
+            // we have never successfully filled, so no empty frame sits around.
+            if (!settled && wasHidden) {
+              dock.classList.add('hidden');
+              clearReserve();
+            }
+            return;
+          }
+          // empty / noFill
+          settled = true;
+          dock.classList.add('hidden');
+          clearReserve();
+        });
       });
     });
   };
 
   applySize();
+  placeHorizontally();
   // Defer the first request so flex layout settles (avoids notVisible on boot).
   requestAnimationFrame(() => requestAnimationFrame(request));
 
   // Refresh cadence: only counts time where the banner is actually on screen.
+  // Never start a second request while one is in flight (CG 30s cooldown).
   const tick = window.setInterval(() => {
-    if (!slot.isConnected) return;
-    if (!requested) {
+    if (!slot.isConnected || inFlight) return;
+    if (!settled) {
       request();
       return;
     }
     if (isCovered() || document.visibilityState === 'hidden') return;
+    // Hidden noFill dock: keep retrying on the refresh cadence, not every tick.
     uncoveredMs += BANNER_TICK_MS;
     if (uncoveredMs >= BANNER_REFRESH_MS) request();
   }, BANNER_TICK_MS);
 
-  // Resizing the game frame must not trigger a new ad request.
+  // Resizing the game frame must not trigger a new ad request — only reflow.
   const onFrameChange = () => {
-    if (slot.isConnected) applySize();
+    if (!slot.isConnected) return;
+    const next = sizeForViewport(availableWidth(), availableHeight());
+    // Size class changes are applied visually; the SDK keeps the old creative
+    // until the next scheduled refresh.
+    size = next;
+    applySize();
+    placeHorizontally();
   };
   window.addEventListener('resize', onFrameChange);
   document.addEventListener('fullscreenchange', onFrameChange);
@@ -253,5 +334,6 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
     platform.clearBanner(BANNER_ID);
     slot.remove();
     dock.classList.add('hidden');
+    clearReserve();
   };
 }

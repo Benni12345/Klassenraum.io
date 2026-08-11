@@ -79,6 +79,28 @@ function settle(result: PromiseLike<unknown> | void): void {
   void Promise.resolve(result).catch(() => {});
 }
 
+/** CrazyGames throws when the same container is requested again within ~30 s. */
+function isBannerCooldown(err: unknown): boolean {
+  if (!err || typeof err !== 'object') {
+    return typeof err === 'string' && /bannerCooldown/i.test(err);
+  }
+  const e = err as { code?: unknown; message?: unknown };
+  const code = typeof e.code === 'string' ? e.code : '';
+  const message = typeof e.message === 'string' ? e.message : String(err);
+  return code === 'bannerCooldown' || /bannerCooldown/i.test(message);
+}
+
+/** Container clipped, covered, or outside the iframe — worth retrying shortly. */
+function isBannerNotVisible(err: unknown): boolean {
+  if (!err || typeof err !== 'object') {
+    return typeof err === 'string' && /notVisible/i.test(err);
+  }
+  const e = err as { code?: unknown; message?: unknown };
+  const code = typeof e.code === 'string' ? e.code : '';
+  const message = typeof e.message === 'string' ? e.message : String(err);
+  return code === 'notVisible' || /notVisible/i.test(message);
+}
+
 export function createCrazyGamesPlatform(): Platform {
   let gameplay = false;
   let loading = false;
@@ -255,13 +277,15 @@ export function createCrazyGamesPlatform(): Platform {
     },
 
     async requestBanner(containerId: string, size: BannerSize) {
-      if (hasAdblock) return false;
+      if (hasAdblock) return 'empty' as const;
       // Runtime / build-time QA switch: never request banner inventory.
       try {
         const v = new URLSearchParams(location.search).get('noBanner');
-        if (v === '1' || v === 'true' || import.meta.env.VITE_NO_BANNER === 'true') return false;
+        if (v === '1' || v === 'true' || import.meta.env.VITE_NO_BANNER === 'true') {
+          return 'empty' as const;
+        }
       } catch {
-        if (import.meta.env.VITE_NO_BANNER === 'true') return false;
+        if (import.meta.env.VITE_NO_BANNER === 'true') return 'empty' as const;
       }
       activeBanners.add(containerId);
       try {
@@ -270,11 +294,17 @@ export function createCrazyGamesPlatform(): Platform {
           width: size.width,
           height: size.height,
         });
-        return true;
+        return 'filled' as const;
       } catch (err) {
         if (import.meta.env.DEV) console.debug('[ads] banner error', containerId, err);
+        // Cooldown means a prior request for this container is still live —
+        // do NOT wipe #…-crazygames-inner or the SDK fails with "Didn't find
+        // container" while rendering the in-flight (or test) banner.
+        if (isBannerCooldown(err)) return 'filled' as const;
+        // Layout may still be settling on short Chromebook frames — retry soon.
+        if (isBannerNotVisible(err)) return 'retry' as const;
         document.getElementById(containerId)?.replaceChildren();
-        return false;
+        return 'empty' as const;
       }
     },
 
