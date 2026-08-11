@@ -224,19 +224,25 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
    * CrazyGames rejects containers that are clipped or off-screen. Check against
    * the play column (visible game frame) and the iframe window, with a small
    * inset so 1px subpixel clipping on Chromebooks does not trip notVisible.
+   *
+   * The bottom edge is allowed to sit flush with the play column (and close to
+   * the iframe bottom) — QA wants no gap above the green footer. Top/left/right
+   * keep the inset; only reject a bottom that is clearly outside the host/window.
    */
   const fullyVisible = () => {
     const rect = slot.getBoundingClientRect();
     const host = (playCol ?? dock).getBoundingClientRect();
     if (rect.width < size.width - 1 || rect.height < size.height - 1) return false;
     if (rect.top < host.top + BANNER_EDGE_PAD - 1) return false;
-    if (rect.bottom > host.bottom - BANNER_EDGE_PAD + 1) return false;
     if (rect.left < host.left + BANNER_EDGE_PAD - 1) return false;
     if (rect.right > host.right - BANNER_EDGE_PAD + 1) return false;
+    // Flush with play-col bottom is OK (green footer sits below the column).
+    if (rect.bottom > host.bottom + 1) return false;
     if (rect.top < BANNER_EDGE_PAD) return false;
     if (rect.left < BANNER_EDGE_PAD) return false;
-    if (rect.bottom > window.innerHeight - BANNER_EDGE_PAD) return false;
     if (rect.right > window.innerWidth - BANNER_EDGE_PAD) return false;
+    // Allow sitting near the iframe bottom; reject only when past it.
+    if (rect.bottom > window.innerHeight + 1) return false;
     return true;
   };
 
