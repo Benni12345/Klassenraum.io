@@ -5,6 +5,7 @@ import { platform } from '../platform';
 import { emoteSprites, iconDataUrl } from '../render/sprites';
 import { store } from '../state';
 import { el, id } from './dom';
+import { pushOverlay } from './overlay';
 
 export function initChat(): void {
   const panel = id('chat-panel');
@@ -42,8 +43,17 @@ export function initChat(): void {
     emoteRow.appendChild(b);
   }
 
+  /** Pause banner refresh while Notes is open (covers the ad on short frames). */
+  let releaseOverlay: (() => void) | null = null;
+
   const setCollapsed = (collapsed: boolean) => {
     panel.classList.toggle('collapsed', collapsed);
+    if (collapsed) {
+      releaseOverlay?.();
+      releaseOverlay = null;
+    } else if (!releaseOverlay) {
+      releaseOverlay = pushOverlay();
+    }
   };
 
   id('chat-toggle').addEventListener('click', () => setCollapsed(false));

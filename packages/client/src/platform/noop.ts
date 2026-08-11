@@ -41,7 +41,7 @@ export function createNoopPlatform(): Platform {
       return false;
     },
     async requestBanner() {
-      return false;
+      return 'empty' as const;
     },
     clearBanner() {},
     async getUser() {

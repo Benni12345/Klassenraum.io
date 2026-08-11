@@ -1,5 +1,5 @@
 /**
- * Tracks UI that covers the play area (modals, tutorial, boss overlay).
+ * Tracks UI that covers the play area (modals, tutorial, boss overlay, Notes).
  *
  * The bottom banner must not refresh while something is drawn over it — the
  * refresh timer pauses while any overlay is open and resumes afterwards.
