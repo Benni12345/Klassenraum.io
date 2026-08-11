@@ -2,6 +2,14 @@
 
 Upload these files in the CrazyGames Developer Portal metadata form.
 
+## Submission settings (mobile)
+
+- **Supported mobile orientation: Portrait** (not Both). Landscape phones leave
+  unused letterbox bands around the embed that we cannot reliably fill from
+  inside the iframe; CrazyGames handles the rotate prompt when Portrait is set.
+- Banner ads are requested only when `SDK.user.systemInfo.device.type` is
+  `tablet` or `desktop` — phones hide the banner to keep classroom height.
+
 ## Cover images
 
 | File | Size | Use |

@@ -32,6 +32,19 @@ export function bannersDisabled(): boolean {
 }
 
 /**
+ * CrazyGames asked us to hide banners on phones — they eat too much portrait
+ * space. Show only when SystemInfo reports tablet or desktop.
+ * https://docs.crazygames.com/sdk/user/#system-info
+ */
+export function bannerAllowedOnDevice(): boolean {
+  const device = platform.deviceType;
+  if (device === 'mobile') return false;
+  if (device === 'tablet' || device === 'desktop') return true;
+  // Outside CrazyGames / unknown: skip obvious phones, keep Chromebook/desktop.
+  return !window.matchMedia('(max-width: 600px) and (pointer: coarse)').matches;
+}
+
+/**
  * Midgame ads are only shown when the player graduates (prestige), after they
  * confirmed the reset — the only placement CrazyGames allows for clicker games.
  */
@@ -131,8 +144,9 @@ export function mountRewardedBoostButton(
 }
 
 function sizeForViewport(available: number, availableHeight: number): BannerSize {
-  // Short frames (Chromebook windowed / phones) always get the slim banner so
+  // Short frames (Chromebook windowed / tablets) always get the slim banner so
   // the slot stays inside the visible classroom instead of overflowing.
+  // Phones never reach here — banners are disabled on deviceType === 'mobile'.
   const short =
     availableHeight < 560 ||
     window.matchMedia('(max-width: 900px)').matches ||
@@ -160,6 +174,8 @@ function sizeForViewport(available: number, availableHeight: number): BannerSize
  */
 export function mountBottomBanner(dock: HTMLElement): () => void {
   if (!platform.enabled || platform.hasAdblock || bannersDisabled()) return () => {};
+  // Phones: skip entirely so portrait classroom keeps its height.
+  if (!bannerAllowedOnDevice()) return () => {};
 
   const playCol = dock.parentElement;
   dock.classList.remove('hidden');
@@ -193,7 +209,7 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
     // Notes (chat) sits above the ad so it never covers the CG container —
     // covering it triggers notVisible and breaks load on short Chromebook frames.
     if (playCol) {
-      playCol.style.setProperty('--banner-reserve', `${size.height + 8}px`);
+      playCol.style.setProperty('--banner-reserve', `${size.height + 4}px`);
       playCol.classList.add('has-banner');
     }
   };
