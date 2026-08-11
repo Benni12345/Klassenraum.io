@@ -22,8 +22,8 @@
 html,
 body {
   margin: 0;
+  width: 100%;
   height: 100%;
-  height: 100dvh;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font);
@@ -33,6 +33,10 @@ body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+  /*
+   * Do not use 100dvh here — inside CrazyGames iframes it can resolve larger
+   * than the embed and clip the HUD / banner / footer on all edges.
+   */
 }
 
 .hidden {
@@ -105,9 +109,14 @@ textarea {
 }
 
 #app {
+  /* Pin to the iframe viewport so the shell cannot overflow and clip. */
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100%;
+  overflow: hidden;
   /* Keep chrome clear of notches / CrazyGames mobile frame edges. */
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -129,6 +138,29 @@ textarea {
   min-height: 54px;
   flex-wrap: wrap;
   flex-shrink: 0;
+}
+
+/* Short desktop / Chromebook windowed frames — keep chrome from eating the room. */
+@media (max-height: 560px) {
+  #hud {
+    min-height: 0;
+    padding: 4px 8px;
+    gap: 6px 8px;
+  }
+
+  #bp-value {
+    font-size: 18px;
+    min-width: 0;
+  }
+
+  #site-footer {
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+
+  #shop {
+    width: min(320px, 42vw);
+  }
 }
 
 .hud-left {
@@ -329,7 +361,7 @@ textarea {
   color: var(--gold);
 }
 
-/* Classroom column: canvas fills the column; banner overlays the floor. */
+/* Classroom column: canvas on top, optional banner ledge underneath. */
 #play-col {
   flex: 1;
   display: flex;
@@ -337,8 +369,6 @@ textarea {
   position: relative;
   min-width: 0;
   min-height: 0;
-  /* Raised when a banner is showing so Notes clears the ad slot. */
-  --banner-reserve: 0px;
 }
 
 #canvas-wrap {
@@ -378,6 +408,7 @@ textarea {
 
 #shop {
   width: 348px;
+  max-width: 45%;
   background: var(--paper);
   border-left: 4px solid var(--ink);
   padding: 10px;
@@ -385,6 +416,8 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 #shop-top {
@@ -484,24 +517,18 @@ textarea {
 }
 
 /*
- * Bottom-center CrazyGames banner overlay on the classroom floor. No board-green
- * chrome or border — when the network returns noFill the dock is hidden so an
- * empty placeholder never sits on screen. Players can scroll the classroom to
- * reach desks under the ad. A small edge inset keeps the slot inside the visible
- * classroom so short Chromebook frames never report it as outside the game area.
+ * Banner ledge under the classroom (inside #play-col). No board-green chrome —
+ * transparent so a filled ad sits cleanly under the canvas. When the dock is
+ * .hidden (tutorial / noFill / adblock) it leaves the flow and the classroom
+ * recovers the height. In-flow placement keeps the slot inside the visible
+ * game frame on short Chromebook embeds (absolute overlays were getting clipped).
  */
 #banner-dock {
-  position: absolute;
-  left: 0;
-  right: 0;
-  /* Inset from the frame edge — flush bottom:0 can sit 1px outside on short
-     Chromebook iframes and CrazyGames then rejects the slot as notVisible. */
-  bottom: 2px;
-  z-index: 3;
+  flex-shrink: 0;
   display: flex;
   justify-content: center;
-  align-items: flex-end;
-  padding: 0 8px 2px;
+  align-items: center;
+  padding: 4px 8px;
   pointer-events: none;
   background: transparent;
   border: 0;
@@ -527,6 +554,7 @@ body.tutoring #banner-dock {
   overflow: hidden;
   width: 468px;
   height: 60px;
+  max-width: 100%;
   pointer-events: auto;
   background: transparent;
   border: 0;
@@ -854,11 +882,10 @@ body.tutoring #banner-dock {
 #chat-panel {
   position: absolute;
   left: 10px;
-  /* Sit above the banner so Notes never covers the CG ad container. */
-  bottom: calc(10px + var(--banner-reserve, 0px));
+  bottom: 10px;
   /* Never taller than the classroom pane — keeps Close on-screen on short
      Chromebook / iPhone frames where overflow:hidden would clip the top. */
-  max-height: calc(100% - 20px - var(--banner-reserve, 0px));
+  max-height: calc(100% - 20px);
   width: min(300px, calc(100% - 20px));
   z-index: 4;
   font-size: 12px;
@@ -1792,10 +1819,10 @@ body.mobile #btn-click {
 
 body.mobile #banner-dock {
   justify-content: center;
-  padding: 0 4px 4px;
+  padding: 4px;
 }
 
-/* Banner overlays #play-col — no separate flex order needed. */
+/* Banner lives inside #play-col — no separate flex order needed. */
 
 body.mobile #bp-value {
   font-size: 17px;
@@ -1832,8 +1859,8 @@ body.mobile #chat-log {
 body.mobile #chat-panel {
   width: min(280px, calc(100% - 16px));
   left: 8px;
-  bottom: calc(8px + var(--banner-reserve, 0px));
-  max-height: calc(100% - 16px - var(--banner-reserve, 0px));
+  bottom: 8px;
+  max-height: calc(100% - 16px);
 }
 
 body.mobile .chat-close {
@@ -2032,7 +2059,7 @@ body.mobile.md-landscape #site-footer {
 }
 
 body.mobile.md-landscape #banner-dock {
-  padding: 0 4px 2px;
+  padding: 2px 4px;
   justify-content: center;
 }
 

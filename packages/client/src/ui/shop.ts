@@ -85,8 +85,8 @@ export function initShop(): void {
     const mountBannerOnce = () => {
       if (bannerMounted) return;
       bannerMounted = true;
-      // No dock at all behind an ad blocker: the classroom stays full-bleed
-      // instead of leaving a banner placeholder on the floor.
+      // No dock at all behind an ad blocker: the classroom stays full height
+      // instead of leaving a banner ledge.
       mountBottomBanner(id('banner-dock'));
     };
     if (getPrefs().tutorialDone || platform.isInstantMultiplayer) {

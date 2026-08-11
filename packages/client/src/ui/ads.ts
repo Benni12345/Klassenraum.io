@@ -148,12 +148,14 @@ function sizeForViewport(available: number, availableHeight: number): BannerSize
 }
 
 /**
- * Persistent CrazyGames banner overlaid on the classroom floor (bottom-center).
+ * Persistent CrazyGames banner on a transparent ledge under the classroom.
  *
  * - Nothing is mounted at all when an adblocker is detected, so the layout
  *   falls back to the Basic Launch look with no reserved space.
- * - No board-green chrome around the slot — when the network returns noFill
- *   the dock is hidden so an empty placeholder never sits on screen.
+ * - The dock is in normal document flow (not absolutely overlaid) so short
+ *   CrazyGames / Chromebook iframes never clip the slot at the frame edge.
+ * - No board-green chrome — when the network returns noFill the dock is hidden
+ *   and the classroom recovers the height.
  * - Only one request is in flight at a time (CrazyGames enforces a 30 s
  *   cooldown per container). Refresh every 35 s of uncovered time.
  * - Frame resizes only re-apply the container box; they never request another ad.
@@ -179,7 +181,13 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
   }
 
   function availableHeight(): number {
-    return playCol?.clientHeight || dock.clientHeight || window.innerHeight;
+    // Prefer the full game frame height so size picks stay stable whether or
+    // not the dock is currently reserving space.
+    return (
+      playCol?.parentElement?.clientHeight ||
+      playCol?.clientHeight ||
+      window.innerHeight
+    );
   }
 
   /** Keeps the container at exactly the requested pixel box. */
@@ -190,33 +198,16 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
     slot.style.height = `${size.height}px`;
     slot.style.maxWidth = `${size.width}px`;
     slot.style.maxHeight = `${size.height}px`;
-    // Notes (chat) sits above the ad so it never covers the CG container —
-    // covering it triggers notVisible and breaks load on short Chromebook frames.
-    if (playCol) {
-      playCol.style.setProperty('--banner-reserve', `${size.height + 8}px`);
-      playCol.classList.add('has-banner');
-    }
-  };
-
-  const clearReserve = () => {
-    if (!playCol) return;
-    playCol.style.setProperty('--banner-reserve', '0px');
-    playCol.classList.remove('has-banner');
   };
 
   /**
    * CrazyGames rejects containers that are clipped or off-screen. Check against
-   * the play column (visible game frame) and the iframe window, with a small
-   * inset so 1px subpixel clipping on Chromebooks does not trip notVisible.
+   * the iframe window with a small inset so 1px subpixel clipping does not trip
+   * notVisible.
    */
   const fullyVisible = () => {
     const rect = slot.getBoundingClientRect();
-    const host = (playCol ?? dock).getBoundingClientRect();
     if (rect.width < size.width - 1 || rect.height < size.height - 1) return false;
-    if (rect.top < host.top + BANNER_EDGE_PAD - 1) return false;
-    if (rect.bottom > host.bottom - BANNER_EDGE_PAD + 1) return false;
-    if (rect.left < host.left + BANNER_EDGE_PAD - 1) return false;
-    if (rect.right > host.right - BANNER_EDGE_PAD + 1) return false;
     if (rect.top < BANNER_EDGE_PAD) return false;
     if (rect.left < BANNER_EDGE_PAD) return false;
     if (rect.bottom > window.innerHeight - BANNER_EDGE_PAD) return false;
@@ -224,18 +215,15 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
     return true;
   };
 
-  /** Keep the slot fully inside the play column (centered, clamped). */
+  /** Center the slot; clamp so a wide creative never overflows a narrow column. */
   const placeHorizontally = () => {
-    const hostW = availableWidth();
-    const pad = 8;
-    let left = Math.round((hostW - size.width) / 2);
-    if (left < pad) left = pad;
-    if (left + size.width > hostW - pad) {
-      left = Math.max(pad, hostW - pad - size.width);
-    }
-    dock.style.justifyContent = 'flex-start';
-    dock.style.paddingLeft = `${left}px`;
-    dock.style.paddingRight = `${pad}px`;
+    dock.style.justifyContent = 'center';
+    dock.style.paddingLeft = '';
+    dock.style.paddingRight = '';
+  };
+
+  const hideDock = () => {
+    dock.classList.add('hidden');
   };
 
   const request = () => {
@@ -259,10 +247,7 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
         if (!fullyVisible()) {
           if (import.meta.env.DEV) console.debug('[ads] banner slot not fully visible yet');
           inFlight = false;
-          if (wasHidden && !settled) {
-            dock.classList.add('hidden');
-            clearReserve();
-          }
+          if (wasHidden && !settled) hideDock();
           return;
         }
         void platform.requestBanner(BANNER_ID, size).then((result) => {
@@ -276,18 +261,12 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
           }
           if (result === 'retry') {
             // Keep unsettled so the 1 s tick retries after layout settles.
-            // Leave the dock visible (sized empty slot) only briefly — hide if
-            // we have never successfully filled, so no empty frame sits around.
-            if (!settled && wasHidden) {
-              dock.classList.add('hidden');
-              clearReserve();
-            }
+            if (!settled && wasHidden) hideDock();
             return;
           }
-          // empty / noFill
+          // empty / noFill — release the ledge so the classroom recovers height.
           settled = true;
-          dock.classList.add('hidden');
-          clearReserve();
+          hideDock();
         });
       });
     });
@@ -307,7 +286,6 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
       return;
     }
     if (isCovered() || document.visibilityState === 'hidden') return;
-    // Hidden noFill dock: keep retrying on the refresh cadence, not every tick.
     uncoveredMs += BANNER_TICK_MS;
     if (uncoveredMs >= BANNER_REFRESH_MS) request();
   }, BANNER_TICK_MS);
@@ -316,8 +294,6 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
   const onFrameChange = () => {
     if (!slot.isConnected) return;
     const next = sizeForViewport(availableWidth(), availableHeight());
-    // Size class changes are applied visually; the SDK keeps the old creative
-    // until the next scheduled refresh.
     size = next;
     applySize();
     placeHorizontally();
@@ -333,7 +309,6 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
     stopCoverWatch();
     platform.clearBanner(BANNER_ID);
     slot.remove();
-    dock.classList.add('hidden');
-    clearReserve();
+    hideDock();
   };
 }
