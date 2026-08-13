@@ -173,6 +173,18 @@ export class Net implements Outbox {
       case 'adBoost':
         this.room.adBoost(id);
         return;
+      case 'claimAttendance':
+        this.room.claimAttendance(id, msg.recover === true);
+        return;
+      case 'doubleAttendance':
+        this.room.doubleAttendance(id);
+        return;
+      case 'claimHomework':
+        if (typeof msg.id === 'string') this.room.claimHomework(id, msg.id);
+        return;
+      case 'equipSkin':
+        if (typeof msg.id === 'string') this.room.equipSkin(id, msg.id);
+        return;
       default:
         return;
     }

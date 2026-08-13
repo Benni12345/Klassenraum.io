@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_DESK_SKIN, parseHomework, type HomeworkProgress } from '@shared/school.js';
 import type { AvatarSpec } from '@shared/types.js';
 
 export interface PlayerRow {
@@ -28,6 +29,13 @@ export interface PlayerRow {
   cgMigratedAt: number;
   /** Guided tutorial completed or skipped. */
   tutorialDone: boolean;
+  streak: number;
+  bestStreak: number;
+  lastClaimDay: number;
+  attendanceDoubledDay: number;
+  hwDay: number;
+  hw: HomeworkProgress;
+  deskSkin: string;
   createdAt: number;
   lastSeen: number;
 }
@@ -61,6 +69,13 @@ CREATE TABLE IF NOT EXISTS players (
   cg_user_id TEXT UNIQUE,
   cg_migrated_at INTEGER NOT NULL DEFAULT 0,
   tutorial_done INTEGER NOT NULL DEFAULT 0,
+  streak INTEGER NOT NULL DEFAULT 0,
+  best_streak INTEGER NOT NULL DEFAULT 0,
+  last_claim_day INTEGER NOT NULL DEFAULT 0,
+  attendance_doubled_day INTEGER NOT NULL DEFAULT 0,
+  hw_day INTEGER NOT NULL DEFAULT 0,
+  hw_progress TEXT NOT NULL DEFAULT '{}',
+  desk_skin TEXT NOT NULL DEFAULT 'wood',
   created_at INTEGER NOT NULL,
   last_seen INTEGER NOT NULL
 );
@@ -101,6 +116,27 @@ export class Db {
     if (!names.has('tutorial_done')) {
       this.db.exec('ALTER TABLE players ADD COLUMN tutorial_done INTEGER NOT NULL DEFAULT 0');
     }
+    if (!names.has('streak')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN streak INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!names.has('best_streak')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN best_streak INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!names.has('last_claim_day')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN last_claim_day INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!names.has('attendance_doubled_day')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN attendance_doubled_day INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!names.has('hw_day')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN hw_day INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!names.has('hw_progress')) {
+      this.db.exec("ALTER TABLE players ADD COLUMN hw_progress TEXT NOT NULL DEFAULT '{}'");
+    }
+    if (!names.has('desk_skin')) {
+      this.db.exec("ALTER TABLE players ADD COLUMN desk_skin TEXT NOT NULL DEFAULT 'wood'");
+    }
   }
 
   createPlayer(row: PlayerRow, tokenHash: string): void {
@@ -108,8 +144,10 @@ export class Db {
       .prepare(
         `INSERT INTO players (id, token_hash, name, avatar, bp, run_bp, lifetime_bp, clicks,
            gens, upgrades, stars, grade, stolen_total, lost_total, last_steal_at,
-           last_ad_reward_at, cg_user_id, cg_migrated_at, tutorial_done, created_at, last_seen)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           last_ad_reward_at, cg_user_id, cg_migrated_at, tutorial_done,
+           streak, best_streak, last_claim_day, attendance_doubled_day, hw_day, hw_progress, desk_skin,
+           created_at, last_seen)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -131,6 +169,13 @@ export class Db {
         row.cgUserId,
         row.cgMigratedAt,
         row.tutorialDone ? 1 : 0,
+        row.streak,
+        row.bestStreak,
+        row.lastClaimDay,
+        row.attendanceDoubledDay,
+        row.hwDay,
+        JSON.stringify(row.hw),
+        row.deskSkin,
         row.createdAt,
         row.lastSeen,
       );
@@ -170,7 +215,9 @@ export class Db {
         `UPDATE players SET name = ?, avatar = ?, bp = ?, run_bp = ?, lifetime_bp = ?, clicks = ?,
            gens = ?, upgrades = ?, stars = ?, grade = ?, stolen_total = ?, lost_total = ?,
            last_steal_at = ?, last_ad_reward_at = ?, cg_user_id = ?, cg_migrated_at = ?,
-           tutorial_done = ?, last_seen = ? WHERE id = ?`,
+           tutorial_done = ?, streak = ?, best_streak = ?, last_claim_day = ?,
+           attendance_doubled_day = ?, hw_day = ?, hw_progress = ?, desk_skin = ?, last_seen = ?
+         WHERE id = ?`,
       )
       .run(
         row.name,
@@ -190,6 +237,13 @@ export class Db {
         row.cgUserId,
         row.cgMigratedAt,
         row.tutorialDone ? 1 : 0,
+        row.streak,
+        row.bestStreak,
+        row.lastClaimDay,
+        row.attendanceDoubledDay,
+        row.hwDay,
+        JSON.stringify(row.hw),
+        row.deskSkin,
         row.lastSeen,
         row.id,
       );
@@ -250,6 +304,13 @@ function decodeRow(r: Record<string, unknown>): PlayerRow {
     cgUserId: (r.cg_user_id as string | null) ?? null,
     cgMigratedAt: Number(r.cg_migrated_at ?? 0),
     tutorialDone: Number(r.tutorial_done ?? 0) !== 0,
+    streak: Number(r.streak ?? 0),
+    bestStreak: Number(r.best_streak ?? 0),
+    lastClaimDay: Number(r.last_claim_day ?? 0),
+    attendanceDoubledDay: Number(r.attendance_doubled_day ?? 0),
+    hwDay: Number(r.hw_day ?? 0),
+    hw: parseHomework(r.hw_progress),
+    deskSkin: typeof r.desk_skin === 'string' && r.desk_skin ? r.desk_skin : DEFAULT_DESK_SKIN,
     createdAt: r.created_at as number,
     lastSeen: r.last_seen as number,
   };

@@ -36,6 +36,9 @@ Locked decisions:
   Stars gained = `floor((runHS / 1e6) ^ 0.6)`, each star +10 % production forever.
   Graduations advance your grade badge: 1. Klasse → … → 13. Klasse → Uni → Prof.
 - **Offline**: your desk keeps producing for up to 8 h while you're away (base rate, no buffs).
+- **School day**: daily attendance streak (claim once per UTC day; missed-by-one-day late slip via rewarded ad), three homework tasks, and desk skins unlocked by streak / stars / grade.
+
+## The one global room
 
 ## The one global room
 
@@ -104,5 +107,4 @@ are wired so friends can drop into the shared classroom. Instant multiplayer
 
 ## Not in this version (stretch)
 
-Attendance streaks, cosmetics/desk skins, seasons ("Schuljahre"), unlockable maps
-(Bibliothek, Turnhalle), break_infinity numbers.
+Seasons ("Schuljahre"), unlockable maps (Bibliothek, Turnhalle), break_infinity numbers.
