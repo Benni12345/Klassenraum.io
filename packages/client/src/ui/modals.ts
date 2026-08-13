@@ -94,9 +94,8 @@ export function openModal(
     root.onclick = null;
   }
 
-  // Attach first so build() sees connected nodes (School day paints on open).
-  root.appendChild(box);
   build(body, foot, close);
+  root.appendChild(box);
   return close;
 }
 

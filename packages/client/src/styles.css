@@ -1079,7 +1079,15 @@ body.tutoring #banner-dock {
   margin-bottom: 10px;
 }
 
+.school-card:last-child {
+  margin-bottom: 0;
+}
+
 .school-card h3 {
+  margin: 0 0 8px;
+}
+
+.modal .school-card h3 {
   margin: 0 0 8px;
 }
 
@@ -1290,12 +1298,11 @@ body.tutoring #banner-dock {
   color: #fff;
 }
 
-.modal-school {
-  min-height: min(70vh, 480px);
-}
-
-.modal-school .modal-body {
-  min-height: 220px;
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
 }
 
 .modal-foot {

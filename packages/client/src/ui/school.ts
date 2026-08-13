@@ -101,8 +101,6 @@ function schoolSnapshot(): SchoolDay | null {
 
 export function schoolModal(): void {
   openModal({ title: t('school.title') }, (body, foot, close) => {
-    body.closest('.modal')?.classList.add('modal-school');
-
     const paint = () => {
       const school = schoolSnapshot();
       const you = store.you;
