@@ -77,14 +77,22 @@ function maybePromptSchool(): void {
 
 export function schoolModal(): void {
   openModal({ title: t('school.title') }, (body, _foot) => {
+    let painted = false;
     const paint = () => {
-      if (!body.isConnected) return;
+      // Skip stale listeners after close — but the first paint runs *before*
+      // openModal appends the box to the document, so isConnected is false then.
+      if (painted && !body.isConnected) return;
       const you = store.you;
-      if (!you?.school) return;
       body.innerHTML = '';
+      if (!you?.school) {
+        body.appendChild(el('p', '', t('school.unavailable')));
+        painted = true;
+        return;
+      }
       renderAttendance(body, you.school);
       renderHomework(body, you.school);
       renderSkins(body, you.school, deskTier(you.gens));
+      painted = true;
     };
     paint();
     store.on('you', paint);
