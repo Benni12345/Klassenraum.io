@@ -103,6 +103,13 @@ export interface PlatformUser {
   username: string;
 }
 
+/** Result of resolving CrazyGames login before (and during) the hello handshake. */
+export interface PlatformAuth {
+  token: string | null;
+  loggedIn: boolean;
+  username: string | null;
+}
+
 export interface BannerSize {
   width: number;
   height: number;
@@ -152,6 +159,11 @@ export interface Platform {
   getUser(): Promise<PlatformUser | null>;
   /** JWT for server-side account linking; null when guest / unavailable. */
   getUserToken(): Promise<string | null>;
+  /**
+   * Login + JWT, with retries for the SDK startup race. `loggedIn` can be true
+   * even when `token` is still null — callers must not fall back to a guest save.
+   */
+  getAuth(): Promise<PlatformAuth>;
   /** Prefer guest play; optional CG login prompt (not a main CTA). */
   showAuthPrompt(): Promise<PlatformUser | null>;
   onAuthChange(listener: (user: PlatformUser | null) => void): () => void;

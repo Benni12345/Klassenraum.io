@@ -50,6 +50,9 @@ export function createNoopPlatform(): Platform {
     async getUserToken() {
       return null;
     },
+    async getAuth() {
+      return { token: null, loggedIn: false, username: null };
+    },
     async showAuthPrompt() {
       return null;
     },

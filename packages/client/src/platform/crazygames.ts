@@ -1,4 +1,5 @@
 import { setAdMuted, setPlatformMuted } from '../audio';
+import { resolveCrazyGamesAuth } from './cgAuth';
 import type {
   AdCallbacks,
   BannerSize,
@@ -7,6 +8,7 @@ import type {
   DeviceType,
   InviteParams,
   Platform,
+  PlatformAuth,
   PlatformUser,
 } from './types';
 
@@ -329,11 +331,15 @@ export function createCrazyGamesPlatform(): Platform {
     },
 
     async getUserToken() {
+      const auth = await this.getAuth();
+      return auth.token;
+    },
+
+    async getAuth(): Promise<PlatformAuth> {
       try {
-        if (!sdk().user?.isUserAccountAvailable) return null;
-        return await sdk().user.getUserToken();
+        return await resolveCrazyGamesAuth(sdk().user);
       } catch {
-        return null;
+        return { token: null, loggedIn: false, username: null };
       }
     },
 

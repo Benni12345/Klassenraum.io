@@ -1,7 +1,7 @@
 import type http from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { ClientMsg, ServerMsg } from '@shared/protocol.js';
-import type { Room, Outbox } from './game.js';
+import { CgAuthError, type Room, type Outbox } from './game.js';
 
 const MAX_MSG_BYTES = 2048;
 const MAX_BAD_MSGS = 20;
@@ -185,13 +185,29 @@ export class Net implements Outbox {
   ): Promise<void> {
     const token = typeof msg.token === 'string' ? msg.token : undefined;
     const name = typeof msg.name === 'string' ? msg.name : undefined;
-    const { playerId, newToken, offline } = await this.room.hello(
-      token,
-      name,
-      msg.avatar,
-      typeof msg.cgToken === 'string' ? msg.cgToken : undefined,
-      msg.tutorialDone === true,
-    );
+    let playerId: string;
+    let newToken: string | undefined;
+    let offline: { ms: number; bp: number } | undefined;
+    try {
+      const joined = await this.room.hello(
+        token,
+        name,
+        msg.avatar,
+        typeof msg.cgToken === 'string' ? msg.cgToken : undefined,
+        msg.tutorialDone === true,
+      );
+      playerId = joined.playerId;
+      newToken = joined.newToken;
+      offline = joined.offline;
+    } catch (err) {
+      if (err instanceof CgAuthError) {
+        ws.close(4402, 'cg auth');
+        return;
+      }
+      console.error('hello failed', err);
+      ws.close(1011, 'join failed');
+      return;
+    }
 
     // One live socket per player: replace an older tab.
     const old = this.activeSocket.get(playerId);

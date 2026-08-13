@@ -3,7 +3,7 @@ import { PRESTIGE_BASE } from '../../shared/src/balance.js';
 import type { ServerMsg } from '../../shared/src/protocol.js';
 import type { CrazyGamesTokenPayload } from '../src/cgAuth.js';
 import { Db } from '../src/db.js';
-import { Room, guestName, isLegacyGuestName, sanitizeChosenName, sanitizeName } from '../src/game.js';
+import { Room, guestName, isLegacyGuestName, sanitizeChosenName, sanitizeName, CgAuthError } from '../src/game.js';
 
 /** Fake CrazyGames JWT: `cg:<userId>:<username>` (long enough to be parsed). */
 async function fakeVerify(token: string): Promise<CrazyGamesTokenPayload> {
@@ -601,6 +601,50 @@ describe('CrazyGames account linking', () => {
     expect(again.playerId).toBe(first.playerId);
     expect(room.youOf(again.playerId)!.name).toBe('NewName');
     expect(room.youOf(again.playerId)!.gens[0]).toBe(1);
+  });
+
+  it('does not create a player when only a bad JWT is sent', async () => {
+    const { room } = setup();
+    await expect(
+      room.hello(undefined, undefined, undefined, 'this-is-not-a-valid-cg-jwt-token'),
+    ).rejects.toThrow(CgAuthError);
+    expect(room.roster().length).toBe(0);
+  });
+
+  it('does not seat a guest save when CrazyGames token verification fails', async () => {
+    const { room } = setup();
+    const guest = await room.hello(undefined, 'Anna', undefined);
+    expect(room.youOf(guest.playerId)!.bp).toBe(15);
+    room.disconnect(guest.playerId);
+
+    await expect(
+      room.hello(guest.newToken, undefined, undefined, 'this-is-not-a-valid-cg-jwt-token'),
+    ).rejects.toThrow(CgAuthError);
+
+    // Original guest is still the only seated save — not replaced by a blank one.
+    expect(room.roster().length).toBe(1);
+    expect(room.youOf(guest.playerId)!.name).toBe('Anna');
+    expect(room.youOf(guest.playerId)!.cgLinked).toBe(false);
+  });
+
+  it('does not create a blank player when a logged-in hello has a bad JWT', async () => {
+    const { room, clock } = setup();
+    const linked = await room.hello(undefined, undefined, undefined, cgToken('uKeep', 'Keeper'));
+    (room as any).players.get(linked.playerId).bp = 100;
+    room.buy(linked.playerId, 0, 1);
+    room.disconnect(linked.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+    expect(room.roster().length).toBe(0);
+
+    await expect(
+      room.hello(undefined, undefined, undefined, 'this-is-not-a-valid-cg-jwt-token'),
+    ).rejects.toThrow(CgAuthError);
+    expect(room.roster().length).toBe(0);
+
+    const back = await room.hello(undefined, undefined, undefined, cgToken('uKeep', 'Keeper'));
+    expect(back.playerId).toBe(linked.playerId);
+    expect(room.youOf(back.playerId)!.gens[0]).toBe(1);
   });
 });
 

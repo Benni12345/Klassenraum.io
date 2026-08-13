@@ -76,6 +76,14 @@ interface ActiveQuiz {
 
 const CHAT_HISTORY = 50;
 
+/** Thrown when a hello included a CrazyGames JWT that could not be verified. */
+export class CgAuthError extends Error {
+  constructor(message = 'CrazyGames token verification failed') {
+    super(message);
+    this.name = 'CgAuthError';
+  }
+}
+
 export class Room {
   /** Seated players: online or sleeping (grace period). Keyed by player id. */
   readonly players = new Map<string, PlayerState>();
@@ -118,6 +126,9 @@ export class Room {
    * - The first time an account is seen, the guest save behind `token` is
    *   *copied* into it and stamped as migrated. Later logins never copy again,
    *   so progress made while logged out stays in the guest save.
+   * - If a `cgToken` is present but verification fails, hello throws
+   *   `CgAuthError` instead of seating a guest. Falling back would look like a
+   *   points reset for a player who is already logged in.
    *
    * `clientTutorialDone` is a one-way hint from local prefs / CrazyGames Data
    * so Skip still lands on the account when the dedicated WS mark was lost
@@ -138,6 +149,9 @@ export class Room {
         cg = await this.verifyCgToken(cgToken);
       } catch (err) {
         console.warn('cg token verify failed', err);
+        // Do *not* fall through to a guest save — that seats a blank player for
+        // someone who is already logged in, which looks like a points reset.
+        throw new CgAuthError();
       }
     }
 
@@ -199,27 +213,52 @@ export class Room {
     }
 
     const existing = this.db.loadPlayerByCgUserId(cg.userId);
-    if (existing) {
-      // Economy progress stays on the account, but tutorial completion is a
-      // one-way flag: if this browser's guest already finished/skipped the tour,
-      // carry that onto the account so a new session does not replay it.
-      if (!existing.tutorialDone && this.guestTutorialDone(token, now)) {
-        existing.tutorialDone = true;
-        this.db.savePlayer(existing);
-      }
-      this.restoreCgTutorialFlag(existing, cg.userId);
-      const offline = this.applyOfflineGains(existing, now);
-      this.syncCgProfile(existing, cg);
-      const p = this.seatPlayer(existing, now);
-      this.out.broadcast({ t: 'join', p: this.publicOf(p) });
-      return { playerId: p.id, offline };
-    }
+    if (existing) return this.joinStoredCg(existing, cg, token, now);
 
-    const row = this.createCgAccount(cg, this.migratableGuest(token, now), avatar, now);
-    this.restoreCgTutorialFlag(row, cg.userId);
-    const p = this.seatPlayer(row, now);
+    try {
+      const row = this.createCgAccount(cg, this.migratableGuest(token, now), avatar, now);
+      this.restoreCgTutorialFlag(row, cg.userId);
+      const p = this.seatPlayer(row, now);
+      this.out.broadcast({ t: 'join', p: this.publicOf(p) });
+      return { playerId: p.id };
+    } catch (err) {
+      // Two hellos for a brand-new account can race on the unique cg_user_id.
+      if (!isUniqueConstraint(err)) throw err;
+      const seatedNow = this.findSeatedByCgUserId(cg.userId);
+      if (seatedNow) {
+        this.settle(seatedNow, now);
+        seatedNow.online = true;
+        seatedNow.sleepUntil = 0;
+        this.syncCgProfile(seatedNow, cg);
+        this.restoreCgTutorialFlag(seatedNow, cg.userId);
+        this.out.broadcast({ t: 'join', p: this.publicOf(seatedNow) });
+        return { playerId: seatedNow.id };
+      }
+      const raced = this.db.loadPlayerByCgUserId(cg.userId);
+      if (!raced) throw err;
+      return this.joinStoredCg(raced, cg, token, now);
+    }
+  }
+
+  private joinStoredCg(
+    existing: PlayerRow,
+    cg: CrazyGamesTokenPayload,
+    token: string | undefined,
+    now: number,
+  ): { playerId: string; offline?: { ms: number; bp: number } } {
+    // Economy progress stays on the account, but tutorial completion is a
+    // one-way flag: if this browser's guest already finished/skipped the tour,
+    // carry that onto the account so a new session does not replay it.
+    if (!existing.tutorialDone && this.guestTutorialDone(token, now)) {
+      existing.tutorialDone = true;
+      this.db.savePlayer(existing);
+    }
+    this.restoreCgTutorialFlag(existing, cg.userId);
+    const offline = this.applyOfflineGains(existing, now);
+    this.syncCgProfile(existing, cg);
+    const p = this.seatPlayer(existing, now);
     this.out.broadcast({ t: 'join', p: this.publicOf(p) });
-    return { playerId: p.id };
+    return { playerId: p.id, offline };
   }
 
   /** The guest save eligible for a one-time copy into a new CrazyGames account. */
@@ -922,6 +961,14 @@ export class Room {
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function isUniqueConstraint(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: unknown; message?: unknown };
+  const code = typeof e.code === 'string' ? e.code : '';
+  const message = typeof e.message === 'string' ? e.message : String(err);
+  return code.includes('CONSTRAINT') || /unique constraint/i.test(message);
 }
 
 function newPlayerId(): string {

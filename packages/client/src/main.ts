@@ -41,9 +41,13 @@ import { applyStaticTexts } from './ui/texts';
 import { initHints, startTutorial } from './ui/tutorial';
 
 async function boot(): Promise<void> {
+  let initialAuth: Awaited<ReturnType<typeof platform.getAuth>> | null = null;
   if (platform.enabled) {
     await platform.init();
-    store.setCgTokenProvider(() => platform.getUserToken());
+    // Resolve login + JWT *before* opening the socket. A hello sent while the
+    // SDK still has no token seats a blank guest save for a logged-in player.
+    initialAuth = await platform.getAuth();
+    store.setCgAuthProvider(() => platform.getAuth());
     // CrazyGames Data is cloud-synced per account. Merge it into local prefs
     // before hello so Skip follows the player across browsers / incognito.
     // sessionStorage covers the same-tab auth reload when CG restores empty
@@ -173,6 +177,35 @@ async function boot(): Promise<void> {
     closePopover();
     platform.markRoomJoinable();
     platform.showInviteButton();
+    // Last-resort: if we seated a guest save while CrazyGames says the player
+    // is logged in, reload once so hello can include the JWT. The net layer
+    // already refuses a guest welcome after a JWT hello; this covers the case
+    // where the first hello went out before login was visible.
+    if (platform.enabled && store.you && !store.you.cgLinked) {
+      void platform.getAuth().then((auth) => {
+        if (!auth.loggedIn) {
+          try {
+            sessionStorage.removeItem('kr_cg_rejoin');
+          } catch {
+            /* private mode */
+          }
+          return;
+        }
+        try {
+          if (sessionStorage.getItem('kr_cg_rejoin') === '1') return;
+          sessionStorage.setItem('kr_cg_rejoin', '1');
+        } catch {
+          return;
+        }
+        location.reload();
+      });
+    } else {
+      try {
+        sessionStorage.removeItem('kr_cg_rejoin');
+      } catch {
+        /* private mode */
+      }
+    }
     if (lastGrade === -1) {
       scene.scrollToOwnDesk();
       lastGrade = store.you?.grade ?? 0;
@@ -260,8 +293,7 @@ async function boot(): Promise<void> {
   // Any CrazyGames auth change swaps the active save (account <-> guest), so the
   // page reloads and the hello handshake resolves the right one.
   if (platform.enabled) {
-    let knownUser: string | null = null;
-    void platform.getUser().then((u) => (knownUser = u?.username ?? null));
+    let knownUser: string | null = initialAuth?.username ?? null;
     platform.onAuthChange((user) => {
       const next = user?.username ?? null;
       if (next === knownUser) return;
@@ -284,7 +316,7 @@ async function boot(): Promise<void> {
   // their CrazyGames username, guests a stylized Student_#### name, and the
   // player is joinable immediately (also required for instant multiplayer).
   if (store.hasAccount || platform.enabled) {
-    store.connect();
+    store.connect(initialAuth?.token ? { cgToken: initialAuth.token } : undefined);
   } else {
     platform.onGameplayStop();
     joinModal((name, avatar) => {
