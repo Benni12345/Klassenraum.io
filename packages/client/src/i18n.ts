@@ -324,6 +324,7 @@ const de: Dict = {
   'school.unlock.grade': '{n} Versetzungen',
   'school.footer': 'Komm morgen wieder — Serien geben mehr HS und neue Tische.',
   'school.hwReady': 'Hausaufgabe fertig — im Schultag abgeben!',
+  'school.unavailable': 'Schultag ist gleich soweit — bitte kurz neu laden.',
 };
 
 const en: Dict = {
@@ -643,6 +644,7 @@ const en: Dict = {
   'school.unlock.grade': '{n} graduations',
   'school.footer': 'Come back tomorrow — streaks pay more BP and unlock new desks.',
   'school.hwReady': 'Homework ready — turn it in under School day!',
+  'school.unavailable': 'School day is still loading — try a quick reload.',
 };
 
 const DICTS: Record<Locale, Dict> = { de, en };

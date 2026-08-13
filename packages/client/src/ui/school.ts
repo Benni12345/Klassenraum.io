@@ -1,5 +1,11 @@
 import { deskTier } from '@shared/balance';
-import { DESK_SKINS, utcDay } from '@shared/school';
+import {
+  buildSchoolDay,
+  defaultSchoolProgress,
+  DESK_SKINS,
+  utcDay,
+  type SchoolDay,
+} from '@shared/school';
 import { sfxBuy, sfxSuccess } from '../audio';
 import { fmt, fmtDuration } from '../format';
 import { t } from '../i18n';
@@ -35,7 +41,7 @@ export function initSchool(): void {
   store.on('you', () => {
     refresh();
     const you = store.you;
-    if (!you?.school) return;
+    if (!you?.school?.homework) return;
     for (const h of you.school.homework) {
       const key = `${utcDay(store.serverNow())}:${h.id}`;
       if (h.ready && !seenReady.has(key)) {
@@ -53,13 +59,14 @@ export function initSchool(): void {
   refresh();
 }
 
-function isAttendanceClaimed(school: NonNullable<typeof store.you>['school']): boolean {
+function isAttendanceClaimed(school: SchoolDay): boolean {
   return school.claimDay === utcDay(store.serverNow());
 }
 
 function schoolHasClaim(you: typeof store.you): boolean {
-  if (!you?.school) return false;
-  const s = you.school;
+  if (!you) return false;
+  const s = you.school && Array.isArray(you.school.homework) ? you.school : schoolSnapshot();
+  if (!s) return false;
   if (!isAttendanceClaimed(s)) return true;
   if (s.homework.some((h) => h.ready)) return true;
   if (s.bonusReady) return true;
@@ -70,28 +77,63 @@ function maybePromptSchool(): void {
   if (schoolPrompted) return;
   if (document.body.classList.contains('tutoring')) return;
   const you = store.you;
-  if (!you?.tutorialDone || !you.school || isAttendanceClaimed(you.school)) return;
+  if (!you?.tutorialDone) return;
+  const school = schoolSnapshot();
+  if (!school || isAttendanceClaimed(school)) return;
   schoolPrompted = true;
   schoolModal();
 }
 
+/** Server snapshot, or a local preview if this client is ahead of the game server. */
+function schoolSnapshot(): SchoolDay | null {
+  const you = store.you;
+  if (!you) return null;
+  if (you.school && Array.isArray(you.school.homework)) return you.school;
+  return buildSchoolDay(
+    you.id,
+    defaultSchoolProgress(),
+    store.serverNow(),
+    you.bps,
+    you.stars,
+    you.grade,
+  );
+}
+
 export function schoolModal(): void {
-  openModal({ title: t('school.title') }, (body, _foot) => {
+  openModal({ title: t('school.title') }, (body, foot, close) => {
     const paint = () => {
-      if (!body.isConnected) return;
+      const school = schoolSnapshot();
       const you = store.you;
-      if (!you?.school) return;
-      body.innerHTML = '';
-      renderAttendance(body, you.school);
-      renderHomework(body, you.school);
-      renderSkins(body, you.school, deskTier(you.gens));
+      const wrap = el('div');
+      try {
+        if (!school || !you) {
+          wrap.appendChild(el('p', '', t('school.unavailable')));
+        } else {
+          renderAttendance(wrap, school);
+          renderHomework(wrap, school);
+          renderSkins(wrap, school, deskTier(you.gens));
+        }
+        body.replaceChildren(...Array.from(wrap.children));
+      } catch (err) {
+        console.error('[school] render failed', err);
+        body.replaceChildren(el('p', 'modal-warn', t('school.unavailable')));
+      }
     };
+
     paint();
-    store.on('you', paint);
+    const ok = el('button', 'btn gold', t('ui.close'));
+    ok.type = 'button';
+    ok.onclick = close;
+    foot.appendChild(ok);
+
+    store.on('you', () => {
+      if (!body.isConnected) return;
+      paint();
+    });
   });
 }
 
-function renderAttendance(body: HTMLElement, school: NonNullable<typeof store.you>['school']): void {
+function renderAttendance(body: HTMLElement, school: SchoolDay): void {
   const box = el('div', 'school-card');
   box.appendChild(el('h3', '', t('school.attendance')));
   const claimed = isAttendanceClaimed(school);
@@ -165,7 +207,7 @@ function renderAttendance(body: HTMLElement, school: NonNullable<typeof store.yo
   body.appendChild(box);
 }
 
-function renderHomework(body: HTMLElement, school: NonNullable<typeof store.you>['school']): void {
+function renderHomework(body: HTMLElement, school: SchoolDay): void {
   const box = el('div', 'school-card');
   box.appendChild(el('h3', '', t('school.homework')));
   box.appendChild(el('p', 'school-muted', t('school.homeworkHint')));
@@ -207,11 +249,7 @@ function renderHomework(body: HTMLElement, school: NonNullable<typeof store.you>
   body.appendChild(box);
 }
 
-function renderSkins(
-  body: HTMLElement,
-  school: NonNullable<typeof store.you>['school'],
-  deskTier: number,
-): void {
+function renderSkins(body: HTMLElement, school: SchoolDay, deskTier: number): void {
   const box = el('div', 'school-card');
   box.appendChild(el('h3', '', t('school.skins')));
   box.appendChild(el('p', 'school-muted', t('school.skinsHint')));

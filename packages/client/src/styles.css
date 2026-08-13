@@ -1103,7 +1103,15 @@ body.tutoring #banner-dock {
   margin-bottom: 10px;
 }
 
+.school-card:last-child {
+  margin-bottom: 0;
+}
+
 .school-card h3 {
+  margin: 0 0 8px;
+}
+
+.modal .school-card h3 {
   margin: 0 0 8px;
 }
 
