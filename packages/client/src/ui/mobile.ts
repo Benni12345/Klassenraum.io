@@ -2,10 +2,12 @@
  * Phone / tablet layout.
  *
  * Portrait: classroom and School Kiosk each get the full screen, switched with
- * a tab bar.
+ * a tab bar. Preferred mobile orientation in the CrazyGames portal (Portrait)
+ * so phones are not letterboxed in landscape.
  *
  * Landscape: side-by-side classroom + kiosk (no tabs) so the short height is
- * not eaten by stacked chrome. Legal links stay in Settings.
+ * not eaten by stacked chrome. Legal links stay in Settings. Kept as a
+ * fallback if the portal still allows Both.
  *
  * Desktop must keep the side-by-side layout even when the game is not
  * fullscreen — prefer CrazyGames SystemInfo when available; otherwise require

@@ -1,8 +1,10 @@
 /**
- * Tracks UI that covers the play area (modals, tutorial, boss overlay, Notes).
+ * Tracks UI that covers the play area (modals, tutorial, boss overlay).
  *
  * The bottom banner must not refresh while something is drawn over it — the
  * refresh timer pauses while any overlay is open and resumes afterwards.
+ * Notes no longer registers here: the panel sits above the ad via
+ * --banner-reserve and does not cover the CrazyGames container.
  */
 
 let depth = 0;

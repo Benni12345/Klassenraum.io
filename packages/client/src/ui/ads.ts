@@ -32,6 +32,19 @@ export function bannersDisabled(): boolean {
 }
 
 /**
+ * CrazyGames asked us to hide banners on phones — they eat too much portrait
+ * space. Show only when SystemInfo reports tablet or desktop.
+ * https://docs.crazygames.com/sdk/user/#system-info
+ */
+export function bannerAllowedOnDevice(): boolean {
+  const device = platform.deviceType;
+  if (device === 'mobile') return false;
+  if (device === 'tablet' || device === 'desktop') return true;
+  // Outside CrazyGames / unknown: skip obvious phones, keep Chromebook/desktop.
+  return !window.matchMedia('(max-width: 600px) and (pointer: coarse)').matches;
+}
+
+/**
  * Midgame ads are only shown when the player graduates (prestige), after they
  * confirmed the reset — the only placement CrazyGames allows for clicker games.
  */
@@ -131,8 +144,9 @@ export function mountRewardedBoostButton(
 }
 
 function sizeForViewport(available: number, availableHeight: number): BannerSize {
-  // Short frames (Chromebook windowed / phones) always get the slim banner so
+  // Short frames (Chromebook windowed / tablets) always get the slim banner so
   // the slot stays inside the visible classroom instead of overflowing.
+  // Phones never reach here — banners are disabled on deviceType === 'mobile'.
   const short =
     availableHeight < 560 ||
     window.matchMedia('(max-width: 900px)').matches ||
@@ -160,6 +174,8 @@ function sizeForViewport(available: number, availableHeight: number): BannerSize
  */
 export function mountBottomBanner(dock: HTMLElement): () => void {
   if (!platform.enabled || platform.hasAdblock || bannersDisabled()) return () => {};
+  // Phones: skip entirely so portrait classroom keeps its height.
+  if (!bannerAllowedOnDevice()) return () => {};
 
   const playCol = dock.parentElement;
   dock.classList.remove('hidden');
@@ -193,7 +209,7 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
     // Notes (chat) sits above the ad so it never covers the CG container —
     // covering it triggers notVisible and breaks load on short Chromebook frames.
     if (playCol) {
-      playCol.style.setProperty('--banner-reserve', `${size.height + 8}px`);
+      playCol.style.setProperty('--banner-reserve', `${size.height + 4}px`);
       playCol.classList.add('has-banner');
     }
   };
@@ -208,19 +224,25 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
    * CrazyGames rejects containers that are clipped or off-screen. Check against
    * the play column (visible game frame) and the iframe window, with a small
    * inset so 1px subpixel clipping on Chromebooks does not trip notVisible.
+   *
+   * The bottom edge is allowed to sit flush with the play column (and close to
+   * the iframe bottom) — QA wants no gap above the green footer. Top/left/right
+   * keep the inset; only reject a bottom that is clearly outside the host/window.
    */
   const fullyVisible = () => {
     const rect = slot.getBoundingClientRect();
     const host = (playCol ?? dock).getBoundingClientRect();
     if (rect.width < size.width - 1 || rect.height < size.height - 1) return false;
     if (rect.top < host.top + BANNER_EDGE_PAD - 1) return false;
-    if (rect.bottom > host.bottom - BANNER_EDGE_PAD + 1) return false;
     if (rect.left < host.left + BANNER_EDGE_PAD - 1) return false;
     if (rect.right > host.right - BANNER_EDGE_PAD + 1) return false;
+    // Flush with play-col bottom is OK (green footer sits below the column).
+    if (rect.bottom > host.bottom + 1) return false;
     if (rect.top < BANNER_EDGE_PAD) return false;
     if (rect.left < BANNER_EDGE_PAD) return false;
-    if (rect.bottom > window.innerHeight - BANNER_EDGE_PAD) return false;
     if (rect.right > window.innerWidth - BANNER_EDGE_PAD) return false;
+    // Allow sitting near the iframe bottom; reject only when past it.
+    if (rect.bottom > window.innerHeight + 1) return false;
     return true;
   };
 
