@@ -1,3 +1,4 @@
+import { DEFAULT_DESK_SKIN, DESK_PALETTES } from '@shared/school';
 import type { AvatarSpec } from '@shared/types';
 
 /**
@@ -171,15 +172,16 @@ export function teacherSprite(frame: number): HTMLCanvasElement {
 export const DESK_W = 26;
 export const DESK_H = 12;
 
-function baseDesk(): HTMLCanvasElement {
+function baseDesk(skin = DEFAULT_DESK_SKIN): HTMLCanvasElement {
+  const pal = DESK_PALETTES[skin] ?? DESK_PALETTES[DEFAULT_DESK_SKIN]!;
   const [c, ctx] = canvas(DESK_W, DESK_H);
-  ctx.fillStyle = PAL.woodLight;
+  ctx.fillStyle = pal.light;
   ctx.fillRect(1, 0, DESK_W - 2, 1);
-  ctx.fillStyle = PAL.wood;
+  ctx.fillStyle = pal.mid;
   ctx.fillRect(0, 1, DESK_W, 6);
   ctx.fillStyle = 'rgba(0,0,0,0.08)';
   for (let i = 0; i < 5; i++) ctx.fillRect(3 + i * 5, 2 + (i % 3), 3, 1);
-  ctx.fillStyle = PAL.woodDark;
+  ctx.fillStyle = pal.dark;
   ctx.fillRect(0, 7, DESK_W, 2);
   ctx.fillRect(2, 9, 2, 3);
   ctx.fillRect(DESK_W - 4, 9, 2, 3);
@@ -207,18 +209,19 @@ const CLUTTER: HTMLCanvasElement[] = [
   px(['.PPP.', 'PPpPP', 'PpPpP', 'PPPPP', '.P.P.'], { P: '#e88ad4', p: '#c45fb8' }),
 ];
 
-const deskCache = new Map<number, HTMLCanvasElement>();
+const deskCache = new Map<string, HTMLCanvasElement>();
 
 /** Desk with clutter for the given tier (0 = bare, 1..9 highest generator). */
-export function deskSprite(tier: number): HTMLCanvasElement {
-  const key = Math.max(0, Math.min(9, tier));
+export function deskSprite(tier: number, skin = DEFAULT_DESK_SKIN): HTMLCanvasElement {
+  const key = `${Math.max(0, Math.min(9, tier))}:${skin}`;
   const hit = deskCache.get(key);
   if (hit) return hit;
   const [c, ctx] = canvas(DESK_W, DESK_H + 4);
-  ctx.drawImage(baseDesk(), 0, 4);
+  ctx.drawImage(baseDesk(skin), 0, 4);
   // Show up to the three highest unlocked clutter items.
   const items: number[] = [];
-  for (let t = key; t >= 1 && items.length < 3; t--) items.push(t - 1);
+  const clamped = Math.max(0, Math.min(9, tier));
+  for (let t = clamped; t >= 1 && items.length < 3; t--) items.push(t - 1);
   const slots = [2, 11, 19];
   items.reverse().forEach((itemIx, i) => {
     const item = CLUTTER[itemIx]!;
@@ -343,6 +346,19 @@ export const starIcon = px(
 export const brainIcon = px(
   ['.PPPP.', 'PPpPPP', 'PpPPpP', 'PPpPPP', '.PPPP.', '..PP..'],
   { P: '#e88ad4', p: '#c45fb8' },
+);
+
+export const calendarIcon = px(
+  [
+    '.#.#.#.',
+    '#######',
+    '#WWWWW#',
+    '#W#W#W#',
+    '#WWWWW#',
+    '#W#W#W#',
+    '#######',
+  ],
+  { '#': '#c94f4f', W: '#f5efdc' },
 );
 
 export const trophyIcon = px(

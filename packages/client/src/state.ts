@@ -7,6 +7,7 @@ import {
   starMult,
   UPGRADE_BY_ID,
 } from '@shared/balance';
+import { bumpHomework, type HomeworkKind } from '@shared/school';
 import type { ServerMsg } from '@shared/protocol';
 import type {
   AvatarSpec,
@@ -145,6 +146,7 @@ class Store {
     const gain = this.you.clickPower;
     this.you.bp += gain;
     this.you.clicks += 1;
+    this.bumpLocalHomework('notes', 1);
     return gain;
   }
 
@@ -169,6 +171,7 @@ class Store {
     y.bp -= cost;
     y.gens[gen] = (y.gens[gen] ?? 0) + q;
     this.recomputeYouRates();
+    this.bumpLocalHomework('shop', 1);
     this.net.send({ t: 'buy', gen, qty });
     this.emit('you', undefined);
     this.emit('change', undefined);
@@ -196,6 +199,7 @@ class Store {
     y.bp -= u.cost;
     y.upgrades.push(id);
     this.recomputeYouRates();
+    this.bumpLocalHomework('shop', 1);
     this.net.send({ t: 'upgrade', id });
     this.emit('you', undefined);
     this.emit('change', undefined);
@@ -236,6 +240,52 @@ class Store {
 
   claimAdBoost(): void {
     this.net.send({ t: 'adBoost' });
+  }
+
+  claimAttendance(recover = false): void {
+    this.net.send({ t: 'claimAttendance', recover });
+  }
+
+  doubleAttendance(): void {
+    this.net.send({ t: 'doubleAttendance' });
+  }
+
+  claimHomework(id: string): void {
+    this.net.send({ t: 'claimHomework', id });
+  }
+
+  equipSkin(id: string): void {
+    const y = this.you;
+    if (!y?.school.unlockedSkins.includes(id)) return;
+    y.school.deskSkin = id;
+    const me = this.roster.get(y.id);
+    if (me) me.deskSkin = id;
+    this.net.send({ t: 'equipSkin', id });
+    this.emit('you', undefined);
+    this.emit('roster', undefined);
+  }
+
+  private bumpLocalHomework(kind: HomeworkKind, n: number): void {
+    const y = this.you;
+    if (!y) return;
+    const task = y.school.homework.find((h) => h.id === kind);
+    if (!task || task.claimed) return;
+    const { hw, completed } = bumpHomework(
+      {
+        notes: 0,
+        shop: 0,
+        steal: 0,
+        quiz: 0,
+        claimed: [],
+        bonusClaimed: false,
+        [kind]: task.progress,
+      },
+      kind,
+      n,
+    );
+    task.progress = hw[kind];
+    task.ready = !task.claimed && task.progress >= task.target;
+    if (completed) this.emit('you', undefined);
   }
 
   ping(): void {

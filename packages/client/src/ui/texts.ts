@@ -22,6 +22,7 @@ export function applyStaticTexts(): void {
   id('btn-settings').title = t('settings.title');
   id('btn-howto').title = t('howto.title');
   id('btn-invite').textContent = t('invite.button');
+  id('btn-school').title = t('school.title');
   id('quiz-submit').textContent = t('event.quiz.submit');
   id<HTMLInputElement>('quiz-input').placeholder = t('event.quiz.prompt');
   id('conn-banner').textContent = t('conn.lost');

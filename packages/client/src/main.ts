@@ -37,6 +37,7 @@ import {
 import { closePopover, showDeskPopover } from './ui/popover';
 import { initLangSelector } from './ui/langSelector';
 import { initShop } from './ui/shop';
+import { initSchool } from './ui/school';
 import { applyStaticTexts } from './ui/texts';
 import { initHints, startTutorial } from './ui/tutorial';
 
@@ -84,6 +85,7 @@ async function boot(): Promise<void> {
   const scene = new Scene(id<HTMLCanvasElement>('scene'));
   initHud();
   initShop();
+  initSchool();
   initChat();
   initHints();
 

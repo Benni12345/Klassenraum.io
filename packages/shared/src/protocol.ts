@@ -38,7 +38,15 @@ export type ClientMsg =
   | { t: 'ping'; ts: number }
   | { t: 'adBoost' }
   /** Persist guided-tutorial completion on the player's save. */
-  | { t: 'tutorialDone' };
+  | { t: 'tutorialDone' }
+  /** Claim today's attendance. `recover` keeps a 1-day-missed streak (after an ad). */
+  | { t: 'claimAttendance'; recover?: boolean }
+  /** Double today's attendance payout (after a rewarded ad). */
+  | { t: 'doubleAttendance' }
+  /** Turn in a completed homework task, or `bonus` after all three. */
+  | { t: 'claimHomework'; id: string }
+  /** Equip an unlocked desk skin. */
+  | { t: 'equipSkin'; id: string };
 
 // ---------------------------------------------------------------------------
 // Server -> Client

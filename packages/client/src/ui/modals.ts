@@ -45,7 +45,7 @@ export function closeTopModal(): boolean {
  * Opens a modal with a sticky header (title + close) and a sticky action bar,
  * so the primary action is always reachable without scrolling the content.
  */
-function openModal(
+export function openModal(
   opts: ModalOpts,
   build: (body: HTMLElement, foot: HTMLElement, close: () => void) => void,
 ): () => void {
@@ -315,7 +315,7 @@ store.on('leaderboard', (rows: LeaderboardRow[]) => {
 
 // -------------------------------------------------------------- How to play
 
-const HOWTO_SECTIONS = ['notes', 'shop', 'upgrades', 'steal', 'events', 'goal', 'prestige', 'boss'];
+const HOWTO_SECTIONS = ['notes', 'shop', 'upgrades', 'steal', 'events', 'goal', 'prestige', 'boss', 'school'];
 
 export function howToPlayModal(): void {
   openModal({ title: t('howto.title') }, (body, foot, close) => {

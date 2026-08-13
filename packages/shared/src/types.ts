@@ -1,3 +1,5 @@
+import type { SchoolDay } from './school.js';
+
 /** Avatar composition; indices into the client's sprite variant tables. */
 export interface AvatarSpec {
   skin: number;
@@ -17,6 +19,8 @@ export interface PlayerPublic {
   stars: number;
   /** 0 = bare desk, 1..9 = highest generator tier owned (drives desk clutter). */
   deskTier: number;
+  /** Equipped desk skin id (wood, blue, …). */
+  deskSkin: string;
   /** HS on hand (approximate; what a thief could target). */
   bp: number;
   bps: number;
@@ -67,6 +71,8 @@ export interface PlayerYou {
   cgLinked: boolean;
   /** Guided tutorial completed or skipped (persisted on the game backend). */
   tutorialDone: boolean;
+  /** Daily attendance, homework, and equipped desk skin. */
+  school: SchoolDay;
 }
 
 export type EventKind = 'quiz' | 'patrol' | 'sub';

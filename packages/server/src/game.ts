@@ -37,6 +37,28 @@ import {
   SUB_BUFF_MULT,
   UPGRADE_BY_ID,
 } from '@shared/balance.js';
+import {
+  ATTENDANCE_BUFF_MS,
+  ATTENDANCE_BUFF_MULT,
+  ATTENDANCE_STREAK_BUFF_EVERY,
+  attendanceReward,
+  buildSchoolDay,
+  bumpHomework,
+  canRecoverStreak,
+  DEFAULT_DESK_SKIN,
+  emptyHomework,
+  HOMEWORK_DEFS,
+  homeworkBonus,
+  homeworkReward,
+  nextStreak,
+  parseHomework,
+  pickHomework,
+  sanitizeDeskSkin,
+  unlockedSkins,
+  utcDay,
+  type HomeworkKind,
+  type SchoolProgress,
+} from '@shared/school.js';
 import { containsProfanity, moderateChat } from '@shared/moderation.js';
 import type {
   AvatarSpec,
@@ -357,6 +379,8 @@ export class Room {
     const p: PlayerState = {
       ...row,
       gens: padGens(row.gens),
+      hw: parseHomework(row.hw),
+      deskSkin: row.deskSkin || DEFAULT_DESK_SKIN,
       seat,
       online: true,
       sleepUntil: 0,
@@ -427,6 +451,35 @@ export class Room {
     this.sendYou(p);
   }
 
+  private rollHomework(p: PlayerState, now: number): void {
+    const day = utcDay(now);
+    if (p.hwDay === day) return;
+    p.hwDay = day;
+    p.hw = emptyHomework();
+    p.dirty = true;
+  }
+
+  private bumpSchool(p: PlayerState, kind: HomeworkKind, n: number): void {
+    this.rollHomework(p, this.now());
+    const { hw, completed } = bumpHomework(p.hw, kind, n);
+    if (hw === p.hw) return;
+    p.hw = hw;
+    p.dirty = true;
+    if (completed) this.sendYou(p);
+  }
+
+  private schoolProgressOf(p: PlayerState): SchoolProgress {
+    return {
+      streak: p.streak,
+      bestStreak: p.bestStreak,
+      lastClaimDay: p.lastClaimDay,
+      doubledDay: p.attendanceDoubledDay,
+      hwDay: p.hwDay,
+      hw: p.hw,
+      deskSkin: p.deskSkin,
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Player actions
 
@@ -446,6 +499,7 @@ export class Room {
     const power = clickPower(this.effectiveBps(p, now), clickMult(p.upgrades));
     this.earn(p, power * allowed);
     p.clicks += allowed;
+    this.bumpSchool(p, 'notes', allowed);
   }
 
   buy(playerId: string, gen: number, qty: number): void {
@@ -469,6 +523,7 @@ export class Room {
     p.bp -= cost;
     p.gens[gen] = (p.gens[gen] ?? 0) + q;
     p.dirty = true;
+    this.bumpSchool(p, 'shop', 1);
     this.sendYou(p);
   }
 
@@ -534,6 +589,7 @@ export class Room {
     p.bp -= u.cost;
     p.upgrades.push(id);
     p.dirty = true;
+    this.bumpSchool(p, 'shop', 1);
     this.sendYou(p);
   }
 
@@ -576,6 +632,105 @@ export class Room {
     this.sendYou(p);
   }
 
+  claimAttendance(playerId: string, recover = false): void {
+    const p = this.online(playerId);
+    if (!p) return;
+    const now = this.now();
+    this.settle(p, now);
+    const today = utcDay(now);
+    if (p.lastClaimDay === today) {
+      this.out.send(p.id, { t: 'error', code: 'claimed' });
+      return;
+    }
+    const useRecover = recover && canRecoverStreak(p.lastClaimDay, today, p.streak);
+    const streak = useRecover
+      ? p.streak + 1
+      : nextStreak(p.lastClaimDay, today, p.streak);
+    const reward = attendanceReward(this.effectiveBps(p, now), streak);
+    p.streak = streak;
+    p.bestStreak = Math.max(p.bestStreak, streak);
+    p.lastClaimDay = today;
+    p.dirty = true;
+    if (reward > 0) this.earn(p, reward);
+    if (streak > 0 && streak % ATTENDANCE_STREAK_BUFF_EVERY === 0) {
+      this.addBuff(p, 'attendance', 'buff.attendance', ATTENDANCE_BUFF_MULT, ATTENDANCE_BUFF_MS);
+    }
+    this.sendYou(p);
+    this.out.broadcast({ t: 'roster', p: this.publicOf(p) });
+  }
+
+  doubleAttendance(playerId: string): void {
+    const p = this.online(playerId);
+    if (!p) return;
+    const now = this.now();
+    this.settle(p, now);
+    const today = utcDay(now);
+    if (p.lastClaimDay !== today) {
+      this.out.send(p.id, { t: 'error', code: 'claimed' });
+      return;
+    }
+    if (p.attendanceDoubledDay === today) {
+      this.out.send(p.id, { t: 'error', code: 'claimed' });
+      return;
+    }
+    const reward = attendanceReward(this.effectiveBps(p, now), p.streak);
+    p.attendanceDoubledDay = today;
+    p.dirty = true;
+    if (reward > 0) this.earn(p, reward);
+    this.sendYou(p);
+  }
+
+  claimHomework(playerId: string, id: string): void {
+    const p = this.online(playerId);
+    if (!p) return;
+    const now = this.now();
+    this.settle(p, now);
+    this.rollHomework(p, now);
+    const bps = this.effectiveBps(p, now);
+    if (id === 'bonus') {
+      const kinds = pickHomework(p.id, utcDay(now));
+      const allIn = kinds.every((k) => p.hw.claimed.includes(k));
+      if (!allIn || p.hw.bonusClaimed) {
+        this.out.send(p.id, { t: 'error', code: 'hw' });
+        return;
+      }
+      p.hw = { ...p.hw, bonusClaimed: true };
+      p.dirty = true;
+      this.earn(p, homeworkBonus(bps));
+      this.sendYou(p);
+      return;
+    }
+    if (!isHomeworkKind(id)) {
+      this.out.send(p.id, { t: 'error', code: 'hw' });
+      return;
+    }
+    const kinds = pickHomework(p.id, utcDay(now));
+    if (!kinds.includes(id) || p.hw.claimed.includes(id) || p.hw[id] < HOMEWORK_DEFS[id].target) {
+      this.out.send(p.id, { t: 'error', code: 'hw' });
+      return;
+    }
+    p.hw = { ...p.hw, claimed: [...p.hw.claimed, id] };
+    p.dirty = true;
+    this.earn(p, homeworkReward(bps));
+    this.sendYou(p);
+  }
+
+  equipSkin(playerId: string, id: string): void {
+    const p = this.online(playerId);
+    if (!p) return;
+    const unlocked = unlockedSkins(p.bestStreak, p.stars, p.grade);
+    const skin = sanitizeDeskSkin(id, unlocked);
+    if (skin !== id) {
+      this.out.send(p.id, { t: 'error', code: 'skin' });
+      return;
+    }
+    if (p.deskSkin === skin) return;
+    p.deskSkin = skin;
+    p.dirty = true;
+    this.sendYou(p);
+    this.out.broadcast({ t: 'roster', p: this.publicOf(p) });
+  }
+
   steal(playerId: string, targetId: string): void {
     const p = this.online(playerId);
     if (!p) return;
@@ -601,6 +756,7 @@ export class Room {
     if (this.event?.kind === 'patrol' && this.rng() < PATROL_CATCH_CHANCE) {
       p.detentionUntil = now + DETENTION_MS;
       this.out.broadcast({ t: 'steal', attacker: p.id, victim: victim.id, amount: 0, caught: true });
+      this.bumpSchool(p, 'steal', 1);
       this.sendYou(p);
       return;
     }
@@ -618,6 +774,7 @@ export class Room {
       amount: Math.round(amount * 10) / 10,
       caught: false,
     });
+    this.bumpSchool(p, 'steal', 1);
     this.sendYou(p);
     this.sendYou(victim);
   }
@@ -652,6 +809,7 @@ export class Room {
     if (!p || !this.quiz || this.event?.kind !== 'quiz') return;
     if (p.quizAnswered) return;
     p.quizAnswered = true;
+    this.bumpSchool(p, 'quiz', 1);
     if (Math.round(answer) === this.quiz.answer) {
       this.quiz.winners.push(p.id);
       const now = this.now();
@@ -831,6 +989,7 @@ export class Room {
       grade: p.grade,
       stars: p.stars,
       deskTier: deskTier(p.gens),
+      deskSkin: sanitizeDeskSkin(p.deskSkin, unlockedSkins(p.bestStreak, p.stars, p.grade)),
       bp: round1(p.bp),
       bps: round2(this.effectiveBps(p, now)),
       online: p.online,
@@ -869,6 +1028,14 @@ export class Room {
       lostTotal: p.lostTotal,
       cgLinked: p.cgUserId !== null,
       tutorialDone: p.tutorialDone,
+      school: buildSchoolDay(
+        p.id,
+        this.schoolProgressOf(p),
+        now,
+        eff,
+        p.stars,
+        p.grade,
+      ),
     };
   }
 
@@ -965,6 +1132,13 @@ function blankPlayer(
     cgUserId: null,
     cgMigratedAt: 0,
     tutorialDone: false,
+    streak: 0,
+    bestStreak: 0,
+    lastClaimDay: 0,
+    attendanceDoubledDay: 0,
+    hwDay: 0,
+    hw: emptyHomework(),
+    deskSkin: DEFAULT_DESK_SKIN,
     createdAt: now,
     lastSeen: now,
   };
@@ -1020,6 +1194,10 @@ function makeQuiz(): { question: string; answer: number } {
   const a = randInt(3, 12);
   const b = randInt(4, 19);
   return { question: `${a} × ${b} = ?`, answer: a * b };
+}
+
+function isHomeworkKind(id: string): id is HomeworkKind {
+  return id === 'notes' || id === 'shop' || id === 'steal' || id === 'quiz';
 }
 
 function padGens(gens: number[]): number[] {

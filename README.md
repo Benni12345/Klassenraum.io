@@ -19,6 +19,7 @@ Mitschülern per Papierflieger die Punkte — und drück Tab, wenn der Lehrer ko
 - Real stealing: throw paper airplanes at other desks (5 min cooldown, capped, risky during patrol)
 - Synchronized room events: pop quiz, teacher patrol, substitute period
 - Chat (passed notes), emotes, offline progress up to 8 h
+- Daily school day: attendance streaks, homework, unlockable desk skins
 - Boss key: **Tab** swaps to a fake math-notes page (title + favicon included)
 - Server-authoritative: all production, clicks, buys and steals are validated server-side
 - CrazyGames Full Launch: SDK ads, account linking, multiplayer room/invite, gameplay start / happy time

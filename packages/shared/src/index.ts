@@ -2,3 +2,4 @@ export * from './types.js';
 export * from './balance.js';
 export * from './protocol.js';
 export * from './moderation.js';
+export * from './school.js';

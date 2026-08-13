@@ -617,3 +617,93 @@ describe('chat moderation', () => {
     expect(msg.msg.text).toContain('*');
   });
 });
+
+describe('school day', () => {
+  const dayMs = 86_400_000;
+
+  it('claims attendance once per UTC day and grows a streak', async () => {
+    const { room, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const before = room.youOf(a.playerId)!;
+    expect(before.school.claimed).toBe(false);
+    room.claimAttendance(a.playerId);
+    const day1 = room.youOf(a.playerId)!;
+    expect(day1.school.claimed).toBe(true);
+    expect(day1.school.streak).toBe(1);
+    expect(day1.bp).toBeGreaterThan(before.bp);
+    room.claimAttendance(a.playerId);
+    expect(room.youOf(a.playerId)!.bp).toBe(day1.bp);
+
+    clock.advance(dayMs);
+    const next = room.youOf(a.playerId)!;
+    expect(next.school.claimed).toBe(false);
+    expect(next.school.upcomingStreak).toBe(2);
+    room.claimAttendance(a.playerId);
+    expect(room.youOf(a.playerId)!.school.streak).toBe(2);
+  });
+
+  it('resets a broken streak unless a late slip recovers it', async () => {
+    const { room, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    room.claimAttendance(a.playerId);
+    clock.advance(dayMs);
+    room.claimAttendance(a.playerId);
+    clock.advance(2 * dayMs);
+    const broken = room.youOf(a.playerId)!;
+    expect(broken.school.recoverable).toBe(true);
+    expect(broken.school.upcomingStreak).toBe(1);
+    room.claimAttendance(a.playerId, true);
+    expect(room.youOf(a.playerId)!.school.streak).toBe(3);
+  });
+
+  it("doubles today's attendance payout once", async () => {
+    const { room } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    room.claimAttendance(a.playerId);
+    const afterClaim = room.youOf(a.playerId)!;
+    room.doubleAttendance(a.playerId);
+    const doubled = room.youOf(a.playerId)!;
+    expect(doubled.bp).toBeGreaterThan(afterClaim.bp);
+    expect(doubled.school.doubled).toBe(true);
+    room.doubleAttendance(a.playerId);
+    expect(room.youOf(a.playerId)!.bp).toBe(doubled.bp);
+  });
+
+  it('tracks homework and pays out on turn-in', async () => {
+    const { room, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const you0 = room.youOf(a.playerId)!;
+    const notes = you0.school.homework.find((h) => h.id === 'notes')!;
+    expect(notes.progress).toBe(0);
+    let clicks = 0;
+    while (clicks < notes.target) {
+      room.click(a.playerId, 25);
+      clicks += 25;
+      clock.advance(1_100);
+    }
+    const ready = room.youOf(a.playerId)!;
+    const notesReady = ready.school.homework.find((h) => h.id === 'notes')!;
+    expect(notesReady.ready).toBe(true);
+    const bp = ready.bp;
+    room.claimHomework(a.playerId, 'notes');
+    const after = room.youOf(a.playerId)!;
+    expect(after.school.homework.find((h) => h.id === 'notes')!.claimed).toBe(true);
+    expect(after.bp).toBeGreaterThan(bp);
+  });
+
+  it('unlocks and equips desk skins from streak milestones', async () => {
+    const { room, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    for (let i = 0; i < 3; i++) {
+      room.claimAttendance(a.playerId);
+      clock.advance(dayMs);
+    }
+    const you = room.youOf(a.playerId)!;
+    expect(you.school.unlockedSkins).toContain('blue');
+    room.equipSkin(a.playerId, 'blue');
+    expect(room.youOf(a.playerId)!.school.deskSkin).toBe('blue');
+    expect(room.roster().find((p) => p.id === a.playerId)!.deskSkin).toBe('blue');
+    room.equipSkin(a.playerId, 'galaxy');
+    expect(room.youOf(a.playerId)!.school.deskSkin).toBe('blue');
+  });
+});

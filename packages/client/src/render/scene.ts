@@ -390,7 +390,7 @@ export class Scene {
 
       // Student behind the desk (we see their back; desk is closer to the board).
       ctx.drawImage(studentSprite(p.avatar), pos.x + 7, pos.y + 6);
-      ctx.drawImage(deskSprite(p.deskTier), pos.x, pos.y - 4);
+      ctx.drawImage(deskSprite(p.deskTier, p.deskSkin || 'wood'), pos.x, pos.y - 4);
 
       // Detention marker
       if (p.detention) {
