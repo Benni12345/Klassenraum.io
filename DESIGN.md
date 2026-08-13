@@ -1,5 +1,5 @@
 # Classroom.io — Design
-
+ 
 Multiplayer browser idle game. **Every player sits in one shared, global classroom.**
 You idle-generate **Hirnschmalz (HS)** — brainpower — buy increasingly absurd school-themed
 generators, and watch your desk (and everyone else's) visibly level up. Played best as a
