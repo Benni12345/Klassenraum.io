@@ -18,12 +18,21 @@ async function fetchPublicKey(force = false): Promise<string> {
   if (!force && cachedKey && Date.now() - cachedKey.fetchedAt < KEY_TTL_MS) {
     return cachedKey.pem;
   }
-  const res = await fetch(PUBLIC_KEY_URL);
-  if (!res.ok) throw new Error(`CG public key HTTP ${res.status}`);
-  const data = (await res.json()) as { publicKey?: string };
-  if (!data.publicKey) throw new Error('CG public key missing');
-  cachedKey = { pem: data.publicKey, fetchedAt: Date.now() };
-  return cachedKey.pem;
+  let lastErr: unknown;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await fetch(PUBLIC_KEY_URL);
+      if (!res.ok) throw new Error(`CG public key HTTP ${res.status}`);
+      const data = (await res.json()) as { publicKey?: string };
+      if (!data.publicKey) throw new Error('CG public key missing');
+      cachedKey = { pem: data.publicKey, fetchedAt: Date.now() };
+      return cachedKey.pem;
+    } catch (err) {
+      lastErr = err;
+      if (i < 2) await new Promise((r) => setTimeout(r, 150 * (i + 1)));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 function b64urlToBuf(s: string): Buffer {

@@ -1,5 +1,6 @@
 import type { ClientMsg, ServerMsg } from '@shared/protocol';
 import type { AvatarSpec } from '@shared/types';
+import type { PlatformAuth } from './platform/types';
 import { isTutorialDoneLocally } from './prefs';
 
 export type NetStatus = 'connecting' | 'open' | 'reconnecting' | 'replaced';
@@ -36,15 +37,19 @@ export class Net {
   private hooks: NetHooks;
   private joinInfo: JoinInfo = {};
   private stopped = false;
-  /** Fresh CG token provider called on each (re)connect. */
-  private cgTokenProvider: (() => Promise<string | null>) | null = null;
+  /** Fresh CrazyGames auth snapshot on each (re)connect. */
+  private cgAuthProvider: (() => Promise<PlatformAuth>) | null = null;
+  /** Last JWT that made it into a hello this session (reconnect fallback). */
+  private lastCgToken: string | null = null;
+  /** True when the hello we just sent included a CrazyGames JWT. */
+  private expectingCg = false;
 
   constructor(hooks: NetHooks) {
     this.hooks = hooks;
   }
 
-  setCgTokenProvider(fn: (() => Promise<string | null>) | null): void {
-    this.cgTokenProvider = fn;
+  setCgAuthProvider(fn: (() => Promise<PlatformAuth>) | null): void {
+    this.cgAuthProvider = fn;
   }
 
   /** Name/avatar are only used when no token exists yet (account creation). */
@@ -72,6 +77,12 @@ export class Net {
         return;
       }
       if (msg.t === 'welcome') {
+        // A logged-in hello that comes back as a guest save is the "points
+        // reset" bug — do not adopt it; reconnect and try the JWT again.
+        if (this.expectingCg && !msg.you.cgLinked) {
+          ws.close();
+          return;
+        }
         if (msg.token) localStorage.setItem('kr_token', msg.token);
         this.hooks.onStatus('open');
       }
@@ -85,6 +96,11 @@ export class Net {
         this.hooks.onStatus('replaced');
         return; // Another tab took over; don't fight it.
       }
+      if (ev.code === 4402) {
+        // Server rejected the JWT — don't reuse it on the next hello.
+        this.lastCgToken = null;
+        delete this.joinInfo.cgToken;
+      }
       if (this.stopped) return;
       this.hooks.onStatus('reconnecting');
       setTimeout(() => this.open(), this.backoff);
@@ -96,15 +112,34 @@ export class Net {
 
   private async sendHello(ws: WebSocket): Promise<void> {
     const token = localStorage.getItem('kr_token') ?? undefined;
-    let cgToken = this.joinInfo.cgToken;
-    if (this.cgTokenProvider) {
+    let cgToken: string | undefined;
+    let loggedIn = false;
+    if (this.cgAuthProvider) {
       try {
-        cgToken = (await this.cgTokenProvider()) ?? cgToken;
+        const auth = await this.cgAuthProvider();
+        loggedIn = auth.loggedIn;
+        // After logout, never keep sending a boot-time JWT.
+        cgToken = loggedIn ? (auth.token ?? this.joinInfo.cgToken) : undefined;
       } catch {
-        /* guest play */
+        cgToken = this.joinInfo.cgToken;
       }
+    } else {
+      cgToken = this.joinInfo.cgToken;
     }
+    const usableCg = typeof cgToken === 'string' && cgToken.length > 20 ? cgToken : undefined;
+    const fallbackCg =
+      !usableCg && loggedIn && this.lastCgToken ? this.lastCgToken : undefined;
+    const jwt = usableCg ?? fallbackCg;
     if (ws.readyState !== WebSocket.OPEN) return;
+    // Logged-in players must never hello as a guest — that seats a blank save
+    // and looks like a progress reset until a later reload includes the JWT.
+    if (loggedIn && !jwt) {
+      this.expectingCg = true;
+      ws.close();
+      return;
+    }
+    this.expectingCg = Boolean(jwt);
+    if (jwt) this.lastCgToken = jwt;
     // Carry local/Data tutorial completion on hello so Skip survives an
     // immediate login reload and restores onto the CrazyGames account.
     const tutorialDone = this.joinInfo.tutorialDone === true || isTutorialDoneLocally();
@@ -113,7 +148,7 @@ export class Net {
       ...(token ? { token } : {}),
       ...(this.joinInfo.name ? { name: this.joinInfo.name } : {}),
       ...(this.joinInfo.avatar ? { avatar: this.joinInfo.avatar } : {}),
-      ...(cgToken ? { cgToken } : {}),
+      ...(jwt ? { cgToken: jwt } : {}),
       ...(tutorialDone ? { tutorialDone: true } : {}),
     };
     ws.send(JSON.stringify(hello));

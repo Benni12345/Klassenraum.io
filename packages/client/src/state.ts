@@ -18,6 +18,7 @@ import type {
   RoomEvent,
 } from '@shared/types';
 import { Net, type JoinInfo, type NetStatus } from './net';
+import type { PlatformAuth } from './platform/types';
 
 export interface StealFx {
   attacker: string;
@@ -73,8 +74,8 @@ class Store {
     setInterval(() => this.flushClicks(), 300);
   }
 
-  setCgTokenProvider(fn: (() => Promise<string | null>) | null): void {
-    this.net.setCgTokenProvider(fn);
+  setCgAuthProvider(fn: (() => Promise<PlatformAuth>) | null): void {
+    this.net.setCgAuthProvider(fn);
   }
 
   // ------------------------------------------------------------------ Events
