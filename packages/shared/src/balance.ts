@@ -222,21 +222,75 @@ export function starsForRun(runBp: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Stealing ("Papierflieger")
+// PvP — paper airplanes, spitballs, ink, looking busy
 
-export const STEAL_COOLDOWN_MS = 5 * 60_000;
-export const STEAL_VICTIM_PCT = 0.08;
+export const STEAL_COOLDOWN_MS = 45_000;
+export const STEAL_VICTIM_PCT = 0.05;
+export const STEAL_CAP_SECONDS = 90;
+export const STEAL_CAP_FLAT = 80;
+
+export const SPIT_COOLDOWN_MS = 12_000;
+export const SPIT_VICTIM_PCT = 0.02;
+export const SPIT_CAP_SECONDS = 20;
+export const SPIT_CAP_FLAT = 15;
+
+export const INK_COOLDOWN_MS = 50_000;
+export const INK_MS = 20_000;
+export const INK_FACTOR = 0.5;
+
+export const BUSY_MS = 20_000;
+export const BUSY_COOLDOWN_MS = 75_000;
+
+/** After being hit, airplane revenge against that attacker is ready in this long. */
+export const REVENGE_READY_MS = 10_000;
+
+/** During Recess Riot, every PvP cooldown is clamped down to this. */
+export const RECESS_CD_MS = 2_500;
+export const RECESS_MS = 30_000;
+
 export const PATROL_CATCH_CHANCE = 0.5;
 export const DETENTION_MS = 90_000;
 export const DETENTION_FACTOR = 0.25;
 
+function cappedTake(
+  victimBp: number,
+  pct: number,
+  attackerEffectiveBps: number,
+  seconds: number,
+  flat: number,
+): number {
+  const cap = attackerEffectiveBps * seconds + flat;
+  return Math.max(0, Math.min(victimBp * pct, cap));
+}
+
 /** Cap relative to the attacker's own economy (anti farming in both directions). */
 export function stealCap(attackerEffectiveBps: number): number {
-  return attackerEffectiveBps * 600 + 250;
+  return attackerEffectiveBps * STEAL_CAP_SECONDS + STEAL_CAP_FLAT;
 }
 
 export function stealAmount(victimBp: number, attackerEffectiveBps: number): number {
-  return Math.max(0, Math.min(victimBp * STEAL_VICTIM_PCT, stealCap(attackerEffectiveBps)));
+  return cappedTake(victimBp, STEAL_VICTIM_PCT, attackerEffectiveBps, STEAL_CAP_SECONDS, STEAL_CAP_FLAT);
+}
+
+export function spitCap(attackerEffectiveBps: number): number {
+  return attackerEffectiveBps * SPIT_CAP_SECONDS + SPIT_CAP_FLAT;
+}
+
+export function spitAmount(victimBp: number, attackerEffectiveBps: number): number {
+  return cappedTake(victimBp, SPIT_VICTIM_PCT, attackerEffectiveBps, SPIT_CAP_SECONDS, SPIT_CAP_FLAT);
+}
+
+/**
+ * Display/server-ready timestamp for a PvP action. `readyAt` is `lastAt + baseCd`.
+ * Recess Riot clamps the remaining wait so throws stay frequent for 30 s.
+ */
+export function pvpActionReadyAt(
+  readyAt: number,
+  baseCdMs: number,
+  eventKind?: string | null,
+): number {
+  if (eventKind === 'recess') return readyAt - baseCdMs + RECESS_CD_MS;
+  return readyAt;
 }
 
 // ---------------------------------------------------------------------------

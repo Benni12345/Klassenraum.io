@@ -150,6 +150,15 @@ export class Net implements Outbox {
       case 'steal':
         if (typeof msg.target === 'string') this.room.steal(id, msg.target);
         return;
+      case 'spitball':
+        if (typeof msg.target === 'string') this.room.spitball(id, msg.target);
+        return;
+      case 'ink':
+        if (typeof msg.target === 'string') this.room.ink(id, msg.target);
+        return;
+      case 'busy':
+        this.room.lookBusy(id);
+        return;
       case 'chat':
         if (typeof msg.text === 'string' && this.takeChatToken(st)) {
           this.room.chatMessage(id, msg.text);

@@ -338,6 +338,18 @@ export const planeSprite = px(
   { '#': '#c9d2da', W: '#f5f8fa' },
 );
 
+export const spitSprite = px(['.#.', '###', '.#.'], { '#': '#e8d9b8' });
+
+export const inkSprite = px(
+  ['.#.#.', '#####', '.###.', '####.', '.#.#.'],
+  { '#': '#1a2744' },
+);
+
+export const folderSprite = px(
+  ['######..', '#WWWWW#.', '#WWWWW##', '#WWWWWW#', '########'],
+  { '#': '#c9a24a', W: '#f3e3b0' },
+);
+
 export const starIcon = px(
   ['...#...', '..###..', '#######', '.#####.', '..###..', '.##.##.', '#.....#'],
   { '#': PAL.gold },

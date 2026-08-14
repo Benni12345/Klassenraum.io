@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import {
   AVATAR_RANGES,
   baseBps,
+  BUSY_COOLDOWN_MS,
+  BUSY_MS,
   CHAT_MAX,
   clickMult,
   clickPower,
@@ -16,6 +18,9 @@ import {
   GOAL_BUFF_MS,
   GOAL_BUFF_MULT,
   goalTarget,
+  INK_COOLDOWN_MS,
+  INK_FACTOR,
+  INK_MS,
   NAME_MAX,
   NAME_MIN,
   adRewardAmount,
@@ -23,12 +28,17 @@ import {
   OFFLINE_CAP_MS,
   PATROL_CATCH_CHANCE,
   PATROL_MS,
+  pvpActionReadyAt,
   QUIZ_BUFF_MS,
   QUIZ_BUFF_MULT,
   QUIZ_MS,
   quizReward,
+  RECESS_MS,
+  REVENGE_READY_MS,
   resolveTutorialBuy,
   SEAT_GRACE_MS,
+  SPIT_COOLDOWN_MS,
+  spitAmount,
   starMult,
   starsForRun,
   STEAL_COOLDOWN_MS,
@@ -64,12 +74,14 @@ import type {
   AvatarSpec,
   Buff,
   ChatEntry,
+  EventKind,
   GoalState,
   PlayerPublic,
   PlayerYou,
   RoomEvent,
 } from '@shared/types.js';
-import type { ServerMsg, TickTuple } from '@shared/protocol.js';
+import type { PvpKind, ServerMsg, TickTuple } from '@shared/protocol.js';
+import { TICK_BUSY, TICK_DETENTION, TICK_INK } from '@shared/protocol.js';
 import { verifyCrazyGamesToken, type CrazyGamesTokenPayload } from './cgAuth.js';
 import type { Db, PlayerRow } from './db.js';
 
@@ -88,6 +100,12 @@ interface PlayerState extends PlayerRow {
   clickWinStart: number;
   clickWinCount: number;
   quizAnswered: boolean;
+  lastSpitAt: number;
+  lastInkAt: number;
+  lastBusyAt: number;
+  shieldUntil: number;
+  revengeTargetId: string | null;
+  revengeReadyAt: number;
   dirty: boolean;
 }
 
@@ -429,6 +447,12 @@ export class Room {
       clickWinStart: now,
       clickWinCount: 0,
       quizAnswered: false,
+      lastSpitAt: 0,
+      lastInkAt: 0,
+      lastBusyAt: 0,
+      shieldUntil: 0,
+      revengeTargetId: null,
+      revengeReadyAt: 0,
       dirty: true,
     };
     this.players.set(p.id, p);
@@ -771,6 +795,37 @@ export class Room {
   }
 
   steal(playerId: string, targetId: string): void {
+    this.pvpThrow(playerId, targetId, 'plane');
+  }
+
+  spitball(playerId: string, targetId: string): void {
+    this.pvpThrow(playerId, targetId, 'spitball');
+  }
+
+  ink(playerId: string, targetId: string): void {
+    this.pvpThrow(playerId, targetId, 'ink');
+  }
+
+  lookBusy(playerId: string): void {
+    const p = this.online(playerId);
+    if (!p) return;
+    const now = this.now();
+    if (now < p.lastBusyAt + BUSY_COOLDOWN_MS) {
+      this.out.send(p.id, { t: 'error', code: 'busyCooldown' });
+      return;
+    }
+    if (p.shieldUntil > now) {
+      this.out.send(p.id, { t: 'error', code: 'busyActive' });
+      return;
+    }
+    p.lastBusyAt = now;
+    p.shieldUntil = now + BUSY_MS;
+    p.dirty = true;
+    this.out.broadcast({ t: 'busy', id: p.id, until: p.shieldUntil });
+    this.sendYou(p);
+  }
+
+  private pvpThrow(playerId: string, targetId: string, kind: PvpKind): void {
     const p = this.online(playerId);
     if (!p) return;
     const now = this.now();
@@ -778,8 +833,8 @@ export class Room {
       this.out.send(p.id, { t: 'error', code: 'detention' });
       return;
     }
-    if (now - p.lastStealAt < STEAL_COOLDOWN_MS) {
-      this.out.send(p.id, { t: 'error', code: 'cooldown' });
+    if (this.pvpOnCooldown(p, targetId, kind, now)) {
+      this.out.send(p.id, { t: 'error', code: this.pvpCooldownCode(kind) });
       return;
     }
     const victim = this.players.get(targetId);
@@ -789,33 +844,119 @@ export class Room {
     }
     this.settle(p, now);
     this.settle(victim, now);
-    p.lastStealAt = now; // Cooldown is consumed even when caught.
+    this.consumePvpCooldown(p, targetId, kind, now);
     p.dirty = true;
 
-    if (this.event?.kind === 'patrol' && this.rng() < PATROL_CATCH_CHANCE) {
+    const patrolRisk = kind !== 'spitball' && this.event?.kind === 'patrol';
+    if (patrolRisk && this.rng() < PATROL_CATCH_CHANCE) {
       p.detentionUntil = now + DETENTION_MS;
-      this.out.broadcast({ t: 'steal', attacker: p.id, victim: victim.id, amount: 0, caught: true });
-      this.bumpSchool(p, 'steal', 1);
+      this.out.broadcast({
+        t: 'steal',
+        attacker: p.id,
+        victim: victim.id,
+        amount: 0,
+        caught: true,
+        kind,
+      });
+      if (kind === 'plane') this.bumpSchool(p, 'steal', 1);
       this.sendYou(p);
       return;
     }
 
-    const amount = stealAmount(victim.bp, this.effectiveBps(p, now));
+    const shielded = kind !== 'spitball' && victim.shieldUntil > now;
+    if (shielded) {
+      this.out.broadcast({
+        t: 'steal',
+        attacker: p.id,
+        victim: victim.id,
+        amount: 0,
+        caught: false,
+        kind,
+        blocked: true,
+      });
+      if (kind === 'plane') this.bumpSchool(p, 'steal', 1);
+      this.sendYou(p);
+      return;
+    }
+
+    if (kind === 'ink') {
+      this.addBuff(victim, 'ink', 'buff.ink', INK_FACTOR, INK_MS);
+      this.grantRevenge(victim, p.id, now);
+      this.out.broadcast({
+        t: 'steal',
+        attacker: p.id,
+        victim: victim.id,
+        amount: 0,
+        caught: false,
+        kind,
+      });
+      this.sendYou(p);
+      this.sendYou(victim);
+      return;
+    }
+
+    const amount =
+      kind === 'spitball'
+        ? spitAmount(victim.bp, this.effectiveBps(p, now))
+        : stealAmount(victim.bp, this.effectiveBps(p, now));
     victim.bp -= amount;
     victim.lostTotal += amount;
     victim.dirty = true;
     p.bp += amount;
     p.stolenTotal += amount;
+    this.grantRevenge(victim, p.id, now);
     this.out.broadcast({
       t: 'steal',
       attacker: p.id,
       victim: victim.id,
       amount: Math.round(amount * 10) / 10,
       caught: false,
+      kind,
     });
-    this.bumpSchool(p, 'steal', 1);
+    if (kind === 'plane') this.bumpSchool(p, 'steal', 1);
     this.sendYou(p);
     this.sendYou(victim);
+  }
+
+  private pvpCooldownCode(kind: PvpKind): string {
+    if (kind === 'spitball') return 'spitCooldown';
+    if (kind === 'ink') return 'inkCooldown';
+    return 'cooldown';
+  }
+
+  private pvpOnCooldown(p: PlayerState, targetId: string, kind: PvpKind, now: number): boolean {
+    if (kind === 'plane') {
+      const readyAt = pvpActionReadyAt(
+        p.lastStealAt + STEAL_COOLDOWN_MS,
+        STEAL_COOLDOWN_MS,
+        this.event?.kind,
+      );
+      if (now >= readyAt) return false;
+      if (p.revengeTargetId === targetId && now >= p.revengeReadyAt) return false;
+      return true;
+    }
+    if (kind === 'spitball') {
+      return now < pvpActionReadyAt(p.lastSpitAt + SPIT_COOLDOWN_MS, SPIT_COOLDOWN_MS, this.event?.kind);
+    }
+    return now < pvpActionReadyAt(p.lastInkAt + INK_COOLDOWN_MS, INK_COOLDOWN_MS, this.event?.kind);
+  }
+
+  private consumePvpCooldown(p: PlayerState, targetId: string, kind: PvpKind, now: number): void {
+    if (kind === 'plane') {
+      p.lastStealAt = now;
+      if (p.revengeTargetId === targetId) {
+        p.revengeTargetId = null;
+        p.revengeReadyAt = 0;
+      }
+      return;
+    }
+    if (kind === 'spitball') p.lastSpitAt = now;
+    else p.lastInkAt = now;
+  }
+
+  private grantRevenge(victim: PlayerState, attackerId: string, now: number): void {
+    victim.revengeTargetId = attackerId;
+    victim.revengeReadyAt = now + REVENGE_READY_MS;
   }
 
   chatMessage(playerId: string, text: string): void {
@@ -925,7 +1066,9 @@ export class Room {
         round1(p.bp),
         round2(this.effectiveBps(p, now)),
         deskTier(p.gens),
-        p.detentionUntil > now ? 1 : 0,
+        (p.detentionUntil > now ? TICK_DETENTION : 0) |
+          (p.shieldUntil > now ? TICK_BUSY : 0) |
+          (p.buffs.some((b) => b.id === 'ink' && b.until > now) ? TICK_INK : 0),
       ]);
     }
     this.out.broadcast({ t: 'tick', ps, goal: this.goal(), now });
@@ -953,16 +1096,19 @@ export class Room {
   }
 
   private startRandomEvent(now: number): void {
-    const roll = this.rng() * 6;
-    this.beginEvent(roll < 3 ? 'quiz' : roll < 5 ? 'patrol' : 'sub', now);
+    const roll = this.rng() * 8;
+    this.beginEvent(
+      roll < 3 ? 'quiz' : roll < 5 ? 'patrol' : roll < 7 ? 'recess' : 'sub',
+      now,
+    );
   }
 
   /** Starts a specific event immediately (tests / future admin tooling). */
-  forceEvent(kind: 'quiz' | 'patrol' | 'sub'): void {
+  forceEvent(kind: EventKind): void {
     this.beginEvent(kind, this.now());
   }
 
-  private beginEvent(kind: 'quiz' | 'patrol' | 'sub', now: number): void {
+  private beginEvent(kind: EventKind, now: number): void {
     if (kind === 'quiz') {
       const q = makeQuiz();
       this.quiz = { answer: q.answer, winners: [] };
@@ -970,6 +1116,8 @@ export class Room {
       this.event = { kind: 'quiz', startedAt: now, endsAt: now + QUIZ_MS, question: q.question };
     } else if (kind === 'patrol') {
       this.event = { kind: 'patrol', startedAt: now, endsAt: now + PATROL_MS };
+    } else if (kind === 'recess') {
+      this.event = { kind: 'recess', startedAt: now, endsAt: now + RECESS_MS };
     } else {
       this.event = { kind: 'sub', startedAt: now, endsAt: now + SUB_BUFF_MS };
       for (const p of this.players.values()) {
@@ -1033,6 +1181,8 @@ export class Room {
       bps: round2(this.effectiveBps(p, now)),
       online: p.online,
       detention: p.detentionUntil > now,
+      busy: p.shieldUntil > now,
+      inked: p.buffs.some((b) => b.id === 'ink' && b.until > now),
     };
   }
 
@@ -1062,6 +1212,12 @@ export class Room {
       buffs: p.buffs.filter((b) => b.until > now),
       detentionUntil: p.detentionUntil,
       stealReadyAt: p.lastStealAt + STEAL_COOLDOWN_MS,
+      spitReadyAt: p.lastSpitAt + SPIT_COOLDOWN_MS,
+      inkReadyAt: p.lastInkAt + INK_COOLDOWN_MS,
+      busyReadyAt: p.lastBusyAt + BUSY_COOLDOWN_MS,
+      busyUntil: p.shieldUntil,
+      revengeTargetId: p.revengeTargetId,
+      revengeReadyAt: p.revengeReadyAt,
       adRewardReadyAt: p.lastAdRewardAt + AD_REWARD_COOLDOWN_MS,
       stolenTotal: p.stolenTotal,
       lostTotal: p.lostTotal,

@@ -10,6 +10,7 @@ import {
   deskSprite,
   DESK_W,
   doorSprite,
+  folderSprite,
   PAL,
   posterSprite,
   studentSprite,
@@ -93,7 +94,16 @@ export class Scene {
     new ResizeObserver(() => this.resize()).observe(canvas.parentElement!);
     this.resize();
 
-    store.on('steal', (s) => this.onSteal(s.attacker, s.victim, s.amount, s.caught));
+    store.on('steal', (s) => this.onSteal(s));
+    store.on('busy', ({ id }) => {
+      const p = store.roster.get(id);
+      if (!p) return;
+      const pos = seatPos(p.seat);
+      this.fx.floater(pos.x + DESK_W / 2, pos.y - 8, t('steal.busyFx'), '#ffd869');
+    });
+    store.on('event', (ev) => {
+      if (ev?.kind === 'recess') this.fx.confettiBurst(this.viewW, this.camY, this.viewH);
+    });
     store.on('emote', ({ id, e }) => {
       const p = store.roster.get(id);
       if (!p) return;
@@ -346,6 +356,9 @@ export class Scene {
       else if (ev.kind === 'patrol') {
         line1 = `${getPatrolLabel()} (${secs})`;
         line1Color = time % 1 < 0.5 ? '#f0b0a0' : PAL.chalk;
+      } else if (ev.kind === 'recess') {
+        line1 = `${getRecessLabel()} (${secs})`;
+        line1Color = time % 1 < 0.5 ? '#ffd869' : PAL.chalk;
       } else line1 = `${t('event.sub.banner').split('—')[0]!.trim()} (${secs})`;
     }
     drawText(ctx, line1.toUpperCase().slice(0, 30), bx + bw / 2, 9, line1Color, { align: 'center' });
@@ -392,9 +405,17 @@ export class Scene {
       ctx.drawImage(studentSprite(p.avatar), pos.x + 7, pos.y + 6);
       ctx.drawImage(deskSprite(p.deskTier, p.deskSkin || 'wood'), pos.x, pos.y - 4);
 
-      // Detention marker
+      // Detention / ink / looking-busy markers
       if (p.detention) {
         drawText(ctx, '!', pos.x + DESK_W + 1, pos.y + 2, '#e04a3a', { shadow: '#5a1a12' });
+      }
+      if (p.inked) {
+        ctx.fillStyle = 'rgba(20, 30, 55, 0.55)';
+        ctx.fillRect(pos.x + 4, pos.y + 2, 8, 5);
+        ctx.fillRect(pos.x + 10, pos.y + 5, 5, 3);
+      }
+      if (p.busy) {
+        ctx.drawImage(folderSprite, pos.x + 2, pos.y - 2);
       }
 
       ctx.globalAlpha = 1;
@@ -481,28 +502,52 @@ export class Scene {
 
   // --------------------------------------------------------------------- FX
 
-  private onSteal(attackerId: string, victimId: string, amount: number, caught: boolean): void {
-    const attacker = store.roster.get(attackerId);
-    const victim = store.roster.get(victimId);
+  private onSteal(s: {
+    attacker: string;
+    victim: string;
+    amount: number;
+    caught: boolean;
+    kind: string;
+    blocked: boolean;
+  }): void {
+    const attacker = store.roster.get(s.attacker);
+    const victim = store.roster.get(s.victim);
     if (!attacker || !victim) return;
     const a = seatPos(attacker.seat);
     const v = seatPos(victim.seat);
     const you = store.you;
+    const ax = a.x + DESK_W / 2;
+    const ay = a.y;
+    const vx = v.x + DESK_W / 2;
+    const vy = v.y;
 
-    if (caught) {
-      // Plane arcs sadly toward the teacher's desk.
-      this.fx.plane(a.x + DESK_W / 2, a.y, 30, 56, () => {
-        this.fx.floater(a.x + DESK_W / 2, a.y - 8, '!!!', '#e04a3a');
+    const fly =
+      s.kind === 'spitball'
+        ? (cb: () => void) => this.fx.spit(ax, ay, vx, vy, cb)
+        : s.kind === 'ink'
+          ? (cb: () => void) => this.fx.ink(ax, ay, vx, vy, cb)
+          : (cb: () => void) => this.fx.plane(ax, ay, vx, vy, cb);
+
+    if (s.caught) {
+      this.fx.plane(ax, ay, 30, 56, () => {
+        this.fx.floater(ax, ay - 8, '!!!', '#e04a3a');
       });
       return;
     }
 
-    this.fx.plane(a.x + DESK_W / 2, a.y, v.x + DESK_W / 2, v.y, () => {
-      this.fx.floater(v.x + DESK_W / 2, v.y - 8, `-${fmt(amount)}`, '#ff9a8a');
-      this.fx.floater(a.x + DESK_W / 2, a.y - 8, `+${fmt(amount)}`, '#a8e8a0');
-      if (you && victimId === you.id) {
-        // Local prediction of the loss (authoritative 'you' follows).
-        you.bp = Math.max(0, you.bp - amount);
+    fly(() => {
+      if (s.blocked) {
+        this.fx.floater(vx, vy - 8, t('steal.blockedFx'), '#ffd869');
+        return;
+      }
+      if (s.kind === 'ink') {
+        this.fx.floater(vx, vy - 8, t('steal.inkFx'), '#7d8ec9');
+        return;
+      }
+      this.fx.floater(vx, vy - 8, `-${fmt(s.amount)}`, '#ff9a8a');
+      this.fx.floater(ax, ay - 8, `+${fmt(s.amount)}`, '#a8e8a0');
+      if (you && s.victim === you.id) {
+        you.bp = Math.max(0, you.bp - s.amount);
       }
     });
   }
@@ -510,4 +555,8 @@ export class Scene {
 
 function getPatrolLabel(): string {
   return t('event.patrol.banner').split('—')[0]!.trim();
+}
+
+function getRecessLabel(): string {
+  return t('event.recess.banner').split('—')[0]!.trim();
 }

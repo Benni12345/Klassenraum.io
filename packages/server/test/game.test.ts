@@ -272,9 +272,10 @@ describe('stealing', () => {
     const msg = broadcasts.find((m) => m.t === 'steal') as Extract<ServerMsg, { t: 'steal' }>;
     expect(msg).toBeDefined();
     expect(msg.caught).toBe(false);
-    expect(msg.amount).toBeCloseTo(25 * 0.08, 1);
-    expect(room.youOf(a.playerId)!.bp).toBeCloseTo(15 + 2, 1);
-    expect(room.youOf(b.playerId)!.bp).toBeCloseTo(23, 1);
+    expect(msg.kind).toBe('plane');
+    expect(msg.amount).toBeCloseTo(1.3, 5);
+    expect(room.youOf(a.playerId)!.bp).toBeCloseTo(15 + 1.25, 1);
+    expect(room.youOf(b.playerId)!.bp).toBeCloseTo(23.75, 1);
     room.steal(a.playerId, b.playerId);
     const errs = (sent.get(a.playerId) ?? []).filter(
       (m) => m.t === 'error' && m.code === 'cooldown',
@@ -308,6 +309,124 @@ describe('stealing', () => {
       (m) => m.t === 'error' && m.code === 'target',
     );
     expect(errs.length).toBe(1);
+  });
+
+  it('spitballs steal a smaller cut and ignore patrol', async () => {
+    const { room, sent, broadcasts } = setup(() => 0.1);
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
+    (room as any).players.get(b.playerId).bp = 100;
+    room.forceEvent('patrol');
+    room.spitball(a.playerId, b.playerId);
+    const msg = broadcasts.filter((m) => m.t === 'steal').pop() as Extract<
+      ServerMsg,
+      { t: 'steal' }
+    >;
+    expect(msg.kind).toBe('spitball');
+    expect(msg.caught).toBe(false);
+    expect(msg.amount).toBeCloseTo(2, 1);
+    expect(room.youOf(a.playerId)!.detentionUntil).toBe(0);
+    room.spitball(a.playerId, b.playerId);
+    expect(
+      (sent.get(a.playerId) ?? []).some((m) => m.t === 'error' && m.code === 'spitCooldown'),
+    ).toBe(true);
+  });
+
+  it('inks the victim and can be blocked by looking busy', async () => {
+    const { room, broadcasts } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
+    room.lookBusy(b.playerId);
+    expect(room.youOf(b.playerId)!.busyUntil).toBeGreaterThan(0);
+    room.ink(a.playerId, b.playerId);
+    const blocked = broadcasts.filter((m) => m.t === 'steal').pop() as Extract<
+      ServerMsg,
+      { t: 'steal' }
+    >;
+    expect(blocked.kind).toBe('ink');
+    expect(blocked.blocked).toBe(true);
+    expect(room.youOf(b.playerId)!.buffs.some((x) => x.id === 'ink')).toBe(false);
+
+    const { room: room2, broadcasts: b2 } = setup();
+    const c = await room2.hello(undefined, 'Cleo', undefined);
+    const d = await room2.hello(undefined, 'Dan', undefined);
+    (room2 as any).players.get(d.playerId).gens[0] = 10;
+    const before = room2.youOf(d.playerId)!.bps;
+    expect(before).toBeGreaterThan(0);
+    room2.ink(c.playerId, d.playerId);
+    const inked = b2.filter((m) => m.t === 'steal').pop() as Extract<ServerMsg, { t: 'steal' }>;
+    expect(inked.kind).toBe('ink');
+    expect(inked.blocked).toBeFalsy();
+    expect(room2.youOf(d.playerId)!.buffs.some((x) => x.id === 'ink')).toBe(true);
+    expect(room2.youOf(d.playerId)!.bps).toBeCloseTo(before * 0.5);
+  });
+
+  it('looking busy blocks airplanes but not spitballs', async () => {
+    const { room, broadcasts } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
+    (room as any).players.get(b.playerId).bp = 100;
+    room.lookBusy(b.playerId);
+    room.steal(a.playerId, b.playerId);
+    const plane = broadcasts.filter((m) => m.t === 'steal').pop() as Extract<
+      ServerMsg,
+      { t: 'steal' }
+    >;
+    expect(plane.blocked).toBe(true);
+    expect(plane.amount).toBe(0);
+    expect(room.youOf(b.playerId)!.bp).toBeCloseTo(100, 1);
+    room.spitball(a.playerId, b.playerId);
+    const spit = broadcasts.filter((m) => m.t === 'steal').pop() as Extract<
+      ServerMsg,
+      { t: 'steal' }
+    >;
+    expect(spit.kind).toBe('spitball');
+    expect(spit.blocked).toBeFalsy();
+    expect(spit.amount).toBeGreaterThan(0);
+  });
+
+  it('grants airplane revenge 10s after being hit', async () => {
+    const { room, sent, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
+    (room as any).players.get(a.playerId).bp = 80;
+    (room as any).players.get(b.playerId).bp = 80;
+    // B throws first so they are on the 45s airplane cooldown.
+    room.steal(b.playerId, a.playerId);
+    room.steal(a.playerId, b.playerId);
+    expect(room.youOf(b.playerId)!.revengeTargetId).toBe(a.playerId);
+    room.steal(b.playerId, a.playerId); // revenge not ready yet
+    expect(
+      (sent.get(b.playerId) ?? []).some((m) => m.t === 'error' && m.code === 'cooldown'),
+    ).toBe(true);
+    clock.advance(10_000);
+    const before = sent.get(b.playerId)?.length ?? 0;
+    room.steal(b.playerId, a.playerId);
+    const afterErrs = (sent.get(b.playerId) ?? [])
+      .slice(before)
+      .filter((m) => m.t === 'error' && m.code === 'cooldown');
+    expect(afterErrs.length).toBe(0);
+    expect(room.youOf(b.playerId)!.revengeTargetId).toBeNull();
+  });
+
+  it('shortens PvP cooldowns during recess riot', async () => {
+    const { room, sent, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    const b = await room.hello(undefined, 'Ben', undefined);
+    (room as any).players.get(b.playerId).bp = 200;
+    room.steal(a.playerId, b.playerId);
+    room.forceEvent('recess');
+    room.steal(a.playerId, b.playerId);
+    expect(
+      (sent.get(a.playerId) ?? []).some((m) => m.t === 'error' && m.code === 'cooldown'),
+    ).toBe(true);
+    clock.advance(2_500);
+    const before = sent.get(a.playerId)?.length ?? 0;
+    room.steal(a.playerId, b.playerId);
+    const newErrs = (sent.get(a.playerId) ?? [])
+      .slice(before)
+      .filter((m) => m.t === 'error' && m.code === 'cooldown');
+    expect(newErrs.length).toBe(0);
   });
 });
 

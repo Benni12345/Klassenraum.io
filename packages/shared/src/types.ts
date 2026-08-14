@@ -27,6 +27,10 @@ export interface PlayerPublic {
   /** false = disconnected but still at the desk ("Zzz" grace period). */
   online: boolean;
   detention: boolean;
+  /** True while "looking busy" — airplanes and ink bounce. */
+  busy: boolean;
+  /** True while an ink blot is slowing their notes. */
+  inked: boolean;
 }
 
 export interface Buff {
@@ -59,6 +63,14 @@ export interface PlayerYou {
   buffs: Buff[];
   detentionUntil: number;
   stealReadyAt: number;
+  spitReadyAt: number;
+  inkReadyAt: number;
+  busyReadyAt: number;
+  /** Looking-busy shield; 0 if inactive. */
+  busyUntil: number;
+  /** Last classmate who landed a hit; airplane revenge is aimed at them. */
+  revengeTargetId: string | null;
+  revengeReadyAt: number;
   /** Server time when the next rewarded-ad income grant may be claimed. */
   adRewardReadyAt: number;
   /** Lifetime stats for flavor. */
@@ -75,7 +87,7 @@ export interface PlayerYou {
   school: SchoolDay;
 }
 
-export type EventKind = 'quiz' | 'patrol' | 'sub';
+export type EventKind = 'quiz' | 'patrol' | 'sub' | 'recess';
 
 export interface RoomEvent {
   kind: EventKind;

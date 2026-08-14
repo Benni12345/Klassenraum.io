@@ -8,7 +8,8 @@ import {
   UPGRADE_BY_ID,
 } from '@shared/balance';
 import { bumpHomework, type HomeworkKind } from '@shared/school';
-import type { ServerMsg } from '@shared/protocol';
+import type { PvpKind, ServerMsg } from '@shared/protocol';
+import { TICK_BUSY, TICK_DETENTION, TICK_INK } from '@shared/protocol';
 import type {
   AvatarSpec,
   ChatEntry,
@@ -26,6 +27,8 @@ export interface StealFx {
   victim: string;
   amount: number;
   caught: boolean;
+  kind: PvpKind;
+  blocked: boolean;
 }
 
 interface Events {
@@ -33,6 +36,7 @@ interface Events {
   you: void;
   roster: void;
   steal: StealFx;
+  busy: { id: string; until: number };
   emote: { id: string; e: number };
   chat: ChatEntry;
   event: RoomEvent | null;
@@ -210,6 +214,18 @@ class Store {
     this.net.send({ t: 'steal', target });
   }
 
+  spitball(target: string): void {
+    this.net.send({ t: 'spitball', target });
+  }
+
+  ink(target: string): void {
+    this.net.send({ t: 'ink', target });
+  }
+
+  lookBusy(): void {
+    this.net.send({ t: 'busy' });
+  }
+
   sendChat(text: string): void {
     this.net.send({ t: 'chat', text });
   }
@@ -351,13 +367,15 @@ class Store {
       }
       case 'tick': {
         this.timeOffset = msg.now - Date.now();
-        for (const [id, bp, bps, tier, detention] of msg.ps) {
+        for (const [id, bp, bps, tier, flags] of msg.ps) {
           const p = this.roster.get(id);
           if (!p) continue;
           p.bp = bp;
           p.bps = bps;
           p.deskTier = tier;
-          p.detention = detention === 1;
+          p.detention = (flags & TICK_DETENTION) !== 0;
+          p.busy = (flags & TICK_BUSY) !== 0;
+          p.inked = (flags & TICK_INK) !== 0;
         }
         // Reconcile own displayed value toward authoritative one.
         const mine = this.you && msg.ps.find(([id]) => id === this.you!.id);
@@ -369,8 +387,27 @@ class Store {
         break;
       }
       case 'steal':
-        this.emit('steal', msg);
+        this.emit('steal', {
+          attacker: msg.attacker,
+          victim: msg.victim,
+          amount: msg.amount,
+          caught: msg.caught,
+          kind: msg.kind ?? 'plane',
+          blocked: msg.blocked === true,
+        });
+        if (msg.kind === 'ink' && !msg.caught && !msg.blocked) {
+          const v = this.roster.get(msg.victim);
+          if (v) v.inked = true;
+        }
         break;
+      case 'busy': {
+        const p = this.roster.get(msg.id);
+        if (p) p.busy = true;
+        if (this.you && this.you.id === msg.id) this.you.busyUntil = msg.until;
+        this.emit('busy', { id: msg.id, until: msg.until });
+        this.emit('roster', undefined);
+        break;
+      }
       case 'chat':
         this.chatLog.push(msg.msg);
         if (this.chatLog.length > 60) this.chatLog.shift();

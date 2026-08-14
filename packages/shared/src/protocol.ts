@@ -29,6 +29,9 @@ export type ClientMsg =
   | { t: 'buy'; gen: number; qty: number } // qty: 1 | 10 | -1 (max)
   | { t: 'upgrade'; id: string }
   | { t: 'steal'; target: string }
+  | { t: 'spitball'; target: string }
+  | { t: 'ink'; target: string }
+  | { t: 'busy' }
   | { t: 'chat'; text: string }
   | { t: 'emote'; e: number }
   | { t: 'quiz'; answer: number }
@@ -51,8 +54,15 @@ export type ClientMsg =
 // ---------------------------------------------------------------------------
 // Server -> Client
 
-/** Compact per-player tick tuple: [id, bp, bps, deskTier, detention(0|1)] */
-export type TickTuple = [string, number, number, number, 0 | 1];
+/** Compact per-player tick tuple: [id, bp, bps, deskTier, flags] */
+export type TickTuple = [string, number, number, number, number];
+
+/** Tick flags: detention, looking-busy shield, ink blot. */
+export const TICK_DETENTION = 1;
+export const TICK_BUSY = 2;
+export const TICK_INK = 4;
+
+export type PvpKind = 'plane' | 'spitball' | 'ink';
 
 export type ServerMsg =
   | {
@@ -73,7 +83,17 @@ export type ServerMsg =
   | { t: 'leave'; id: string }
   | { t: 'roster'; p: PlayerPublic }
   | { t: 'tick'; ps: TickTuple[]; goal: GoalState; now: number }
-  | { t: 'steal'; attacker: string; victim: string; amount: number; caught: boolean }
+  | {
+      t: 'steal';
+      attacker: string;
+      victim: string;
+      amount: number;
+      caught: boolean;
+      kind: PvpKind;
+      /** True when looking-busy blocked an airplane or ink blot. */
+      blocked?: boolean;
+    }
+  | { t: 'busy'; id: string; until: number }
   | { t: 'chat'; msg: ChatEntry }
   | { t: 'emote'; id: string; e: number }
   | { t: 'event'; ev: RoomEvent | null }

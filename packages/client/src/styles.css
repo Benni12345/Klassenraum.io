@@ -383,6 +383,20 @@ textarea {
   position: absolute;
   top: 10px;
   right: 10px;
+  z-index: 4;
+}
+
+#btn-busy {
+  position: absolute;
+  top: 42px;
+  right: 10px;
+  max-width: 168px;
+  z-index: 4;
+}
+
+#event-banner.chaos {
+  border-color: #e8b23a;
+  color: #ffe9a3;
 }
 
 #conn-banner {
@@ -1054,9 +1068,17 @@ body.tutoring #banner-dock {
   box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.35);
 }
 
-.btn.small {
-  font-size: 11px;
-  padding: 4px 8px;
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
+}
+
+.popover .pvp-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .btn.gold {
@@ -1524,7 +1546,7 @@ body.tutoring #banner-dock {
   border: 3px solid var(--ink);
   box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
   padding: 10px;
-  width: 230px;
+  width: 260px;
   font-size: 12px;
 }
 

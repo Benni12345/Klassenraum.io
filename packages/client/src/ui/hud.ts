@@ -20,6 +20,7 @@ export function initHud(): void {
   id<HTMLInputElement>('quiz-input').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') submitQuiz();
   });
+  id('btn-busy').addEventListener('click', () => store.lookBusy());
 
   setInterval(tick, 150);
 }
@@ -71,6 +72,7 @@ function tick(): void {
 
   renderBuffs();
   updateEventCountdown();
+  renderBusyButton();
 }
 
 function renderBuffs(): void {
@@ -84,11 +86,14 @@ function renderBuffs(): void {
   const parts: Array<{ label: string; bad: boolean }> = [];
   for (const b of you.buffs) {
     if (b.until > sn) {
-      parts.push({ label: `${t(b.labelKey)} ${fmtDuration(b.until - sn)}`, bad: false });
+      parts.push({ label: `${t(b.labelKey)} ${fmtDuration(b.until - sn)}`, bad: b.mult < 1 });
     }
   }
   if (you.detentionUntil > sn) {
     parts.push({ label: `${t('buff.detention')} ${fmtDuration(you.detentionUntil - sn)}`, bad: true });
+  }
+  if (you.busyUntil > sn) {
+    parts.push({ label: `${t('buff.busy')} ${fmtDuration(you.busyUntil - sn)}`, bad: false });
   }
   const sig = parts.map((p) => p.label).join('|');
   if (box.dataset.sig === sig) return;
@@ -104,10 +109,12 @@ function renderEventBanner(): void {
   const ev = store.event;
   if (!ev) {
     banner.classList.add('hidden');
+    banner.classList.remove('danger', 'chaos');
     return;
   }
   banner.classList.remove('hidden');
   banner.classList.toggle('danger', ev.kind === 'patrol');
+  banner.classList.toggle('chaos', ev.kind === 'recess');
   const quizControls = id('quiz-controls');
   if (ev.kind === 'quiz' && !quizSent) {
     quizControls.classList.remove('hidden');
@@ -132,9 +139,37 @@ function updateEventCountdown(): void {
       : `${t('event.quiz.title')} ${ev.question ?? ''} (${secs}s)`;
   } else if (ev.kind === 'patrol') {
     text = `${t('event.patrol.banner')} (${secs}s)`;
+  } else if (ev.kind === 'recess') {
+    text = `${t('event.recess.banner')} (${secs}s)`;
   } else {
     text = `${t('event.sub.banner')} (${secs}s)`;
   }
   const node = id('event-text');
   if (node.textContent !== text) node.textContent = text;
+}
+
+function renderBusyButton(): void {
+  const btn = id<HTMLButtonElement>('btn-busy');
+  const you = store.you;
+  if (!you) {
+    btn.classList.add('hidden');
+    return;
+  }
+  btn.classList.remove('hidden');
+  const sn = store.serverNow();
+  const activeLeft = you.busyUntil - sn;
+  const cdLeft = you.busyReadyAt - sn;
+  if (activeLeft > 0) {
+    btn.disabled = true;
+    btn.textContent = t('steal.busyActive', { t: fmtDuration(activeLeft) });
+    btn.classList.add('gold');
+  } else if (cdLeft > 0) {
+    btn.disabled = true;
+    btn.textContent = t('steal.busyCooldown', { t: fmtDuration(cdLeft) });
+    btn.classList.remove('gold');
+  } else {
+    btn.disabled = false;
+    btn.textContent = t('steal.busyBtn');
+    btn.classList.remove('gold');
+  }
 }
