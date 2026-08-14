@@ -10,6 +10,7 @@ import {
   emptyHomework,
   homeworkBonus,
   homeworkReward,
+  isAttendanceMilestone,
   nextStreak,
   parseHomework,
   pickHomework,
@@ -52,6 +53,16 @@ describe('attendance streaks', () => {
     expect(attendanceReward(0, 1)).toBe(ATTENDANCE_MIN);
     expect(attendanceReward(10, 1)).toBe(10 * 90);
     expect(attendanceReward(10, 2)).toBe(10 * 90 * 1.2);
+  });
+
+  it('treats every 7th consecutive day as a celebratory milestone', () => {
+    expect(isAttendanceMilestone(0)).toBe(false);
+    expect(isAttendanceMilestone(1)).toBe(false);
+    expect(isAttendanceMilestone(6)).toBe(false);
+    expect(isAttendanceMilestone(7)).toBe(true);
+    expect(isAttendanceMilestone(8)).toBe(false);
+    expect(isAttendanceMilestone(14)).toBe(true);
+    expect(isAttendanceMilestone(21)).toBe(true);
   });
 });
 

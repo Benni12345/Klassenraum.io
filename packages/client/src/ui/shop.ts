@@ -13,11 +13,10 @@ import { t } from '../i18n';
 import { platform } from '../platform';
 import { genIcon, iconDataUrl } from '../render/sprites';
 import { store } from '../state';
-import { getPrefs } from '../prefs';
 import { mountBottomBanner, mountRewardedBoostButton } from './ads';
 import { el, id } from './dom';
+import { onDailyLoginReady } from './school';
 import { bindCursorTip, type TipCard } from './tooltip';
-import { onTutorialEnd } from './tutorial';
 
 let qtySel = 1;
 let bannerMounted = false;
@@ -81,19 +80,15 @@ export function initShop(): void {
     boostSlot.classList.remove('hidden');
     mountRewardedBoostButton(boostSlot);
 
-    // Banner ads stay hidden during the guided tutorial for a cleaner first run.
-    const mountBannerOnce = () => {
+    // First banner waits until the auto School Day popup is closed (or skipped).
+    // That also covers the tutorial: School Day only settles after the tour ends.
+    onDailyLoginReady(() => {
       if (bannerMounted) return;
       bannerMounted = true;
       // No dock at all behind an ad blocker: the classroom stays full-bleed
       // instead of leaving a banner placeholder on the floor.
       mountBottomBanner(id('banner-dock'));
-    };
-    if (getPrefs().tutorialDone || platform.isInstantMultiplayer) {
-      mountBannerOnce();
-    } else {
-      onTutorialEnd(mountBannerOnce);
-    }
+    });
   }
 
   store.on('you', refresh);

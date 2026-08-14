@@ -16,7 +16,7 @@ import { platform } from '../platform';
 import { store } from '../state';
 import { el, id } from './dom';
 import { currentTab, isLandscapeMobile, isMobileLayout, onTabChange, setMobileTab, type MobileTab } from './mobile';
-import { pushOverlay } from './overlay';
+import { isCovered, pushOverlay } from './overlay';
 
 interface Step {
   key: string;
@@ -226,9 +226,10 @@ export function startTutorial(opts?: { force?: boolean }): void {
     if (platform.enabled) platform.setDataItem(CG_TUTORIAL_KEY, '1');
     // Persist on the game backend (same save as BP / generators).
     store.markTutorialDone();
-    // Resume gameplay only after the guided tour ends (or is skipped).
-    if (store.you && store.status === 'open') platform.onGameplayStart();
+    // School Day may auto-open from an end listener; start gameplay only if
+    // nothing is covering the classroom (the modal resumes play on close).
     for (const fn of endListeners) fn();
+    if (store.you && store.status === 'open' && !isCovered()) platform.onGameplayStart();
     // Interaction hints take over from here.
     refreshHints();
   };

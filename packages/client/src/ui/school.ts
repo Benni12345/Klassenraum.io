@@ -3,6 +3,7 @@ import {
   buildSchoolDay,
   defaultSchoolProgress,
   DESK_SKINS,
+  isAttendanceMilestone,
   utcDay,
   type SchoolDay,
 } from '@shared/school';
@@ -10,6 +11,7 @@ import { sfxBuy, sfxSuccess } from '../audio';
 import { fmt, fmtDuration } from '../format';
 import { t } from '../i18n';
 import { platform } from '../platform';
+import { isTutorialDoneLocally } from '../prefs';
 import { calendarIcon, deskSprite, iconDataUrl } from '../render/sprites';
 import { store } from '../state';
 import { adPlayBadge } from './ads';
@@ -19,6 +21,8 @@ import { toast } from './toast';
 import { onTutorialEnd } from './tutorial';
 
 let schoolPrompted = false;
+let dailyLoginReady = false;
+const dailyLoginReadyListeners = new Set<() => void>();
 
 export function initSchool(): void {
   const btn = id('btn-school');
@@ -52,11 +56,49 @@ export function initSchool(): void {
   });
   store.on('joined', () => {
     refresh();
-    maybePromptSchool();
   });
   onTutorialEnd(() => maybePromptSchool());
   setInterval(refresh, 1_000);
   refresh();
+}
+
+/**
+ * CrazyGames: first gameplayStart + banner must wait until the auto School Day
+ * popup is closed (or skipped because attendance is already claimed).
+ */
+export function onDailyLoginReady(fn: () => void): void {
+  if (dailyLoginReady) {
+    fn();
+    return;
+  }
+  dailyLoginReadyListeners.add(fn);
+}
+
+function markDailyLoginReady(): void {
+  if (dailyLoginReady) return;
+  dailyLoginReady = true;
+  for (const fn of dailyLoginReadyListeners) fn();
+  dailyLoginReadyListeners.clear();
+}
+
+function tutorialSettled(): boolean {
+  if (document.body.classList.contains('tutoring')) return false;
+  const you = store.you;
+  if (!you) return false;
+  return you.tutorialDone || isTutorialDoneLocally() || platform.isInstantMultiplayer;
+}
+
+/** Auto-open School Day once per session when today's stamp is still unclaimed. */
+export function maybePromptSchool(): void {
+  if (schoolPrompted || dailyLoginReady) return;
+  if (!tutorialSettled()) return;
+  const school = schoolSnapshot();
+  if (!school || isAttendanceClaimed(school)) {
+    markDailyLoginReady();
+    return;
+  }
+  schoolPrompted = true;
+  schoolModal({ onClose: markDailyLoginReady });
 }
 
 function isAttendanceClaimed(school: SchoolDay): boolean {
@@ -73,15 +115,9 @@ function schoolHasClaim(you: typeof store.you): boolean {
   return false;
 }
 
-function maybePromptSchool(): void {
-  if (schoolPrompted) return;
-  if (document.body.classList.contains('tutoring')) return;
-  const you = store.you;
-  if (!you?.tutorialDone) return;
-  const school = schoolSnapshot();
-  if (!school || isAttendanceClaimed(school)) return;
-  schoolPrompted = true;
-  schoolModal();
+/** CrazyGames happytime only on 7-day streak milestones — not every daily stamp. */
+function celebrateAttendance(streak: number): void {
+  if (isAttendanceMilestone(streak)) platform.happytime();
 }
 
 /** Server snapshot, or a local preview if this client is ahead of the game server. */
@@ -99,8 +135,8 @@ function schoolSnapshot(): SchoolDay | null {
   );
 }
 
-export function schoolModal(): void {
-  openModal({ title: t('school.title') }, (body, foot, close) => {
+export function schoolModal(opts?: { onClose?: () => void }): void {
+  openModal({ title: t('school.title'), onClose: opts?.onClose }, (body, foot, close) => {
     const paint = () => {
       const school = schoolSnapshot();
       const you = store.you;
@@ -180,7 +216,7 @@ function renderAttendance(body: HTMLElement, school: SchoolDay): void {
       if (watched) {
         store.claimAttendance(true);
         sfxSuccess();
-        platform.happytime();
+        celebrateAttendance(school.recoverStreak);
         toast(t('school.claimDone', { n: fmt(school.recoverReward), s: school.recoverStreak }), 'gold');
       }
     });
@@ -199,7 +235,7 @@ function renderAttendance(body: HTMLElement, school: SchoolDay): void {
     claim.onclick = () => {
       store.claimAttendance(false);
       sfxSuccess();
-      platform.happytime();
+      celebrateAttendance(school.upcomingStreak);
       toast(t('school.claimDone', { n: fmt(school.reward), s: school.upcomingStreak }), 'gold');
     };
     box.appendChild(claim);
@@ -241,7 +277,6 @@ function renderHomework(body: HTMLElement, school: SchoolDay): void {
     bonus.onclick = () => {
       store.claimHomework('bonus');
       sfxSuccess();
-      platform.happytime();
       toast(t('school.bonusDoneToast', { n: fmt(school.bonusReward) }), 'gold');
     };
     box.appendChild(bonus);

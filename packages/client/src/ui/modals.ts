@@ -30,6 +30,8 @@ interface ModalOpts {
   title: string;
   /** Click-outside / Esc / × close. Non-dismissable modals must offer an action. */
   dismissable?: boolean;
+  /** Runs after the modal is torn down (every close path: ×, Esc, overlay, buttons). */
+  onClose?: () => void;
 }
 
 /** Close handle for the modal currently on screen (Esc, tab switches). */
@@ -66,6 +68,7 @@ export function openModal(
     root.onclick = null;
     releaseOverlay();
     if (wasPlaying) platform.onGameplayStart();
+    opts.onClose?.();
   };
   activeClose = dismissable ? close : null;
 
