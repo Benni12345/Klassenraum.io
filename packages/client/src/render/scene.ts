@@ -510,7 +510,7 @@ export class Scene {
       ctx.strokeRect(tx - 4.5, ty - 3.5, sprite.width + 8, sprite.height + 6);
     } else {
       const idle = teacherSprite(0, true);
-      ctx.drawImage(idle, 40, WALL_H - idle.height + 2);
+      ctx.drawImage(idle, 54, WALL_H - idle.height + 2);
     }
     void time;
   }
