@@ -22,19 +22,19 @@
         position: relative;
         width: 100%;
         height: 100%;
-        background: linear-gradient(180deg, #1a1612 0%, #211d18 35%, #264b39 100%);
+        background: linear-gradient(180deg, #b6ead4 0%, #8fc9b0 42%, #c4894a 42%, #a06e34 100%);
         overflow: hidden;
       }
 
       .board {
         position: absolute;
         inset: 8% 6% 22% 6%;
-        background: #2f5d46;
-        border: 6px solid #1e3d2d;
+        background: #2d6b4c;
+        border: 6px solid #1a1410;
         box-shadow:
-          inset 0 0 0 4px #3f7a5a,
-          0 12px 40px rgba(0, 0, 0, 0.45);
-        border-radius: 4px;
+          inset 0 0 0 4px #8a5a28,
+          6px 6px 0 #1a1410;
+        border-radius: 0;
       }
 
       .board::before {
@@ -65,9 +65,9 @@
       .desk {
         width: 11%;
         aspect-ratio: 1 / 0.72;
-        background: #c9a56c;
-        border: 3px solid #8b6a3e;
-        box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35);
+        background: #c4894a;
+        border: 3px solid #1a1410;
+        box-shadow: 4px 4px 0 #1a1410;
         position: relative;
       }
 
@@ -90,8 +90,8 @@
         width: 55%;
         aspect-ratio: 1;
         background: #f0c9a0;
-        border: 3px solid #26221c;
-        box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+        border: 3px solid #1a1410;
+        box-shadow: 2px 2px 0 #1a1410;
       }
 
       .student.hair-brown {
@@ -153,9 +153,9 @@
         width: 14%;
         aspect-ratio: 1;
         background: #e88ad4;
-        border: 4px solid #26221c;
+        border: 4px solid #1a1410;
         border-radius: 45% 45% 40% 40%;
-        box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35);
+        box-shadow: 4px 4px 0 #1a1410;
       }
 
       .brain::before,
@@ -192,21 +192,27 @@
       }
 
       .title {
-        color: #e8b23a;
+        color: #ffffff;
         font-weight: 900;
         letter-spacing: 0.04em;
         text-shadow:
-          4px 4px 0 #b8892a,
-          0 0 40px rgba(232, 178, 58, 0.35);
+          3px 0 0 #1a1410,
+          -3px 0 0 #1a1410,
+          0 3px 0 #1a1410,
+          0 -3px 0 #1a1410,
+          4px 4px 0 #1a1410;
         line-height: 0.95;
         text-transform: uppercase;
       }
 
       .tagline {
-        color: #eef3ea;
+        color: #f0c23a;
         font-weight: 700;
         margin-top: 0.35em;
-        text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+        text-shadow:
+          2px 2px 0 #1a1410,
+          -1px 0 0 #1a1410,
+          1px 0 0 #1a1410;
         opacity: 0.95;
       }
 
@@ -221,12 +227,12 @@
       }
 
       .badge {
-        background: rgba(38, 34, 28, 0.82);
-        color: #f5efdc;
-        border: 2px solid #e8b23a;
+        background: #1a1410;
+        color: #f7edd4;
+        border: 3px solid #f0c23a;
         padding: 0.35em 0.8em;
         font-weight: 700;
-        box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.35);
+        box-shadow: 3px 3px 0 #1a1410;
       }
 
       /* Layout variants set by query param */

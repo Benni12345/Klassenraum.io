@@ -38,7 +38,7 @@ interface Confetto {
   age: number;
 }
 
-const CONFETTI_COLORS = ['#c94f4f', '#4a6bd4', '#3f9e4d', '#e8b23a', '#e88ad4', '#2fa3a3'];
+const CONFETTI_COLORS = ['#e44545', '#3d6ee8', '#3cb85a', '#f0c23a', '#e88ad4', '#2eb8b8'];
 
 /** Transient visual effects in world coordinates. */
 export class Fx {
@@ -155,15 +155,15 @@ export class Fx {
       const y = Math.round(b.y + bob);
       const w = sprite.width + 4;
       const h = sprite.height + 4;
-      ctx.fillStyle = 'rgba(38,34,28,0.85)';
+      ctx.fillStyle = '#1a1410';
       ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-      ctx.fillStyle = '#f5efdc';
+      ctx.fillStyle = '#f7edd4';
       ctx.fillRect(x, y, w, h);
       ctx.fillRect(x + 3, y + h, 2, 2); // tail
       ctx.drawImage(sprite, x + 2, y + 2);
       const fade = b.ttl - b.age;
       if (fade < 0.4) {
-        ctx.fillStyle = `rgba(215,228,208,${1 - fade / 0.4})`;
+        ctx.fillStyle = `rgba(182,234,212,${1 - fade / 0.4})`;
         ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
       }
     }

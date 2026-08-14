@@ -203,7 +203,7 @@ export interface DeskPalette {
 }
 
 export const DESK_PALETTES: Record<string, DeskPalette> = {
-  wood: { light: '#c49a6c', mid: '#a97c50', dark: '#7d5836' },
+  wood: { light: '#d4a86a', mid: '#c4894a', dark: '#8a5a28' },
   blue: { light: '#7eb3d4', mid: '#4a7eab', dark: '#2f5478' },
   green: { light: '#8fbf7a', mid: '#4f8a45', dark: '#2f5d32' },
   gold: { light: '#f0d878', mid: '#d4a63a', dark: '#8a6a1e' },

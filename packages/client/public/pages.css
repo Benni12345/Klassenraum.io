@@ -1,13 +1,14 @@
 :root {
-  --ink: #26221c;
-  --paper: #f5efdc;
-  --paper-dark: #e8dfc8;
-  --paper-line: #d8cdb2;
-  --board: #2f5d46;
-  --board-dark: #264b39;
-  --gold: #e8b23a;
-  --gold-dark: #b8892a;
-  --bg: #211d18;
+  --ink: #1a1410;
+  --paper: #f7edd4;
+  --paper-dark: #ead8b4;
+  --paper-line: #d4c094;
+  --board: #2d6b4c;
+  --board-dark: #1e4d38;
+  --gold: #f0c23a;
+  --gold-dark: #c49218;
+  --bg: #241c14;
+  --wood: #c4894a;
   --font: 'Consolas', 'Courier New', ui-monospace, Menlo, monospace;
 }
 
@@ -64,7 +65,7 @@ a:hover {
 .page-header {
   background: var(--board);
   color: #eef3ea;
-  border-bottom: 3px solid var(--board-dark);
+  border-bottom: 3px solid var(--ink);
   padding: 14px 20px;
   margin-bottom: 24px;
 }

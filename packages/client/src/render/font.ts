@@ -108,6 +108,15 @@ function renderText(text: string, color: string): HTMLCanvasElement {
   return c;
 }
 
+export interface DrawTextOpts {
+  shadow?: string;
+  align?: 'left' | 'center' | 'right';
+  /** Integer nearest-neighbour scale. 1 = native 5px glyphs. */
+  scale?: number;
+  /** Silhouette outline colour (drawn in 8 directions). */
+  outline?: string;
+}
+
 /** Draw pixel text at world coords (canvas must have integer scale transform). */
 export function drawText(
   ctx: CanvasRenderingContext2D,
@@ -115,15 +124,29 @@ export function drawText(
   x: number,
   y: number,
   color: string,
-  opts?: { shadow?: string; align?: 'left' | 'center' | 'right' },
+  opts?: DrawTextOpts,
 ): void {
+  const scale = Math.max(1, Math.round(opts?.scale ?? 1));
   const img = renderText(text, color);
+  const w = img.width * scale;
   let dx = Math.round(x);
-  if (opts?.align === 'center') dx -= Math.round(img.width / 2);
-  else if (opts?.align === 'right') dx -= img.width;
+  if (opts?.align === 'center') dx -= Math.round(w / 2);
+  else if (opts?.align === 'right') dx -= w;
   const dy = Math.round(y);
-  if (opts?.shadow) {
-    ctx.drawImage(renderText(text, opts.shadow), dx + 1, dy + 1);
+  const blit = (src: HTMLCanvasElement, ox: number, oy: number) => {
+    ctx.drawImage(src, ox, oy, src.width * scale, src.height * scale);
+  };
+  if (opts?.outline) {
+    const ol = renderText(text, opts.outline);
+    for (let oy = -1; oy <= 1; oy++) {
+      for (let ox = -1; ox <= 1; ox++) {
+        if (ox === 0 && oy === 0) continue;
+        blit(ol, dx + ox, dy + oy);
+      }
+    }
   }
-  ctx.drawImage(img, dx, dy);
+  if (opts?.shadow) {
+    blit(renderText(text, opts.shadow), dx + scale, dy + scale);
+  }
+  blit(img, dx, dy);
 }

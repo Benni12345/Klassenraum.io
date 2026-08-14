@@ -7,11 +7,15 @@ import { drawText, textWidth } from './font';
 import { Fx } from './fx';
 import {
   boardSprite,
+  bookshelfSprite,
+  chairSprite,
+  clockSprite,
   deskSprite,
   DESK_W,
   doorSprite,
   folderSprite,
   PAL,
+  plantSprite,
   posterSprite,
   studentSprite,
   teacherDeskSprite,
@@ -21,11 +25,15 @@ import {
 } from './sprites';
 
 export const WORLD_W = 232;
-const WALL_H = 52;
-const DESK_TOP = 78;
+const WALL_H = 60;
+const DESK_TOP = 86;
 const CELL_W = 36;
-const ROW_H = 36;
+const ROW_H = 38;
 const GRID_X = 12;
+const BOARD_X = 46;
+const BOARD_Y = 16;
+const BOARD_W = 128;
+const BOARD_H = 38;
 /** Chalkboard leaderboard entries show the full username (up to NAME_MAX). */
 const BOARD_NAME_MAX = NAME_MAX;
 /**
@@ -195,7 +203,7 @@ export class Scene {
   private playerAt(x: number, y: number): PlayerPublic | null {
     for (const p of store.roster.values()) {
       const pos = seatPos(p.seat);
-      if (x >= pos.x - 2 && x <= pos.x + DESK_W + 2 && y >= pos.y - 8 && y <= pos.y + 31) {
+      if (x >= pos.x - 2 && x <= pos.x + DESK_W + 2 && y >= pos.y - 8 && y <= pos.y + 34) {
         return p;
       }
     }
@@ -259,7 +267,7 @@ export class Scene {
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#211d18';
+    ctx.fillStyle = '#241c14';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.setTransform(this.scale, 0, 0, this.scale, 0, (this.contentOffsetY - camY) * this.scale);
 
@@ -286,72 +294,74 @@ export class Scene {
     // Floor with plank lines — extend across the full viewport width.
     ctx.fillStyle = PAL.floor;
     ctx.fillRect(0, WALL_H, viewW, floorBottom - WALL_H);
+    ctx.fillStyle = PAL.floorDark;
+    ctx.fillRect(0, WALL_H, viewW, 2);
     ctx.fillStyle = PAL.floorLine;
-    for (let y = WALL_H + 6; y < floorBottom; y += 7) {
+    for (let y = WALL_H + 8; y < floorBottom; y += 8) {
       if (y > viewTop - 8 && y < viewBottom + 8) ctx.fillRect(0, y, viewW, 1);
     }
-    // Plank joints, pseudo-random but stable.
-    for (let y = WALL_H; y < floorBottom; y += 7) {
+    for (let y = WALL_H; y < floorBottom; y += 8) {
       if (y < viewTop - 8 || y > viewBottom + 8) continue;
-      for (let k = 0; k < 4; k++) {
+      for (let k = 0; k < 5; k++) {
         const jx = ((y * 37 + k * 61) % viewW + viewW) % viewW;
-        ctx.fillRect(jx, y + 1, 1, 5);
+        ctx.fillRect(jx, y + 1, 1, 6);
       }
     }
 
     if (viewTop < WALL_H + 8) {
-      // Wall — extend across the full viewport width.
       ctx.fillStyle = PAL.wall;
       ctx.fillRect(0, wallTop, viewW, WALL_H - wallTop);
       ctx.fillStyle = PAL.wallDark;
-      ctx.fillRect(0, WALL_H - 2, viewW, 2);
+      ctx.fillRect(0, WALL_H - 5, viewW, 5);
+      ctx.fillStyle = PAL.wood;
+      ctx.fillRect(0, WALL_H - 4, viewW, 3);
+      ctx.fillStyle = PAL.ink;
+      ctx.fillRect(0, WALL_H - 5, viewW, 1);
+      ctx.fillStyle = PAL.woodDark;
+      ctx.fillRect(0, WALL_H - 1, viewW, 1);
 
-      // Classroom furniture stays within the fixed world width, centered.
       ctx.save();
       ctx.translate(this.contentOffsetX, 0);
-      ctx.drawImage(windowSprite(), 12, 8);
-      ctx.drawImage(posterSprite(0), 36, 26);
-      ctx.drawImage(boardSprite(140, 42), 46, 4);
-      ctx.drawImage(doorSprite(), 206, 26);
-      ctx.drawImage(posterSprite(1), 192, 8);
-      this.drawClock(220, 12);
-      ctx.drawImage(teacherDeskSprite(), 12, 52);
+      ctx.drawImage(bookshelfSprite(), 1, 12);
+      ctx.drawImage(windowSprite(), 20, 5);
+      ctx.drawImage(boardSprite(BOARD_W, BOARD_H), BOARD_X, BOARD_Y);
+      ctx.drawImage(posterSprite(0), 176, 6);
+      ctx.drawImage(posterSprite(1), 176, 26);
+      ctx.drawImage(doorSprite(), 194, 22);
+      ctx.drawImage(clockSprite(), 214, 6);
+      ctx.drawImage(plantSprite(), 221, WALL_H - 2);
+      ctx.drawImage(teacherDeskSprite(), 20, WALL_H);
+      this.drawLogo();
       this.drawBoardContent(time);
       ctx.restore();
     }
   }
 
-  private drawClock(cx: number, cy: number): void {
+  private drawLogo(): void {
     const { ctx } = this;
-    ctx.fillStyle = '#f5efdc';
-    ctx.beginPath();
-    // Pixel circle: draw as diamond-ish blob
-    ctx.fillRect(cx - 4, cy - 3, 8, 7);
-    ctx.fillRect(cx - 3, cy - 4, 6, 9);
-    ctx.fillStyle = PAL.ink;
-    const d = new Date();
-    const mi = d.getMinutes();
-    const hr = (d.getHours() % 12) + mi / 60;
-    const ma = (mi / 60) * Math.PI * 2 - Math.PI / 2;
-    const ha = (hr / 12) * Math.PI * 2 - Math.PI / 2;
-    ctx.fillRect(cx, cy, 1, 1);
-    ctx.fillRect(cx + Math.round(Math.cos(ma) * 3), cy + Math.round(Math.sin(ma) * 3), 1, 1);
-    ctx.fillRect(cx + Math.round(Math.cos(ma) * 2), cy + Math.round(Math.sin(ma) * 2), 1, 1);
-    ctx.fillRect(cx + Math.round(Math.cos(ha) * 2), cy + Math.round(Math.sin(ha) * 2), 1, 1);
+    const scale = 2;
+    const left = 'CLASSROOM.';
+    const right = 'IO';
+    const gap = scale;
+    const total = textWidth(left) * scale + gap + textWidth(right) * scale;
+    const x0 = Math.round(WORLD_W / 2 - total / 2);
+    const y = 1;
+    drawText(ctx, left, x0, y, '#ffffff', { scale, outline: PAL.ink });
+    drawText(ctx, right, x0 + textWidth(left) * scale + gap, y, PAL.gold, { scale, outline: PAL.ink });
   }
 
   private drawBoardContent(time: number): void {
     const { ctx } = this;
-    const bx = 46 + 4;
-    const bw = 140 - 8;
+    const bx = BOARD_X + 6;
+    const bw = BOARD_W - 12;
     const ev = store.event;
     const sn = store.serverNow();
+    let y = BOARD_Y + 6;
 
-    // Line 1: event or title
-    let line1 = t('game.title');
-    let line1Color: string = PAL.chalk;
     if (ev) {
       const secs = Math.max(0, Math.ceil((ev.endsAt - sn) / 1000));
+      let line1 = '';
+      let line1Color: string = PAL.chalk;
       if (ev.kind === 'quiz') line1 = `${t('event.quiz.title')} ${ev.question ?? ''} (${secs})`;
       else if (ev.kind === 'patrol') {
         line1 = `${getPatrolLabel()} (${secs})`;
@@ -360,32 +370,32 @@ export class Scene {
         line1 = `${getRecessLabel()} (${secs})`;
         line1Color = time % 1 < 0.5 ? '#ffd869' : PAL.chalk;
       } else line1 = `${t('event.sub.banner').split('—')[0]!.trim()} (${secs})`;
+      drawText(ctx, line1.toUpperCase().slice(0, 30), bx + bw / 2, y, line1Color, { align: 'center' });
+      y += 8;
     }
-    drawText(ctx, line1.toUpperCase().slice(0, 30), bx + bw / 2, 9, line1Color, { align: 'center' });
 
-    // Line 2: class goal progress bar
     const goal = store.goal;
     const frac = Math.max(0, Math.min(1, goal.progress / goal.target));
-    drawText(ctx, t('goal.title'), bx, 19, PAL.chalkDim);
+    drawText(ctx, t('goal.title'), bx, y, PAL.chalk);
     const barX = bx + textWidth(t('goal.title')) + 4;
-    const barW = bw - (barX - bx) - 26;
+    const barW = Math.max(12, bw - (barX - bx) - 26);
+    ctx.fillStyle = PAL.ink;
+    ctx.fillRect(barX - 1, y - 1, barW + 2, 7);
     ctx.fillStyle = PAL.boardDark;
-    ctx.fillRect(barX, 19, barW, 5);
-    ctx.fillStyle = '#9fd4a8';
-    ctx.fillRect(barX, 19, Math.round(barW * frac), 5);
-    drawText(ctx, `${Math.floor(frac * 100)}%`, bx + bw, 19, PAL.chalk, { align: 'right' });
+    ctx.fillRect(barX, y, barW, 5);
+    ctx.fillStyle = '#5ee06a';
+    ctx.fillRect(barX, y, Math.round(barW * frac), 5);
+    drawText(ctx, `${Math.floor(frac * 100)}%`, bx + bw, y, PAL.chalk, { align: 'right' });
+    y += 10;
 
-    // Line 3: top three by production
     const online = [...store.roster.values()].filter((p) => p.online);
     online.sort((a, b) => b.bps - a.bps);
     const parts = online
       .slice(0, 3)
       .map((p, i) => `${i + 1}.${p.name.toUpperCase().slice(0, BOARD_NAME_MAX)}`);
-    // Drop entries that no longer fit rather than clipping a name mid-word.
     while (parts.length > 1 && textWidth(parts.join(' ')) > bw - 30) parts.pop();
-    drawText(ctx, parts.join(' '), bx, 30, PAL.chalk);
-    // Goal level chalk note
-    drawText(ctx, `LVL ${goal.level + 1}`, bx + bw, 30, PAL.chalkDim, { align: 'right' });
+    drawText(ctx, parts.join(' '), bx, y, PAL.chalk);
+    drawText(ctx, `LVL ${goal.level + 1}`, bx + bw, y, PAL.gold, { align: 'right' });
   }
 
   private drawDesks(viewTop: number, viewBottom: number, time: number): void {
@@ -401,9 +411,12 @@ export class Scene {
 
       ctx.globalAlpha = sleeping ? 0.55 : 1;
 
-      // Student behind the desk (we see their back; desk is closer to the board).
-      ctx.drawImage(studentSprite(p.avatar), pos.x + 7, pos.y + 6);
-      ctx.drawImage(deskSprite(p.deskTier, p.deskSkin || 'wood'), pos.x, pos.y - 4);
+      const chair = chairSprite();
+      const stu = studentSprite(p.avatar);
+      const desk = deskSprite(p.deskTier, p.deskSkin || 'wood');
+      ctx.drawImage(chair, pos.x + Math.round((DESK_W - chair.width) / 2), pos.y + 10);
+      ctx.drawImage(stu, pos.x + Math.round((DESK_W - stu.width) / 2), pos.y + 4);
+      ctx.drawImage(desk, pos.x - Math.floor((desk.width - DESK_W) / 2), pos.y - 5);
 
       // Detention / ink / looking-busy markers
       if (p.detention) {
@@ -425,9 +438,9 @@ export class Scene {
       // full username on a plate that may overlap neighbouring desks.
       const label = deskLabel(p.name, p.grade);
       const nameColor = isYou ? '#ffd869' : sleeping ? '#8d94a0' : '#fdfaf2';
-      drawText(ctx, label, pos.x + DESK_W / 2, pos.y + 24, nameColor, {
+      drawText(ctx, label, pos.x + DESK_W / 2, pos.y + 26, nameColor, {
         align: 'center',
-        shadow: 'rgba(0,0,0,0.45)',
+        shadow: PAL.ink,
       });
 
       if (isYou) {
@@ -450,7 +463,7 @@ export class Scene {
       if (this.hoverSeatPlayer?.id === p.id && !isYou) {
         ctx.strokeStyle = 'rgba(255,255,255,0.8)';
         ctx.lineWidth = 1;
-        ctx.strokeRect(pos.x - 1.5, pos.y - 5.5, DESK_W + 3, 36);
+        ctx.strokeRect(pos.x - 1.5, pos.y - 6.5, DESK_W + 3, 38);
       }
     }
 
@@ -482,22 +495,24 @@ export class Scene {
     if (ev?.kind === 'patrol') {
       const elapsed = Math.max(0, (store.serverNow() - ev.startedAt) / 1000);
       const aisleX = GRID_X + 3 * CELL_W - 10;
-      const topY = 62;
+      const topY = WALL_H + 8;
       const bottomY = this.worldH() - 30;
       const len = bottomY - topY;
       const speed = 22;
       const d = (elapsed * speed) % (len * 2);
       const y = d < len ? topY + d : bottomY - (d - len);
       const frame = Math.floor(elapsed * 4) % 2;
-      ctx.drawImage(teacherSprite(frame), Math.round(aisleX), Math.round(y));
-      // Danger aura
+      const sprite = teacherSprite(frame);
+      const tx = Math.round(aisleX);
+      const ty = Math.round(y);
+      ctx.drawImage(sprite, tx, ty);
       ctx.strokeStyle = 'rgba(224,74,58,0.35)';
-      ctx.strokeRect(Math.round(aisleX) - 6.5, Math.round(y) - 4.5, 22, 26);
+      ctx.strokeRect(tx - 4.5, ty - 3.5, sprite.width + 8, sprite.height + 6);
     } else {
-      // Idle beside the teacher desk
-      ctx.drawImage(teacherSprite(0), 52, 44);
-      void time;
+      const idle = teacherSprite(0, true);
+      ctx.drawImage(idle, 40, WALL_H - idle.height + 2);
     }
+    void time;
   }
 
   // --------------------------------------------------------------------- FX
@@ -529,7 +544,7 @@ export class Scene {
           : (cb: () => void) => this.fx.plane(ax, ay, vx, vy, cb);
 
     if (s.caught) {
-      this.fx.plane(ax, ay, 30, 56, () => {
+      this.fx.plane(ax, ay, 38, WALL_H + 4, () => {
         this.fx.floater(ax, ay - 8, '!!!', '#e04a3a');
       });
       return;
