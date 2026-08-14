@@ -21,6 +21,7 @@ import { initBoss } from './ui/boss';
 import { initChat } from './ui/chat';
 import { el, id } from './ui/dom';
 import { initHud } from './ui/hud';
+import { initLangSelector } from './ui/langSelector';
 import { initMobileTabs } from './ui/mobile';
 import {
   closeModal,
@@ -34,10 +35,10 @@ import {
   settingsModal,
   toast,
 } from './ui/modals';
+import { isCovered } from './ui/overlay';
 import { closePopover, showDeskPopover } from './ui/popover';
-import { initLangSelector } from './ui/langSelector';
+import { initSchool, maybePromptSchool } from './ui/school';
 import { initShop } from './ui/shop';
-import { initSchool } from './ui/school';
 import { applyStaticTexts } from './ui/texts';
 import { initHints, startTutorial } from './ui/tutorial';
 
@@ -220,18 +221,19 @@ async function boot(): Promise<void> {
       if ((serverDone || localDone) && platform.enabled) {
         platform.setDataItem(CG_TUTORIAL_KEY, '1');
       }
-      // First-time gameplayStart waits until the tutorial is finished or skipped.
-      // Instant multiplayer / returning players start immediately.
+      // First gameplayStart waits until the tutorial (if any) and the auto
+      // School Day popup are gone — CrazyGames rejects ads/start during that UI.
       const showTutorial =
         !platform.isInstantMultiplayer && !(store.you?.tutorialDone || isTutorialDoneLocally());
       if (showTutorial) {
         startTutorial();
       } else {
-        platform.onGameplayStart();
+        maybePromptSchool();
+        if (!isCovered()) platform.onGameplayStart();
       }
     } else {
-      // Reconnect / reseat — gameplay was already running.
-      platform.onGameplayStart();
+      // Reconnect / reseat — gameplay was already running unless a modal is up.
+      if (!isCovered()) platform.onGameplayStart();
     }
   });
 

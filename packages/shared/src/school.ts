@@ -25,6 +25,11 @@ export const ATTENDANCE_STREAK_BUFF_EVERY = 7;
 export const ATTENDANCE_BUFF_MULT = 1.5;
 export const ATTENDANCE_BUFF_MS = 10 * 60_000;
 
+/** True on 7, 14, 21… — the only attendance moments that should fire CrazyGames happytime. */
+export function isAttendanceMilestone(streak: number): boolean {
+  return Number.isFinite(streak) && streak > 0 && streak % ATTENDANCE_STREAK_BUFF_EVERY === 0;
+}
+
 export function streakMultiplier(streak: number): number {
   const extra = Math.max(0, Math.min(STREAK_BONUS_CAP, Math.floor(streak) - 1));
   return 1 + extra * STREAK_BONUS_PER_DAY;

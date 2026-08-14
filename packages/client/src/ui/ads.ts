@@ -262,6 +262,8 @@ export function mountBottomBanner(dock: HTMLElement): () => void {
 
   const request = () => {
     if (inFlight || !slot.isConnected) return;
+    // Never request while a modal/tutorial covers the slot (CrazyGames first-banner rule).
+    if (isCovered() || document.visibilityState === 'hidden') return;
     const next = sizeForViewport(availableWidth(), availableHeight());
     size = next;
     // Reveal the dock before measuring / requesting so CrazyGames sees a
