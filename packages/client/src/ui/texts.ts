@@ -17,6 +17,7 @@ export function applyStaticTexts(): void {
   chatClose.title = t('ui.close');
   chatClose.setAttribute('aria-label', t('ui.close'));
   id('btn-my-desk').textContent = t('misc.myDesk');
+  id('btn-busy').textContent = t('steal.busyBtn');
   id('btn-prestige').textContent = t('prestige.button');
   id('btn-leaderboard').title = t('leaderboard.title');
   id('btn-settings').title = t('settings.title');

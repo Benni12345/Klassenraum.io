@@ -111,8 +111,14 @@ function startBehavior(bot, send) {
     }, 5000 + rand(4000)),
     setInterval(() => {
       const targets = bot.roster.filter((p) => p.id !== bot.id && p.online);
-      if (targets.length > 0) send({ t: 'steal', target: targets[rand(targets.length)].id });
-    }, 4000 + rand(3000)),
+      if (targets.length === 0) return;
+      const target = targets[rand(targets.length)].id;
+      const roll = Math.random();
+      if (roll < 0.12) send({ t: 'busy' });
+      else if (roll < 0.45) send({ t: 'spitball', target });
+      else if (roll < 0.7) send({ t: 'ink', target });
+      else send({ t: 'steal', target });
+    }, 2500 + rand(2000)),
   ];
 }
 

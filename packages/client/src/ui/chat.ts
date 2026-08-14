@@ -71,12 +71,27 @@ export function initChat(): void {
         s.attacker === youId ? t('steal.caught.you') : t('steal.caught.other', { a: attacker }),
         true,
       );
+    } else if (s.blocked) {
+      system(
+        s.attacker === youId
+          ? t('steal.blocked.you')
+          : s.victim === youId
+            ? t('steal.blocked.victim')
+            : t('steal.blocked.other', { a: attacker, b: victim }),
+      );
+    } else if (s.kind === 'ink') {
+      if (s.victim === youId) system(t('steal.ink.hit.you', { a: attacker }), true);
+      else if (s.attacker === youId) system(t('steal.ink.success', { b: victim }));
+      else system(t('steal.ink.other', { a: attacker, b: victim }));
     } else if (s.victim === youId) {
-      system(t('steal.hit.you', { a: attacker, v: fmtShort(s.amount) }), true);
+      const key = s.kind === 'spitball' ? 'steal.spit.hit.you' : 'steal.hit.you';
+      system(t(key, { a: attacker, v: fmtShort(s.amount) }), true);
     } else if (s.attacker === youId) {
-      system(t('steal.success', { v: fmtShort(s.amount), b: victim }));
+      const key = s.kind === 'spitball' ? 'steal.spit.success' : 'steal.success';
+      system(t(key, { v: fmtShort(s.amount), b: victim }));
     } else {
-      system(t('steal.hit.other', { a: attacker, v: fmtShort(s.amount), b: victim }));
+      const key = s.kind === 'spitball' ? 'steal.spit.other' : 'steal.hit.other';
+      system(t(key, { a: attacker, v: fmtShort(s.amount), b: victim }));
     }
   });
   store.on('quizResult', (r) => {

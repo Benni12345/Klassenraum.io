@@ -265,14 +265,37 @@ async function boot(): Promise<void> {
     if (s.caught && s.attacker === you.id) {
       sfxError();
       toast(t('steal.caught.you'), 'bad');
+    } else if (s.blocked && s.attacker === you.id) {
+      sfxError();
+      toast(t('steal.blocked.you'), 'bad');
+    } else if (s.blocked && s.victim === you.id) {
+      sfxSuccess();
+      toast(t('steal.blocked.victim'), 'gold');
+    } else if (s.kind === 'ink' && s.victim === you.id && !s.caught) {
+      sfxSteal();
+      const attacker = store.roster.get(s.attacker)?.name ?? '?';
+      toast(t('steal.ink.hit.you', { a: attacker }), 'bad');
+    } else if (s.kind === 'ink' && s.attacker === you.id && !s.caught) {
+      sfxSteal();
+      const victim = store.roster.get(s.victim)?.name ?? '?';
+      toast(t('steal.ink.success', { b: victim }), 'gold');
     } else if (s.victim === you.id && !s.caught) {
       sfxSteal();
       const attacker = store.roster.get(s.attacker)?.name ?? '?';
-      toast(t('steal.hit.you', { a: attacker, v: fmt(s.amount) }), 'bad');
+      const key = s.kind === 'spitball' ? 'steal.spit.hit.you' : 'steal.hit.you';
+      toast(t(key, { a: attacker, v: fmt(s.amount) }), 'bad');
     } else if (s.attacker === you.id && !s.caught) {
       sfxSteal();
       const victim = store.roster.get(s.victim)?.name ?? '?';
-      toast(t('steal.success', { v: fmt(s.amount), b: victim }), 'gold');
+      const key = s.kind === 'spitball' ? 'steal.spit.success' : 'steal.success';
+      toast(t(key, { v: fmt(s.amount), b: victim }), 'gold');
+    }
+  });
+
+  store.on('busy', ({ id }) => {
+    if (store.you?.id === id) {
+      sfxSuccess();
+      toast(t('steal.busy.you'), 'gold');
     }
   });
 

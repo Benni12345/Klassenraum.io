@@ -16,8 +16,8 @@ Mitschülern per Papierflieger die Punkte — und drück Tab, wenn der Lehrer ko
 
 - Idle economy with 9 school-themed generators, upgrades and prestige („Graduate" for gold stars)
 - One shared room: live desks for every online player, chalkboard leaderboard, class goal
-- Real stealing: throw paper airplanes at other desks (5 min cooldown, capped, risky during patrol)
-- Synchronized room events: pop quiz, teacher patrol, substitute period
+- Real stealing: throw paper airplanes, spitballs and ink at other desks (short cooldowns, risky during patrol)
+- Synchronized room events: pop quiz, teacher patrol, recess riot, substitute period
 - Chat (passed notes), emotes, offline progress up to 8 h
 - Daily school day: attendance streaks, homework, unlockable desk skins
 - Boss key: **Tab** swaps to a fake math-notes page (title + favicon included)

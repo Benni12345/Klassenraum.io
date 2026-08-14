@@ -1,4 +1,11 @@
-import { stealAmount, STEAL_COOLDOWN_MS } from '@shared/balance';
+import {
+  INK_COOLDOWN_MS,
+  pvpActionReadyAt,
+  SPIT_COOLDOWN_MS,
+  spitAmount,
+  STEAL_COOLDOWN_MS,
+  stealAmount,
+} from '@shared/balance';
 import { fmt, fmtDuration } from '../format';
 import { gradeLabel, t } from '../i18n';
 import type { DeskHit } from '../render/scene';
@@ -12,7 +19,11 @@ export function closePopover(): void {
   cleanup = null;
 }
 
-/** Popover shown when clicking a classmate's desk: inspect + throw airplane. */
+function actionReadyAt(stored: number, baseCd: number): number {
+  return pvpActionReadyAt(stored, baseCd, store.event?.kind);
+}
+
+/** Popover shown when clicking a classmate's desk: inspect + PvP actions. */
 export function showDeskPopover(hit: DeskHit): void {
   closePopover();
   const root = id('popover-root');
@@ -21,15 +32,29 @@ export function showDeskPopover(hit: DeskHit): void {
 
   const name = el('div', 'pname');
   const sub = el('div', 'psub');
-  const btn = el('button', 'btn');
+  const actions = el('div', 'pvp-actions');
+  const planeBtn = el('button', 'btn');
+  const spitBtn = el('button', 'btn small');
+  const inkBtn = el('button', 'btn small');
   const warn = el('div', 'warn');
+  actions.appendChild(planeBtn);
+  actions.appendChild(spitBtn);
+  actions.appendChild(inkBtn);
   pop.appendChild(name);
   pop.appendChild(sub);
-  pop.appendChild(btn);
+  pop.appendChild(actions);
   pop.appendChild(warn);
 
-  btn.onclick = () => {
+  planeBtn.onclick = () => {
     store.steal(targetId);
+    closePopover();
+  };
+  spitBtn.onclick = () => {
+    store.spitball(targetId);
+    closePopover();
+  };
+  inkBtn.onclick = () => {
+    store.ink(targetId);
     closePopover();
   };
 
@@ -41,34 +66,76 @@ export function showDeskPopover(hit: DeskHit): void {
       return;
     }
     name.textContent = `${p.name} — ${gradeLabel(p.grade)}${p.stars > 0 ? ` ★${p.stars}` : ''}`;
-    sub.textContent = `${fmt(p.bp)} ${t('unit')} ${t('misc.onHand')}${p.online ? '' : ` · ${t('misc.sleeping')}`}`;
+    const tags: string[] = [];
+    if (!p.online) tags.push(t('misc.sleeping'));
+    else {
+      if (p.busy) tags.push(t('steal.busy'));
+      if (p.inked) tags.push(t('steal.inked'));
+    }
+    sub.textContent = `${fmt(p.bp)} ${t('unit')} ${t('misc.onHand')}${
+      tags.length ? ` · ${tags.join(' · ')}` : ''
+    }`;
 
     const sn = store.serverNow();
-    const cooldownLeft = you.stealReadyAt - sn;
-    if (!p.online) {
-      btn.disabled = true;
-      btn.textContent = t('steal.sleeping');
-    } else if (you.detentionUntil > sn) {
-      btn.disabled = true;
-      btn.textContent = t('err.detention');
-    } else if (cooldownLeft > 0) {
-      btn.disabled = true;
-      btn.textContent = t('steal.cooldown', { t: fmtDuration(cooldownLeft) });
+    const detained = you.detentionUntil > sn;
+    const sleeping = !p.online;
+    const recess = store.event?.kind === 'recess';
+    const patrol = store.event?.kind === 'patrol';
+
+    const planeAt = actionReadyAt(you.stealReadyAt, STEAL_COOLDOWN_MS);
+    const spitAt = actionReadyAt(you.spitReadyAt, SPIT_COOLDOWN_MS);
+    const inkAt = actionReadyAt(you.inkReadyAt, INK_COOLDOWN_MS);
+    const revenge =
+      you.revengeTargetId === targetId && you.revengeReadyAt > 0 && !sleeping && !detained;
+    const revengeLeft = you.revengeReadyAt - sn;
+    const planeLeft = planeAt - sn;
+    const planeReady = !sleeping && !detained && (planeLeft <= 0 || (revenge && revengeLeft <= 0));
+
+    planeBtn.disabled = sleeping || detained || !planeReady;
+    spitBtn.disabled = sleeping || detained || spitAt > sn;
+    inkBtn.disabled = sleeping || detained || inkAt > sn;
+
+    if (sleeping) {
+      planeBtn.textContent = t('steal.sleeping');
+      spitBtn.textContent = t('steal.sleeping');
+      inkBtn.textContent = t('steal.sleeping');
+    } else if (detained) {
+      planeBtn.textContent = t('err.detention');
+      spitBtn.textContent = t('err.detention');
+      inkBtn.textContent = t('err.detention');
     } else {
-      btn.disabled = false;
-      btn.textContent = `${t('steal.throw')} (${t('steal.steals', {
-        v: fmt(stealAmount(p.bp, you.bps)),
-      })})`;
+      if (planeReady) {
+        const revengeTag = revenge && planeLeft > 0 ? ` · ${t('steal.revenge')}` : '';
+        planeBtn.textContent = `${t('steal.throw')} (${t('steal.steals', {
+          v: fmt(stealAmount(p.bp, you.bps)),
+        })})${revengeTag}`;
+      } else if (revenge && revengeLeft > 0) {
+        planeBtn.textContent = t('steal.revengeIn', { t: fmtDuration(revengeLeft) });
+      } else {
+        planeBtn.textContent = t('steal.cooldown', { t: fmtDuration(planeLeft) });
+      }
+      spitBtn.textContent =
+        spitAt > sn
+          ? t('steal.spitCooldown', { t: fmtDuration(spitAt - sn) })
+          : `${t('steal.spit')} (${t('steal.steals', { v: fmt(spitAmount(p.bp, you.bps)) })})`;
+      inkBtn.textContent =
+        inkAt > sn ? t('steal.inkCooldown', { t: fmtDuration(inkAt - sn) }) : t('steal.ink');
     }
-    warn.textContent = store.event?.kind === 'patrol' ? t('steal.risky') : '';
+
+    planeBtn.classList.toggle('gold', Boolean(revenge && planeReady && !sleeping && !detained));
+    const warnBits: string[] = [];
+    if (p.busy) warnBits.push(t('steal.busyHint'));
+    if (patrol) warnBits.push(t('steal.risky'));
+    if (recess) warnBits.push(t('steal.recessHint'));
+    warn.textContent = warnBits.join(' ');
   };
   refresh();
   const timer = setInterval(refresh, 300);
 
   root.appendChild(pop);
-  const w = 230;
+  const w = 260;
   const x = Math.max(8, Math.min(hit.screenX - w / 2, window.innerWidth - w - 8));
-  const y = Math.max(8, Math.min(hit.screenY + 12, window.innerHeight - 140));
+  const y = Math.max(8, Math.min(hit.screenY + 12, window.innerHeight - 220));
   pop.style.left = `${x}px`;
   pop.style.top = `${y}px`;
 
@@ -84,5 +151,4 @@ export function showDeskPopover(hit: DeskHit): void {
   };
 }
 
-// Re-exported so main.ts can mention the cooldown in ui copy if needed.
 export { STEAL_COOLDOWN_MS };

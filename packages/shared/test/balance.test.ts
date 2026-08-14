@@ -18,6 +18,11 @@ import {
   starsForRun,
   stealAmount,
   stealCap,
+  spitAmount,
+  spitCap,
+  pvpActionReadyAt,
+  RECESS_CD_MS,
+  STEAL_COOLDOWN_MS,
   UPGRADES,
   adRewardAmount,
   AD_REWARD_COOLDOWN_MS,
@@ -156,14 +161,29 @@ describe('prestige', () => {
 });
 
 describe('stealing', () => {
-  it('takes 8% of victim, capped by attacker economy', () => {
+  it('takes 5% of victim, capped by attacker economy', () => {
     // Rich victim, poor attacker: capped by attacker.
-    expect(stealAmount(1e9, 0)).toBe(250);
-    expect(stealAmount(1e9, 10)).toBe(10 * 600 + 250);
-    // Poor victim, rich attacker: 8% of victim.
-    expect(stealAmount(1000, 1e6)).toBeCloseTo(80);
+    expect(stealAmount(1e9, 0)).toBe(80);
+    expect(stealAmount(1e9, 10)).toBe(10 * 90 + 80);
+    // Poor victim, rich attacker: 5% of victim.
+    expect(stealAmount(1000, 1e6)).toBeCloseTo(50);
     expect(stealAmount(0, 1e6)).toBe(0);
-    expect(stealCap(0)).toBe(250);
+    expect(stealCap(0)).toBe(80);
+  });
+
+  it('spitballs take 2% with a smaller cap', () => {
+    expect(spitAmount(1e9, 0)).toBe(15);
+    expect(spitAmount(1e9, 10)).toBe(10 * 20 + 15);
+    expect(spitAmount(1000, 1e6)).toBeCloseTo(20);
+    expect(spitCap(0)).toBe(15);
+  });
+
+  it('clamps PvP cooldowns during recess', () => {
+    const lastAt = 1_000_000;
+    const readyAt = lastAt + STEAL_COOLDOWN_MS;
+    expect(pvpActionReadyAt(readyAt, STEAL_COOLDOWN_MS, null)).toBe(readyAt);
+    expect(pvpActionReadyAt(readyAt, STEAL_COOLDOWN_MS, 'quiz')).toBe(readyAt);
+    expect(pvpActionReadyAt(readyAt, STEAL_COOLDOWN_MS, 'recess')).toBe(lastAt + RECESS_CD_MS);
   });
 });
 

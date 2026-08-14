@@ -1,5 +1,5 @@
 import { drawText } from './font';
-import { emoteSprites, planeSprite } from './sprites';
+import { emoteSprites, inkSprite, planeSprite, spitSprite } from './sprites';
 
 interface Floater {
   x: number;
@@ -17,6 +17,7 @@ interface Plane {
   y1: number;
   age: number;
   ttl: number;
+  sprite: HTMLCanvasElement;
   onArrive?: () => void;
 }
 
@@ -52,7 +53,27 @@ export class Fx {
   }
 
   plane(x0: number, y0: number, x1: number, y1: number, onArrive?: () => void): void {
-    this.planes.push({ x0, y0, x1, y1, age: 0, ttl: 0.9, onArrive });
+    this.shot(x0, y0, x1, y1, planeSprite, 0.9, onArrive);
+  }
+
+  spit(x0: number, y0: number, x1: number, y1: number, onArrive?: () => void): void {
+    this.shot(x0, y0, x1, y1, spitSprite, 0.45, onArrive);
+  }
+
+  ink(x0: number, y0: number, x1: number, y1: number, onArrive?: () => void): void {
+    this.shot(x0, y0, x1, y1, inkSprite, 0.7, onArrive);
+  }
+
+  private shot(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    sprite: HTMLCanvasElement,
+    ttl: number,
+    onArrive?: () => void,
+  ): void {
+    this.planes.push({ x0, y0, x1, y1, age: 0, ttl, sprite, onArrive });
   }
 
   emote(x: number, y: number, e: number): void {
@@ -122,7 +143,7 @@ export class Fx {
       ctx.save();
       ctx.translate(Math.round(x), Math.round(y));
       ctx.rotate(Math.atan2(dy, dx));
-      ctx.drawImage(planeSprite, -3, -2);
+      ctx.drawImage(p.sprite, -3, -2);
       ctx.restore();
     }
 

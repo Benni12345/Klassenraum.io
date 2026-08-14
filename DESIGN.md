@@ -50,15 +50,19 @@ Locked decisions:
   (level n target = 50.000 × 5ⁿ). On completion: everyone online gets ×3 for 5 min
   („Hausaufgabenfrei!") and the goal levels up. Progress persists in DB.
 
-## Stealing — Papierflieger
+## Stealing — Papierflieger & desk warfare
 
-- Click another desk → throw a paper airplane. **Steals real HS** from their unspent balance.
-- Amount = `min(8 % of victim's HS on hand, attacker's HS/s × 600 + 250)` — scales with your
-  own economy so whales can't farm newbies and newbies can't drain whales.
-- 5 min cooldown per attacker. Sleeping (Zzz) players can't be targeted. Spent HS is safe —
-  stealing is the economy's pressure to spend.
-- During **Lehrer-Rundgang** (teacher patrol) throwing is risky: 50 % chance to get caught →
-  **Nachsitzen** (detention): 90 s at ×0.25 production and no stealing.
+- Click another desk for three throws. **Sleeping (Zzz) players can't be targeted.** Spent HS is
+  safe — stealing is the economy's pressure to spend.
+- **Papierflieger** (45 s cooldown): steals `min(5 % of victim's HS on hand, attacker's HS/s × 90 + 80)`.
+  During **Lehrer-Rundgang** throwing is risky: 50 % chance to get caught → **Nachsitzen**
+  (detention): 90 s at ×0.25 production and no stealing.
+- **Spuckball** (12 s): smaller steal (`2 %` / `HS/s × 20 + 15`). Safe during patrol — fidget
+  throwing while the airplane recharges.
+- **Tintenklecks** (50 s): no HS stolen; victim production ×0.5 for 20 s. Risky during patrol.
+- **Fleißig tun** (own desk, 75 s cooldown): 20 s immunity to airplanes and ink. Spitballs still land.
+- **Revanche**: after someone lands a hit on you, your next airplane at *them* is ready in 10 s.
+- During **Große Pause** (recess riot), PvP cooldowns clamp to 2.5 s so the room stays noisy.
 
 ## Events (server-driven, synchronized for the whole room)
 
@@ -67,6 +71,7 @@ Random event every 4–8 min:
 - **Kurztest** (pop quiz, weight 3): 20 s arithmetic question; everyone who answers correctly
   gets ×2 for 2 min plus a flat HS reward.
 - **Lehrer-Rundgang** (patrol, weight 2): teacher walks the rows for 45 s; stealing risky.
+- **Große Pause** (recess riot, weight 2): 30 s of almost-free throws (PvP cooldowns 2.5 s).
 - **Vertretungsstunde** (substitute, weight 1): everyone online ×2 for 3 min.
 
 ## Tech
