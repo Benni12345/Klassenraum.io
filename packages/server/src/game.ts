@@ -82,7 +82,11 @@ import type {
 } from '@shared/types.js';
 import type { PvpKind, ServerMsg, TickTuple } from '@shared/protocol.js';
 import { TICK_BUSY, TICK_DETENTION, TICK_INK } from '@shared/protocol.js';
-import { verifyCrazyGamesToken, type CrazyGamesTokenPayload } from './cgAuth.js';
+import {
+  canonicalCgUserId,
+  verifyCrazyGamesToken,
+  type CrazyGamesTokenPayload,
+} from './cgAuth.js';
 import type { Db, PlayerRow } from './db.js';
 
 export interface Outbox {
@@ -166,6 +170,10 @@ export class Room {
    * - The first time an account is seen, the guest save behind `token` is
    *   *copied* into it and stamped as migrated. Later logins never copy again,
    *   so progress made while logged out stays in the guest save.
+   * - Username changes must not mint a second save: `userId` is normalised and
+   *   a same-username save this browser already migrated into is reclaimed.
+   * - The guest desk is removed (not left sleeping) while the account is seated
+   *   so the classroom does not show two copies of the same player.
    * - If a `cgToken` is present but verification fails, hello throws
    *   `CgAuthError` instead of seating a guest. Falling back would look like a
    *   points reset for a player who is already logged in.
@@ -210,6 +218,7 @@ export class Room {
         seated.online = true;
         seated.sleepUntil = 0;
         this.refreshLegacyGuestName(seated);
+        this.unseatMigratedCg(seated);
         this.applyClientTutorialDone(seated.id, clientTutorialDone);
         this.out.broadcast({ t: 'join', p: this.publicOf(seated) });
         return { playerId: seated.id };
@@ -219,6 +228,7 @@ export class Room {
         const offline = this.applyOfflineGains(row, now);
         this.refreshLegacyGuestName(row);
         const p = this.seatPlayer(row, now);
+        this.unseatMigratedCg(p);
         this.applyClientTutorialDone(p.id, clientTutorialDone);
         this.out.broadcast({ t: 'join', p: this.publicOf(p) });
         return { playerId: p.id, offline };
@@ -241,43 +251,66 @@ export class Room {
     avatar: AvatarSpec | undefined,
     now: number,
   ): { playerId: string; offline?: { ms: number; bp: number } } {
-    const seated = this.findSeatedByCgUserId(cg.userId);
-    if (seated) {
-      this.settle(seated, now);
-      seated.online = true;
-      seated.sleepUntil = 0;
-      this.syncCgProfile(seated, cg);
-      this.restoreCgTutorialFlag(seated, cg.userId);
-      this.out.broadcast({ t: 'join', p: this.publicOf(seated) });
-      return { playerId: seated.id };
-    }
+    const userId = canonicalCgUserId(cg.userId);
+    if (!userId) throw new CgAuthError('CrazyGames token missing userId');
+    cg.userId = userId;
 
-    const existing = this.db.loadPlayerByCgUserId(cg.userId);
-    if (existing) return this.joinStoredCg(existing, cg, token, now);
+    const chosen = this.resolveCgSave(cg, token);
+    if (chosen) {
+      this.rebindCgUserId(chosen, userId);
+      this.unseatBrowserGuest(token, chosen.id);
+      return this.joinStoredCg(chosen, cg, token, now);
+    }
 
     try {
       const row = this.createCgAccount(cg, this.migratableGuest(token, now), avatar, now);
-      this.restoreCgTutorialFlag(row, cg.userId);
+      this.unseatBrowserGuest(token, row.id);
+      this.restoreCgTutorialFlag(row, userId);
       const p = this.seatPlayer(row, now);
       this.out.broadcast({ t: 'join', p: this.publicOf(p) });
       return { playerId: p.id };
     } catch (err) {
       // Two hellos for a brand-new account can race on the unique cg_user_id.
       if (!isUniqueConstraint(err)) throw err;
-      const seatedNow = this.findSeatedByCgUserId(cg.userId);
-      if (seatedNow) {
-        this.settle(seatedNow, now);
-        seatedNow.online = true;
-        seatedNow.sleepUntil = 0;
-        this.syncCgProfile(seatedNow, cg);
-        this.restoreCgTutorialFlag(seatedNow, cg.userId);
-        this.out.broadcast({ t: 'join', p: this.publicOf(seatedNow) });
-        return { playerId: seatedNow.id };
-      }
-      const raced = this.db.loadPlayerByCgUserId(cg.userId);
+      const raced = this.resolveCgSave(cg, token) ?? this.db.loadPlayerByCgUserId(userId);
       if (!raced) throw err;
+      this.rebindCgUserId(raced, userId);
+      this.unseatBrowserGuest(token, raced.id);
       return this.joinStoredCg(raced, cg, token, now);
     }
+  }
+
+  /**
+   * The CrazyGames save this login should resume. Prefers `userId`, then a
+   * same-username save this browser already migrated into (JWT userId drift
+   * after a rename). A *different* CrazyGames account on the same device is
+   * not claimed — that path still creates a fresh row.
+   */
+  private resolveCgSave(cg: CrazyGamesTokenPayload, token: string | undefined): PlayerRow | null {
+    const candidates: PlayerRow[] = [];
+    const seen = new Set<string>();
+    const add = (row: PlayerRow | PlayerState | null | undefined) => {
+      if (!row || seen.has(row.id)) return;
+      seen.add(row.id);
+      candidates.push(row);
+    };
+
+    add(this.findSeatedByCgUserId(cg.userId));
+    add(this.db.loadPlayerByCgUserId(cg.userId));
+    const migrated = this.migratedCgTarget(token);
+    if (migrated && this.sameCgUsername(migrated, cg)) add(migrated);
+    // Pre-column saves have no cg_migrated_to. If this browser already copied
+    // into a CrazyGames account, reclaim the same-username row(s) so a rename
+    // that drifted userId still loads the original (most stars) save.
+    if (!migrated) {
+      const guest = this.guestRow(token);
+      const clean = sanitizeName(cg.username);
+      if (guest && guest.cgMigratedAt > 0 && clean) {
+        for (const row of this.db.loadCgPlayersByName(clean)) add(row);
+      }
+    }
+    if (candidates.length === 0) return null;
+    return candidates.reduce((a, b) => (this.cgSaveRicher(b, a) ? b : a));
   }
 
   private joinStoredCg(
@@ -289,11 +322,22 @@ export class Room {
     // Economy progress stays on the account, but tutorial completion is a
     // one-way flag: if this browser's guest already finished/skipped the tour,
     // carry that onto the account so a new session does not replay it.
-    if (!existing.tutorialDone && this.guestTutorialDone(token, now)) {
-      existing.tutorialDone = true;
-      this.db.savePlayer(existing);
+    const live = this.players.get(existing.id);
+    const target = live ?? existing;
+    if (!target.tutorialDone && this.guestTutorialDone(token, now)) {
+      target.tutorialDone = true;
+      if (!live) this.db.savePlayer(existing);
+      else live.dirty = true;
     }
-    this.restoreCgTutorialFlag(existing, cg.userId);
+    this.restoreCgTutorialFlag(target, cg.userId);
+    if (live) {
+      this.settle(live, now);
+      live.online = true;
+      live.sleepUntil = 0;
+      this.syncCgProfile(live, cg);
+      this.out.broadcast({ t: 'join', p: this.publicOf(live) });
+      return { playerId: live.id };
+    }
     const offline = this.applyOfflineGains(existing, now);
     this.syncCgProfile(existing, cg);
     const p = this.seatPlayer(existing, now);
@@ -353,29 +397,127 @@ export class Room {
       name: sanitizeName(cg.username) ?? base.name,
       cgUserId: cg.userId,
       cgMigratedAt: 0,
+      cgMigratedTo: null,
       createdAt: now,
       lastSeen: now,
     };
     this.db.createPlayer(row, hashToken(crypto.randomBytes(24).toString('hex')));
     if (row.tutorialDone) this.db.setCgTutorialDone(cg.userId);
     if (source) {
-      this.db.markCgMigrated(source.id, now);
+      this.db.markCgMigrated(source.id, now, row.id);
       const live = this.players.get(source.id);
       if (live) {
         live.cgMigratedAt = now;
-        // Drop the guest seat so the classroom does not show two copies of the
-        // same player while the CrazyGames account takes over this connection.
-        this.disconnect(source.id);
+        live.cgMigratedTo = row.id;
       }
+      // Drop the guest seat immediately so the classroom does not show two
+      // copies of the same player while the CrazyGames account takes over.
+      this.unseat(source.id);
     }
     return row;
   }
 
   private findSeatedByCgUserId(cgUserId: string): PlayerState | null {
+    const want = canonicalCgUserId(cgUserId);
+    if (!want) return null;
     for (const p of this.players.values()) {
-      if (p.cgUserId === cgUserId) return p;
+      if (canonicalCgUserId(p.cgUserId) === want) return p;
     }
     return null;
+  }
+
+  private migratedCgTarget(token: string | undefined): PlayerRow | null {
+    const guest = this.guestRow(token);
+    const toId = guest?.cgMigratedTo;
+    if (!toId) return null;
+    const live = this.players.get(toId);
+    if (live) {
+      this.settle(live, this.now());
+      return live;
+    }
+    return this.db.loadPlayerById(toId);
+  }
+
+  private guestRow(token: string | undefined): PlayerRow | null {
+    if (!token || !/^[a-f0-9]{48}$/.test(token)) return null;
+    return this.db.loadPlayerByToken(hashToken(token));
+  }
+
+  private sameCgUsername(row: PlayerRow, cg: CrazyGamesTokenPayload): boolean {
+    const clean = sanitizeName(cg.username);
+    return Boolean(clean && row.name === clean);
+  }
+
+  private cgSaveRicher(a: PlayerRow, b: PlayerRow): boolean {
+    if (a.stars !== b.stars) return a.stars > b.stars;
+    if (a.lifetimeBp !== b.lifetimeBp) return a.lifetimeBp > b.lifetimeBp;
+    const gensA = a.gens.reduce((n, v) => n + v, 0);
+    const gensB = b.gens.reduce((n, v) => n + v, 0);
+    return gensA > gensB;
+  }
+
+  /**
+   * Attach this CrazyGames userId to `row`, freeing it from any other save so
+   * a duplicate minted after a rename/userId mismatch collapses into one.
+   */
+  private rebindCgUserId(row: PlayerRow | PlayerState, userId: string): void {
+    const live = this.players.get(row.id);
+    const target = live ?? row;
+    if (canonicalCgUserId(target.cgUserId) === userId) {
+      target.cgUserId = userId;
+      return;
+    }
+    const taken = this.db.loadPlayerByCgUserId(userId);
+    if (taken && taken.id !== row.id) this.retireDuplicateCg(taken);
+    const seatedTaken = this.findSeatedByCgUserId(userId);
+    if (seatedTaken && seatedTaken.id !== row.id) this.retireDuplicateCg(seatedTaken);
+
+    const previous = target.cgUserId;
+    target.cgUserId = userId;
+    if (live) live.dirty = true;
+    this.db.savePlayer(target);
+    if (target.tutorialDone || (previous && this.db.isCgTutorialDone(previous))) {
+      this.db.setCgTutorialDone(userId);
+    }
+  }
+
+  /** Orphan a duplicate CrazyGames row so it no longer shares the username. */
+  private retireDuplicateCg(row: PlayerRow | PlayerState): void {
+    const live = this.players.get(row.id);
+    const target = live ?? row;
+    target.cgUserId = null;
+    target.name = guestName();
+    if (live) live.dirty = true;
+    this.db.savePlayer(target);
+    this.unseat(row.id);
+  }
+
+  /** Remove a player from the room immediately (account swap), not the 5 min Zzz. */
+  private unseat(playerId: string): void {
+    const p = this.players.get(playerId);
+    if (!p) return;
+    const now = this.now();
+    this.settle(p, now);
+    p.online = false;
+    p.lastSeen = now;
+    this.savePlayer(p);
+    this.players.delete(p.id);
+    if (this.seats[p.seat] === p.id) this.seats[p.seat] = null;
+    this.out.broadcast({ t: 'leave', id: p.id });
+  }
+
+  /** Hide this browser's guest desk while its CrazyGames account is seated. */
+  private unseatBrowserGuest(token: string | undefined, keepId: string): void {
+    if (!token || !/^[a-f0-9]{48}$/.test(token)) return;
+    const row = this.db.loadPlayerByToken(hashToken(token));
+    if (!row || row.id === keepId) return;
+    this.unseat(row.id);
+  }
+
+  /** Hide the CrazyGames desk while this browser is playing as the guest. */
+  private unseatMigratedCg(guest: PlayerRow | PlayerState): void {
+    if (!guest.cgMigratedTo || guest.cgMigratedTo === guest.id) return;
+    this.unseat(guest.cgMigratedTo);
   }
 
   private syncCgProfile(p: PlayerRow | PlayerState, cg: CrazyGamesTokenPayload): void {
@@ -422,6 +564,13 @@ export class Room {
   }
 
   private seatPlayer(row: PlayerRow, now: number): PlayerState {
+    const existing = this.players.get(row.id);
+    if (existing) {
+      this.settle(existing, now);
+      existing.online = true;
+      existing.sleepUntil = 0;
+      return existing;
+    }
     // Returning players who still need the tutorial (e.g. saves from before the
     // 15 BP starter) get topped up so Step 3 is completable immediately.
     if (!row.tutorialDone && row.gens.every((n) => n === 0) && row.bp < 15) {
@@ -1334,6 +1483,7 @@ function blankPlayer(
     lastAdRewardAt: 0,
     cgUserId: null,
     cgMigratedAt: 0,
+    cgMigratedTo: null,
     tutorialDone: false,
     streak: 0,
     bestStreak: 0,

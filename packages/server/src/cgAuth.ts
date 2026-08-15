@@ -11,6 +11,33 @@ export interface CrazyGamesTokenPayload {
   exp?: number;
 }
 
+/**
+ * CrazyGames `userId` is the stable account key (usernames can change). JWTs
+ * sometimes encode it as `userId`, `user_id`, or `sub`, and JSON may yield a
+ * number. Always compare the canonical string so a rename cannot mint a
+ * second save.
+ */
+export function canonicalCgUserId(value: unknown): string | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'string') {
+    const s = value.trim();
+    return s.length > 0 ? s : null;
+  }
+  return null;
+}
+
+export function normalizeCrazyGamesPayload(
+  raw: CrazyGamesTokenPayload & Record<string, unknown>,
+): CrazyGamesTokenPayload {
+  const userId =
+    canonicalCgUserId(raw.userId) ??
+    canonicalCgUserId(raw.user_id) ??
+    canonicalCgUserId(raw.sub);
+  const username = typeof raw.username === 'string' ? raw.username.trim() : '';
+  if (!userId || !username) throw new Error('incomplete payload');
+  return { ...raw, userId, username };
+}
+
 let cachedKey: { pem: string; fetchedAt: number } | null = null;
 const KEY_TTL_MS = 60 * 60_000;
 
@@ -57,8 +84,10 @@ export async function verifyCrazyGamesToken(token: string): Promise<CrazyGamesTo
     const ok = crypto.verify('RSA-SHA256', data, key, sig);
     if (!ok) throw new Error('invalid signature');
 
-    const payload = JSON.parse(b64urlToBuf(payloadB64).toString('utf8')) as CrazyGamesTokenPayload;
-    if (!payload.userId || !payload.username) throw new Error('incomplete payload');
+    const payload = normalizeCrazyGamesPayload(
+      JSON.parse(b64urlToBuf(payloadB64).toString('utf8')) as CrazyGamesTokenPayload &
+        Record<string, unknown>,
+    );
     if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) {
       throw new Error('token expired');
     }

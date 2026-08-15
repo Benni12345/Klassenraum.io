@@ -722,6 +722,116 @@ describe('CrazyGames account linking', () => {
     expect(room.youOf(again.playerId)!.gens[0]).toBe(1);
   });
 
+  it('removes the guest desk immediately on CrazyGames login so two profiles are not shown', async () => {
+    const { room } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 100;
+    room.buy(guest.playerId, 0, 1);
+    expect(room.roster().length).toBe(1);
+
+    const linked = await room.hello(guest.newToken, undefined, undefined, cgToken('uDesk', 'DeskPlayer'));
+    expect(linked.playerId).not.toBe(guest.playerId);
+    expect(room.roster().map((p) => p.id)).toEqual([linked.playerId]);
+    expect(room.youOf(linked.playerId)!.name).toBe('DeskPlayer');
+  });
+
+  it('hides the CrazyGames desk when the same browser continues as the guest', async () => {
+    const { room } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    const linked = await room.hello(guest.newToken, undefined, undefined, cgToken('uSwap', 'Swapper'));
+    expect(room.roster().map((p) => p.id)).toEqual([linked.playerId]);
+
+    const out = await room.hello(guest.newToken, undefined, undefined);
+    expect(out.playerId).toBe(guest.playerId);
+    expect(room.roster().map((p) => p.id)).toEqual([guest.playerId]);
+  });
+
+  it('reclaims the original save when the same username comes back under a new userId', async () => {
+    const { room, clock } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 100;
+    room.buy(guest.playerId, 0, 1);
+    const original = await room.hello(
+      guest.newToken,
+      undefined,
+      undefined,
+      cgToken('uOld', 'StarPlayer'),
+    );
+    (room as any).players.get(original.playerId).stars = 12;
+    room.disconnect(original.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    // Same CrazyGames username, different userId (rename / payload drift).
+    const back = await room.hello(
+      guest.newToken,
+      undefined,
+      undefined,
+      cgToken('uNew', 'StarPlayer'),
+    );
+    expect(back.playerId).toBe(original.playerId);
+    expect(room.youOf(back.playerId)!.stars).toBe(12);
+    expect(room.youOf(back.playerId)!.gens[0]).toBe(1);
+    expect(room.roster().filter((p) => p.name === 'StarPlayer').length).toBe(1);
+  });
+
+  it('loads the original (most stars) when a poorer duplicate already exists', async () => {
+    const { room, clock } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    const original = await room.hello(
+      guest.newToken,
+      undefined,
+      undefined,
+      cgToken('uRich', 'TwinName'),
+    );
+    (room as any).players.get(original.playerId).stars = 20;
+    room.disconnect(original.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    // A later login without the guest token minted a blank duplicate.
+    const stub = await room.hello(undefined, undefined, undefined, cgToken('uPoor', 'TwinName'));
+    expect(stub.playerId).not.toBe(original.playerId);
+    expect(room.youOf(stub.playerId)!.stars).toBe(0);
+    room.disconnect(stub.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const back = await room.hello(guest.newToken, undefined, undefined, cgToken('uPoor', 'TwinName'));
+    expect(back.playerId).toBe(original.playerId);
+    expect(room.youOf(back.playerId)!.stars).toBe(20);
+    expect(room.roster().filter((p) => p.name === 'TwinName').length).toBe(1);
+  });
+
+  it('treats numeric JWT userIds as the same account as the string form', async () => {
+    let now = 1_000_000_000;
+    const clock = {
+      now: () => now,
+      advance: (ms: number) => {
+        now += ms;
+      },
+    };
+    const out = { send: () => {}, broadcast: () => {} };
+    const db = new Db(':memory:');
+    const verify = async (token: string): Promise<CrazyGamesTokenPayload> => {
+      const m = /^cg:([^:]+):([^:.]+)\.*$/.exec(token);
+      if (!m) throw new Error('invalid token');
+      return { userId: Number(m[1]) as unknown as string, username: m[2]!, gameId: 'classroom' };
+    };
+    const room = new Room(db, out, clock.now, () => 0.99, undefined, verify);
+
+    const first = await room.hello(undefined, undefined, undefined, cgToken('42', 'NumPlayer'));
+    (room as any).players.get(first.playerId).bp = 100;
+    room.buy(first.playerId, 0, 1);
+    room.disconnect(first.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const again = await room.hello(undefined, undefined, undefined, cgToken('42', 'NumPlayer'));
+    expect(again.playerId).toBe(first.playerId);
+    expect(room.youOf(again.playerId)!.gens[0]).toBe(1);
+  });
+
   it('does not create a player when only a bad JWT is sent', async () => {
     const { room } = setup();
     await expect(
