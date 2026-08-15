@@ -34,7 +34,7 @@ export function createNoopPlatform(): Platform {
     onJoinRoom() {
       return () => {};
     },
-    async requestMidgameAd(_opts?: { resumeGameplay?: boolean }) {
+    async requestMidgameAd() {
       return false;
     },
     async requestRewardedAd() {

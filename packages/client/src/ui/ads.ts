@@ -1,5 +1,4 @@
 import { adRewardAmount } from '@shared/balance';
-import { firstSettledOr, shouldRequestStartupAd } from '../adStartup';
 import { platform } from '../platform';
 import type { BannerSize } from '../platform/types';
 import { store } from '../state';
@@ -7,7 +6,7 @@ import { t } from '../i18n';
 import { fmt, fmtDuration } from '../format';
 import { adPlayIcon, iconDataUrl } from '../render/sprites';
 import { el } from './dom';
-import { isCovered, onCoverChange, pushOverlay } from './overlay';
+import { isCovered, onCoverChange } from './overlay';
 import { toast } from './toast';
 
 const BANNER_ID = 'cg-bottom-banner';
@@ -16,8 +15,6 @@ const BANNER_REFRESH_MS = 35_000;
 const BANNER_TICK_MS = 1_000;
 /** Inset from the iframe edge so CG never sees a 1px-clipped container. */
 const BANNER_EDGE_PAD = 4;
-/** Safety net if the SDK never fires adFinished / adError. */
-const STARTUP_AD_TIMEOUT_MS = 90_000;
 
 /**
  * QA / test builds can disable banners via `VITE_NO_BANNER=true` at build time
@@ -48,90 +45,8 @@ export function bannerAllowedOnDevice(): boolean {
 }
 
 /**
- * QA / screenshot builds can skip the boot midgame via `?noStartupAd=1`.
- */
-export function startupAdsDisabled(): boolean {
-  try {
-    const v = new URLSearchParams(location.search).get('noStartupAd');
-    return v === '1' || v === 'true';
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Startup video like other CrazyGames titles: Play click (user gesture), then
- * a midgame request before hello / gameplayStart. An immediate request at
- * loadingStop is rejected with `adCooldown` and never starts a creative.
- */
-export async function playStartupVideoAd(): Promise<boolean> {
-  if (
-    !shouldRequestStartupAd({
-      enabled: platform.enabled,
-      hasAdblock: platform.hasAdblock,
-      disabled: startupAdsDisabled(),
-    })
-  ) {
-    return false;
-  }
-
-  return new Promise((resolve) => {
-    const gate = mountStartupPlayGate();
-    gate.button.onclick = () => {
-      gate.button.disabled = true;
-      gate.label.textContent = t('ads.startup');
-      // requestAd must start from this click so the video is allowed to play.
-      void firstSettledOr(
-        platform.requestMidgameAd({ resumeGameplay: false }),
-        STARTUP_AD_TIMEOUT_MS,
-        false,
-      ).then((shown) => {
-        if (import.meta.env.DEV) {
-          console.debug('[ads] startup midgame', shown ? 'shown' : 'skipped');
-        }
-        gate.release();
-        resolve(shown);
-      });
-    };
-  });
-}
-
-function mountStartupPlayGate(): {
-  button: HTMLButtonElement;
-  label: HTMLElement;
-  release: () => void;
-} {
-  const releaseOverlay = pushOverlay();
-  const gate = el('div', 'ad-gate');
-  gate.id = 'ad-gate';
-  gate.setAttribute('role', 'dialog');
-  gate.setAttribute('aria-modal', 'true');
-  const card = el('div', 'ad-gate-card');
-  card.appendChild(el('p', 'ad-gate-copy', t('ads.playHint')));
-  const button = el('button', 'btn gold ad-boost-btn');
-  button.type = 'button';
-  button.appendChild(adPlayBadge());
-  const label = el('span', 'ad-boost-label', t('ads.play'));
-  button.appendChild(label);
-  card.appendChild(button);
-  gate.appendChild(card);
-  document.body.appendChild(gate);
-  document.body.classList.add('ad-gate-open');
-  button.focus();
-  return {
-    button,
-    label,
-    release: () => {
-      gate.remove();
-      document.body.classList.remove('ad-gate-open');
-      releaseOverlay();
-    },
-  };
-}
-
-/**
- * Midgame after graduation. Requested from the confirmed "Yes" path only —
- * CrazyGames does not allow clicker midgames on shop / settings navigation.
+ * Midgame ads are only shown when the player graduates (prestige), after they
+ * confirmed the reset — the only placement CrazyGames allows for clicker games.
  */
 export function showPrestigeMidgameAd(): void {
   if (!platform.enabled) return;

@@ -225,8 +225,9 @@ export function joinModal(onDone: (name: string, avatar: AvatarSpec) => void): v
 // ----------------------------------------------------------------- Prestige
 
 /**
- * Graduation confirmation. CrazyGames allows a midgame ad after the player
- * confirms the reset — not on the prestige button itself.
+ * Graduation confirmation. CrazyGames allows a midgame ad on prestige only
+ * after an explicit warning that progress resets, so the ad is requested from
+ * the "Yes" branch and nowhere else.
  */
 export function prestigeModal(): void {
   const you = store.you;
