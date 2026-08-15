@@ -1,14 +1,5 @@
 import { adRewardAmount } from '@shared/balance';
-import {
-  firstSettledOr,
-  MIDGAME_COOLDOWN_MS,
-  nextMidgameAt,
-  shouldRequestStartupAd,
-  STARTUP_AD_MAX_TRIES,
-  STARTUP_AD_RETRY_MS,
-  STARTUP_AD_WARNING_MS,
-  startupAdReady,
-} from '../adStartup';
+import { firstSettledOr, shouldRequestStartupAd } from '../adStartup';
 import { platform } from '../platform';
 import type { BannerSize } from '../platform/types';
 import { store } from '../state';
@@ -68,148 +59,73 @@ export function startupAdsDisabled(): boolean {
   }
 }
 
-let startupAdLoadedAt = 0;
-let lastMidgameAt = 0;
-let startupAdTries = 0;
-let startupAdInFlight = false;
-let startupAdTimer = 0;
-
-function seated(): boolean {
-  return Boolean(store.you) && store.status === 'open';
-}
-
-function startupAdEligible(): boolean {
-  return shouldRequestStartupAd({
-    enabled: platform.enabled,
-    hasAdblock: platform.hasAdblock,
-    disabled: startupAdsDisabled(),
-  });
-}
-
-function queueStartupAdAttempt(delayMs: number): void {
-  window.clearTimeout(startupAdTimer);
-  startupAdTimer = window.setTimeout(() => {
-    void attemptStartupVideoAd();
-  }, Math.max(0, delayMs));
-}
-
 /**
- * Wait out the CrazyGames preroll / midgame cooldown, then play one video
- * per session. Requesting at loadingStop always errors with `adCooldown`.
+ * Startup video like other CrazyGames titles: Play click (user gesture), then
+ * a midgame request before hello / gameplayStart. An immediate request at
+ * loadingStop is rejected with `adCooldown` and never starts a creative.
  */
-export function scheduleStartupVideoAd(): void {
-  if (!startupAdEligible() || startupAdLoadedAt) return;
-  startupAdLoadedAt = Date.now();
-  queueStartupAdAttempt(MIDGAME_COOLDOWN_MS);
-}
-
-async function attemptStartupVideoAd(): Promise<void> {
-  if (startupAdInFlight || startupAdTries >= STARTUP_AD_MAX_TRIES) return;
-  if (!startupAdEligible()) return;
-
-  const dueAt = nextMidgameAt(startupAdLoadedAt, lastMidgameAt);
-  const wait = dueAt - Date.now();
-  if (wait > 0) {
-    queueStartupAdAttempt(wait);
-    return;
-  }
+export async function playStartupVideoAd(): Promise<boolean> {
   if (
-    !startupAdReady({
-      now: Date.now(),
-      dueAt,
-      covered: isCovered(),
-      visible: document.visibilityState !== 'hidden',
-      seated: seated(),
+    !shouldRequestStartupAd({
+      enabled: platform.enabled,
+      hasAdblock: platform.hasAdblock,
+      disabled: startupAdsDisabled(),
     })
   ) {
-    queueStartupAdAttempt(2_000);
-    return;
+    return false;
   }
 
-  startupAdInFlight = true;
-  const warned = await showStartupAdCountdown();
-  if (!warned) {
-    startupAdInFlight = false;
-    queueStartupAdAttempt(2_000);
-    return;
-  }
-  if (isCovered() || document.visibilityState === 'hidden' || !seated()) {
-    startupAdInFlight = false;
-    queueStartupAdAttempt(2_000);
-    return;
-  }
-
-  startupAdTries += 1;
-  const shown = await playStartupVideoAd();
-  startupAdInFlight = false;
-  if (shown) lastMidgameAt = Date.now();
-  if (!shown && startupAdTries < STARTUP_AD_MAX_TRIES) {
-    queueStartupAdAttempt(STARTUP_AD_RETRY_MS);
-  }
-}
-
-/** 3 s warning so a clicker player can stop tapping (CrazyGames requirement). */
-function showStartupAdCountdown(): Promise<boolean> {
-  const chip = el('div', 'ad-countdown');
-  chip.setAttribute('role', 'status');
-  chip.setAttribute('aria-live', 'polite');
-  document.body.appendChild(chip);
-  let left = Math.max(1, Math.round(STARTUP_AD_WARNING_MS / 1_000));
-  const paint = () => {
-    chip.textContent = t('ads.startingIn', { n: left });
-  };
-  paint();
   return new Promise((resolve) => {
-    const id = window.setInterval(() => {
-      if (isCovered() || document.visibilityState === 'hidden') {
-        clearInterval(id);
-        chip.remove();
-        resolve(false);
-        return;
-      }
-      left -= 1;
-      if (left <= 0) {
-        clearInterval(id);
-        chip.remove();
-        resolve(true);
-        return;
-      }
-      paint();
-    }, 1_000);
+    const gate = mountStartupPlayGate();
+    gate.button.onclick = () => {
+      gate.button.disabled = true;
+      gate.label.textContent = t('ads.startup');
+      // requestAd must start from this click so the video is allowed to play.
+      void firstSettledOr(
+        platform.requestMidgameAd({ resumeGameplay: false }),
+        STARTUP_AD_TIMEOUT_MS,
+        false,
+      ).then((shown) => {
+        if (import.meta.env.DEV) {
+          console.debug('[ads] startup midgame', shown ? 'shown' : 'skipped');
+        }
+        gate.release();
+        resolve(shown);
+      });
+    };
   });
 }
 
-async function playStartupVideoAd(): Promise<boolean> {
-  const release = mountStartupAdGate();
-  try {
-    const shown = await firstSettledOr(platform.requestMidgameAd(), STARTUP_AD_TIMEOUT_MS, false);
-    if (import.meta.env.DEV) {
-      console.debug('[ads] startup midgame', shown ? 'shown' : 'skipped');
-    }
-    return shown;
-  } finally {
-    release();
-  }
-}
-
-/** Full-screen blocker while the midgame auction / creative runs (CG requirement). */
-function mountStartupAdGate(): () => void {
+function mountStartupPlayGate(): {
+  button: HTMLButtonElement;
+  label: HTMLElement;
+  release: () => void;
+} {
   const releaseOverlay = pushOverlay();
   const gate = el('div', 'ad-gate');
   gate.id = 'ad-gate';
-  gate.setAttribute('role', 'alert');
-  gate.setAttribute('aria-live', 'assertive');
-  gate.setAttribute('aria-busy', 'true');
+  gate.setAttribute('role', 'dialog');
+  gate.setAttribute('aria-modal', 'true');
   const card = el('div', 'ad-gate-card');
-  card.appendChild(adPlayBadge());
-  card.appendChild(el('p', 'ad-gate-copy', t('ads.startup')));
+  card.appendChild(el('p', 'ad-gate-copy', t('ads.playHint')));
+  const button = el('button', 'btn gold ad-boost-btn');
+  button.type = 'button';
+  button.appendChild(adPlayBadge());
+  const label = el('span', 'ad-boost-label', t('ads.play'));
+  button.appendChild(label);
+  card.appendChild(button);
   gate.appendChild(card);
   document.body.appendChild(gate);
   document.body.classList.add('ad-gate-open');
-  return () => {
-    gate.remove();
-    document.body.classList.remove('ad-gate-open');
-    releaseOverlay();
+  button.focus();
+  return {
+    button,
+    label,
+    release: () => {
+      gate.remove();
+      document.body.classList.remove('ad-gate-open');
+      releaseOverlay();
+    },
   };
 }
 
@@ -219,7 +135,6 @@ function mountStartupAdGate(): () => void {
  */
 export function showPrestigeMidgameAd(): void {
   if (!platform.enabled) return;
-  lastMidgameAt = Date.now();
   void platform.requestMidgameAd().then((shown) => {
     if (import.meta.env.DEV) console.debug('[ads] prestige midgame', shown ? 'shown' : 'skipped');
   });

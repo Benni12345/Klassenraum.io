@@ -17,7 +17,7 @@ import { CG_TUTORIAL_KEY, isTutorialDoneLocally, rememberTutorialDoneLocally } f
 import { Scene } from './render/scene';
 import { brainIcon, gearIcon, iconDataUrl, trophyIcon } from './render/sprites';
 import { store } from './state';
-import { scheduleStartupVideoAd } from './ui/ads';
+import { playStartupVideoAd } from './ui/ads';
 import { initBoss } from './ui/boss';
 import { initChat } from './ui/chat';
 import { el, id } from './ui/dom';
@@ -338,9 +338,9 @@ async function boot(): Promise<void> {
 
   platform.loadingDone();
 
-  // Do not request midgame here — CrazyGames preroll makes an immediate
-  // request fail with adCooldown. Wait ~3 min, then play one video.
-  scheduleStartupVideoAd();
+  // Play click, then midgame, then hello. Requesting at loadingStop is
+  // rejected with adCooldown; other CrazyGames titles start the video from Play.
+  await playStartupVideoAd();
 
   // ------------------------------------------------------------------- Join
 
