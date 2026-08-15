@@ -144,7 +144,11 @@ export interface Platform {
   inviteLink(): string | null;
   /** Fires when a friend join lands in an already-running game. */
   onJoinRoom(listener: () => void): () => void;
-  requestMidgameAd(): Promise<boolean>;
+  /**
+   * Request a midgame video ad. Pass `resumeGameplay: false` when gameplay has
+   * not started yet (startup) so a finished/skipped ad does not call gameplayStart.
+   */
+  requestMidgameAd(opts?: { resumeGameplay?: boolean }): Promise<boolean>;
   requestRewardedAd(): Promise<boolean>;
   /**
    * Requests a banner into an already sized, fully visible container. Callers

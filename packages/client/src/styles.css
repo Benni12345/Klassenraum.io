@@ -522,6 +522,40 @@ textarea {
   }
 }
 
+/* Full-screen gate while a startup / midgame video auction runs. */
+.ad-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 16, 12, 0.82);
+  padding: 16px;
+}
+
+body.ad-gate-open #app {
+  pointer-events: none;
+}
+
+.ad-gate-card {
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.45);
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 320px;
+  text-align: center;
+}
+
+.ad-gate-copy {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
 /*
  * Bottom-center CrazyGames banner overlay on the classroom floor. No board-green
  * chrome or border — when the network returns noFill the dock is hidden so an

@@ -263,10 +263,13 @@ export function createCrazyGamesPlatform(): Platform {
       return () => joinRoomListeners.delete(listener);
     },
 
-    async requestMidgameAd() {
+    async requestMidgameAd(opts?: { resumeGameplay?: boolean }) {
+      const resumeGameplay = opts?.resumeGameplay !== false;
       return requestAd('midgame', {
         onStarted: () => this.onGameplayStop(),
-        onEnded: () => this.onGameplayStart(),
+        onEnded: () => {
+          if (resumeGameplay) this.onGameplayStart();
+        },
       });
     },
 
