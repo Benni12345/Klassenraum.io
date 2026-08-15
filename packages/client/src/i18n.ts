@@ -174,7 +174,11 @@ const de: Dict = {
   'conn.replaced': 'Der Klassenraum ist in einem anderen Tab geöffnet.',
   'conn.playHere': 'Hier weiterspielen',
 
-  'offline.toast': 'Willkommen zurück! Dein Platz hat {v} HS erarbeitet ({t}).',
+  'offline.title': 'Willkommen zurück!',
+  'offline.desc': 'Dein Platz hat {v} HS erarbeitet, während du weg warst ({t}).',
+  'offline.keep': '{v} behalten',
+  'offline.double': 'Verdoppeln auf {v} (Werbung)',
+  'offline.doubleDone': 'Doppelt! +{n} HS',
 
   'err.poor': 'Nicht genug Hirnschmalz!',
   'err.cooldown': 'Papierflieger noch nicht bereit!',
@@ -191,6 +195,7 @@ const de: Dict = {
   'err.claimed': 'Heute schon abgeholt.',
   'err.hw': 'Hausaufgabe noch nicht fertig oder schon abgegeben.',
   'err.skin': 'Dieser Tisch ist noch nicht freigeschaltet.',
+  'err.offline': 'Kein Willkommensbonus verfügbar.',
 
   'buff.quiz': 'Kurztest bestanden ×2',
   'buff.sub': 'Vertretungsstunde ×2',
@@ -527,7 +532,11 @@ const en: Dict = {
   'conn.replaced': 'The classroom is open in another tab.',
   'conn.playHere': 'Play here',
 
-  'offline.toast': 'Welcome back! Your desk earned {v} BP ({t}).',
+  'offline.title': 'Welcome back!',
+  'offline.desc': 'Your desk earned {v} HS while you were away ({t}).',
+  'offline.keep': 'Keep {v}',
+  'offline.double': 'Double to {v} (ad)',
+  'offline.doubleDone': 'Doubled! +{n} HS',
 
   'err.poor': 'Not enough brainpower!',
   'err.cooldown': 'Paper airplane not ready yet!',
@@ -544,6 +553,7 @@ const en: Dict = {
   'err.claimed': 'Already claimed today.',
   'err.hw': 'Homework is not ready or already turned in.',
   'err.skin': 'That desk skin is still locked.',
+  'err.offline': 'No welcome-back bonus available.',
 
   'buff.quiz': 'Quiz passed ×2',
   'buff.sub': 'Substitute ×2',

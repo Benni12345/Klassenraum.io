@@ -42,6 +42,8 @@ export type ClientMsg =
   | { t: 'adBoost' }
   /** Persist guided-tutorial completion on the player's save. */
   | { t: 'tutorialDone' }
+  /** Grant the welcome-back double of last offline earnings (after a rewarded ad). */
+  | { t: 'doubleOffline' }
   /** Claim today's attendance. `recover` keeps a 1-day-missed streak (after an ad). */
   | { t: 'claimAttendance'; recover?: boolean }
   /** Double today's attendance payout (after a rewarded ad). */
