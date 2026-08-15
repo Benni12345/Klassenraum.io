@@ -27,6 +27,12 @@ export interface PlayerRow {
    * the player logs out, keeps playing, and logs back in.
    */
   cgMigratedAt: number;
+  /**
+   * Player id of the CrazyGames save this guest was copied into. Lets a later
+   * login reclaim that save when the JWT `userId` string does not match (rename
+   * / payload-shape drift) without attaching a *different* CrazyGames account.
+   */
+  cgMigratedTo: string | null;
   /** Guided tutorial completed or skipped. */
   tutorialDone: boolean;
   streak: number;
@@ -68,6 +74,7 @@ CREATE TABLE IF NOT EXISTS players (
   last_ad_reward_at INTEGER NOT NULL DEFAULT 0,
   cg_user_id TEXT UNIQUE,
   cg_migrated_at INTEGER NOT NULL DEFAULT 0,
+  cg_migrated_to TEXT,
   tutorial_done INTEGER NOT NULL DEFAULT 0,
   streak INTEGER NOT NULL DEFAULT 0,
   best_streak INTEGER NOT NULL DEFAULT 0,
@@ -112,6 +119,9 @@ export class Db {
     }
     if (!names.has('cg_migrated_at')) {
       this.db.exec('ALTER TABLE players ADD COLUMN cg_migrated_at INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!names.has('cg_migrated_to')) {
+      this.db.exec('ALTER TABLE players ADD COLUMN cg_migrated_to TEXT');
     }
     if (!names.has('tutorial_done')) {
       this.db.exec('ALTER TABLE players ADD COLUMN tutorial_done INTEGER NOT NULL DEFAULT 0');
@@ -195,8 +205,29 @@ export class Db {
     return r ? decodeRow(r) : null;
   }
 
+  loadPlayerById(id: string): PlayerRow | null {
+    const r = this.db
+      .prepare('SELECT * FROM players WHERE id = ?')
+      .get(id) as Record<string, unknown> | undefined;
+    return r ? decodeRow(r) : null;
+  }
+
+  /** CrazyGames-linked saves currently displaying this exact username. */
+  loadCgPlayersByName(name: string): PlayerRow[] {
+    const rows = this.db
+      .prepare('SELECT * FROM players WHERE cg_user_id IS NOT NULL AND name = ?')
+      .all(name) as Record<string, unknown>[];
+    return rows.map(decodeRow);
+  }
+
   /** Stamp a guest save as already copied into a CrazyGames account. */
-  markCgMigrated(playerId: string, at: number): void {
+  markCgMigrated(playerId: string, at: number, toId?: string): void {
+    if (toId) {
+      this.db
+        .prepare('UPDATE players SET cg_migrated_at = ?, cg_migrated_to = ? WHERE id = ?')
+        .run(at, toId, playerId);
+      return;
+    }
     this.db.prepare('UPDATE players SET cg_migrated_at = ? WHERE id = ?').run(at, playerId);
   }
 
@@ -303,6 +334,7 @@ function decodeRow(r: Record<string, unknown>): PlayerRow {
     lastAdRewardAt: Number(r.last_ad_reward_at ?? 0),
     cgUserId: (r.cg_user_id as string | null) ?? null,
     cgMigratedAt: Number(r.cg_migrated_at ?? 0),
+    cgMigratedTo: typeof r.cg_migrated_to === 'string' && r.cg_migrated_to ? r.cg_migrated_to : null,
     tutorialDone: Number(r.tutorial_done ?? 0) !== 0,
     streak: Number(r.streak ?? 0),
     bestStreak: Number(r.best_streak ?? 0),
