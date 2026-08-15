@@ -35,12 +35,13 @@ import {
   settingsModal,
   toast,
 } from './ui/modals';
+import { maybePromptWelcomeBack } from './ui/offline';
 import { isCovered } from './ui/overlay';
 import { closePopover, showDeskPopover } from './ui/popover';
 import { initSchool, maybePromptSchool } from './ui/school';
 import { initShop } from './ui/shop';
 import { applyStaticTexts } from './ui/texts';
-import { initHints, startTutorial } from './ui/tutorial';
+import { initHints, onTutorialEnd, startTutorial } from './ui/tutorial';
 
 async function boot(): Promise<void> {
   let initialAuth: Awaited<ReturnType<typeof platform.getAuth>> | null = null;
@@ -93,6 +94,13 @@ async function boot(): Promise<void> {
   initSchool();
   initChat();
   initHints();
+
+  function afterOnboardingUi(): void {
+    if (maybePromptWelcomeBack()) return;
+    maybePromptSchool();
+    if (!isCovered()) platform.onGameplayStart();
+  }
+  onTutorialEnd(() => afterOnboardingUi());
 
   // ----------------------------------------------------------------- Clicking
 
@@ -221,15 +229,14 @@ async function boot(): Promise<void> {
       if ((serverDone || localDone) && platform.enabled) {
         platform.setDataItem(CG_TUTORIAL_KEY, '1');
       }
-      // First gameplayStart waits until the tutorial (if any) and the auto
-      // School Day popup are gone — CrazyGames rejects ads/start during that UI.
+      // First gameplayStart waits until the tutorial (if any), welcome-back
+      // double, and the auto School Day popup are gone.
       const showTutorial =
         !platform.isInstantMultiplayer && !(store.you?.tutorialDone || isTutorialDoneLocally());
       if (showTutorial) {
         startTutorial();
       } else {
-        maybePromptSchool();
-        if (!isCovered()) platform.onGameplayStart();
+        afterOnboardingUi();
       }
     } else {
       // Reconnect / reseat — gameplay was already running unless a modal is up.
@@ -250,13 +257,6 @@ async function boot(): Promise<void> {
   store.on('error', (code) => {
     sfxError();
     toast(t(`err.${code}`), 'bad');
-  });
-
-  store.on('offline', (o) => {
-    const hours = Math.floor(o.ms / 3_600_000);
-    const mins = Math.floor((o.ms % 3_600_000) / 60_000);
-    const dur = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-    toast(t('offline.toast', { v: fmt(o.bp), t: dur }), 'gold');
   });
 
   store.on('steal', (s) => {

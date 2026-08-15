@@ -59,6 +59,8 @@ class Store {
   chatLog: ChatEntry[] = [];
   status: NetStatus = 'connecting';
   quizAnsweredAt = 0;
+  /** Offline earnings from this hello, until the welcome-back prompt consumes them. */
+  pendingOffline: { ms: number; bp: number } | null = null;
 
   private net: Net;
   private timeOffset = 0;
@@ -259,6 +261,10 @@ class Store {
     this.net.send({ t: 'adBoost' });
   }
 
+  doubleOffline(): void {
+    this.net.send({ t: 'doubleOffline' });
+  }
+
   claimAttendance(recover = false): void {
     this.net.send({ t: 'claimAttendance', recover });
   }
@@ -329,6 +335,7 @@ class Store {
         } else if (this.you.tutorialDone) {
           this.pendingTutorialDone = false;
         }
+        this.pendingOffline = msg.offline ?? null;
         this.emit('joined', undefined);
         if (msg.offline) this.emit('offline', msg.offline);
         this.emit('roster', undefined);

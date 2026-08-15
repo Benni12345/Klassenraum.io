@@ -80,6 +80,32 @@ describe('join and seats', () => {
     const you = room.youOf(a.playerId)!;
     expect(you.gens[0]).toBe(1);
   });
+
+  it('doubles offline earnings once via a welcome-back claim', async () => {
+    const { room, clock } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    room.click(a.playerId, 40);
+    room.buy(a.playerId, 0, 1);
+    room.disconnect(a.playerId);
+    clock.advance(5 * 60_000 + 1000);
+    room.tick();
+    clock.advance(2 * 3_600_000);
+    const back = await room.hello(a.newToken, undefined, undefined);
+    const offline = back.offline!.bp;
+    const before = room.youOf(back.playerId)!.bp;
+    room.doubleOffline(back.playerId);
+    expect(room.youOf(back.playerId)!.bp).toBeCloseTo(before + offline, 5);
+    room.doubleOffline(back.playerId);
+    expect(room.youOf(back.playerId)!.bp).toBeCloseTo(before + offline, 5);
+  });
+
+  it('rejects welcome-back double when there was no offline grant', async () => {
+    const { room, sent } = setup();
+    const a = await room.hello(undefined, 'Anna', undefined);
+    room.doubleOffline(a.playerId);
+    const errs = (sent.get(a.playerId) ?? []).filter((m) => m.t === 'error');
+    expect(errs.some((m) => m.t === 'error' && m.code === 'offline')).toBe(true);
+  });
 });
 
 describe('economy', () => {

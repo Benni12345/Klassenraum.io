@@ -18,7 +18,6 @@ import { adPlayBadge } from './ads';
 import { el, id } from './dom';
 import { openModal } from './modals';
 import { toast } from './toast';
-import { onTutorialEnd } from './tutorial';
 
 let schoolPrompted = false;
 let dailyLoginReady = false;
@@ -57,7 +56,6 @@ export function initSchool(): void {
   store.on('joined', () => {
     refresh();
   });
-  onTutorialEnd(() => maybePromptSchool());
   setInterval(refresh, 1_000);
   refresh();
 }

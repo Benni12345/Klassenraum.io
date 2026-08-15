@@ -110,6 +110,8 @@ interface PlayerState extends PlayerRow {
   shieldUntil: number;
   revengeTargetId: string | null;
   revengeReadyAt: number;
+  /** HS that can still be granted once via doubleOffline this session. */
+  pendingOfflineDouble: number;
   dirty: boolean;
 }
 
@@ -225,9 +227,8 @@ export class Room {
       }
       const row = this.db.loadPlayerByToken(hash);
       if (row) {
-        const offline = this.applyOfflineGains(row, now);
         this.refreshLegacyGuestName(row);
-        const p = this.seatPlayer(row, now);
+        const { p, offline } = this.seatWithOffline(row, now);
         this.unseatMigratedCg(p);
         this.applyClientTutorialDone(p.id, clientTutorialDone);
         this.out.broadcast({ t: 'join', p: this.publicOf(p) });
@@ -338,9 +339,8 @@ export class Room {
       this.out.broadcast({ t: 'join', p: this.publicOf(live) });
       return { playerId: live.id };
     }
-    const offline = this.applyOfflineGains(existing, now);
     this.syncCgProfile(existing, cg);
-    const p = this.seatPlayer(existing, now);
+    const { p, offline } = this.seatWithOffline(existing, now);
     this.out.broadcast({ t: 'join', p: this.publicOf(p) });
     return { playerId: p.id, offline };
   }
@@ -563,6 +563,16 @@ export class Room {
     return { ms: elapsed, bp: gain };
   }
 
+  private seatWithOffline(
+    row: PlayerRow,
+    now: number,
+  ): { p: PlayerState; offline?: { ms: number; bp: number } } {
+    const offline = this.applyOfflineGains(row, now);
+    const p = this.seatPlayer(row, now);
+    p.pendingOfflineDouble = offline && offline.bp > 0 ? offline.bp : 0;
+    return { p, offline };
+  }
+
   private seatPlayer(row: PlayerRow, now: number): PlayerState {
     const existing = this.players.get(row.id);
     if (existing) {
@@ -602,6 +612,7 @@ export class Room {
       shieldUntil: 0,
       revengeTargetId: null,
       revengeReadyAt: 0,
+      pendingOfflineDouble: 0,
       dirty: true,
     };
     this.players.set(p.id, p);
@@ -841,6 +852,20 @@ export class Room {
     p.lastAdRewardAt = now;
     if (reward > 0) this.earn(p, reward);
     p.dirty = true;
+    this.sendYou(p);
+  }
+
+  doubleOffline(playerId: string): void {
+    const p = this.online(playerId);
+    if (!p) return;
+    const amount = p.pendingOfflineDouble;
+    if (!(amount > 0)) {
+      this.out.send(p.id, { t: 'error', code: 'offline' });
+      return;
+    }
+    p.pendingOfflineDouble = 0;
+    this.settle(p, this.now());
+    this.earn(p, amount);
     this.sendYou(p);
   }
 
