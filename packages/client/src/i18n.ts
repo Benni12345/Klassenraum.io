@@ -209,7 +209,8 @@ const de: Dict = {
   'ads.adblockHint': 'AdBlocker erkannt — Bonus-Werbung gesperrt',
   'ads.watching': 'Werbung läuft…',
   'ads.startup': 'Werbung wird geladen…',
-  'ads.startingIn': 'Werbung in {n}…',
+  'ads.play': 'Spielen',
+  'ads.playHint': 'Ein kurzes Video kann vor dem Unterricht laufen.',
   'settings.cgLogin': 'Mit CrazyGames anmelden',
   'settings.cgLoginHint': 'Fortschritt geräteübergreifend speichern',
 
@@ -564,7 +565,8 @@ const en: Dict = {
   'ads.adblockHint': 'Ad blocker detected — bonus ads locked',
   'ads.watching': 'Playing ad…',
   'ads.startup': 'Loading advertisement…',
-  'ads.startingIn': 'Ad starting in {n}…',
+  'ads.play': 'Play',
+  'ads.playHint': 'A short video may play before class.',
   'settings.cgLogin': 'Sign in with CrazyGames',
   'settings.cgLoginHint': 'Save progress across devices',
 

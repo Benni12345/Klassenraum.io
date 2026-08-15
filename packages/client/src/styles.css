@@ -537,21 +537,6 @@ body.ad-gate-open #app {
   pointer-events: none;
 }
 
-.ad-countdown {
-  position: fixed;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 35;
-  pointer-events: none;
-  background: var(--paper);
-  border: 3px solid var(--ink);
-  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
-  padding: 8px 14px;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
 .ad-gate-card {
   background: var(--paper);
   border: 3px solid var(--ink);
