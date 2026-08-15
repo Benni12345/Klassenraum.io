@@ -1,5 +1,14 @@
 import { adRewardAmount } from '@shared/balance';
-import { firstSettledOr, shouldRequestStartupAd } from '../adStartup';
+import {
+  firstSettledOr,
+  MIDGAME_COOLDOWN_MS,
+  nextMidgameAt,
+  shouldRequestStartupAd,
+  STARTUP_AD_MAX_TRIES,
+  STARTUP_AD_RETRY_MS,
+  STARTUP_AD_WARNING_MS,
+  startupAdReady,
+} from '../adStartup';
 import { platform } from '../platform';
 import type { BannerSize } from '../platform/types';
 import { store } from '../state';
@@ -49,7 +58,6 @@ export function bannerAllowedOnDevice(): boolean {
 
 /**
  * QA / screenshot builds can skip the boot midgame via `?noStartupAd=1`.
- * The CrazyGames SDK still frequency-caps (preroll + ~3 min) when we do request.
  */
 export function startupAdsDisabled(): boolean {
   try {
@@ -60,28 +68,121 @@ export function startupAdsDisabled(): boolean {
   }
 }
 
+let startupAdLoadedAt = 0;
+let lastMidgameAt = 0;
+let startupAdTries = 0;
+let startupAdInFlight = false;
+let startupAdTimer = 0;
+
+function seated(): boolean {
+  return Boolean(store.you) && store.status === 'open';
+}
+
+function startupAdEligible(): boolean {
+  return shouldRequestStartupAd({
+    enabled: platform.enabled,
+    hasAdblock: platform.hasAdblock,
+    disabled: startupAdsDisabled(),
+  });
+}
+
+function queueStartupAdAttempt(delayMs: number): void {
+  window.clearTimeout(startupAdTimer);
+  startupAdTimer = window.setTimeout(() => {
+    void attemptStartupVideoAd();
+  }, Math.max(0, delayMs));
+}
+
 /**
- * Request a midgame video ad on every boot, before the player joins.
- * CrazyGames ignores the request when it is too soon after preroll / another
- * video (`adCooldown`) — we still ask every time so later sessions fill.
+ * Wait out the CrazyGames preroll / midgame cooldown, then play one video
+ * per session. Requesting at loadingStop always errors with `adCooldown`.
  */
-export async function playStartupVideoAd(): Promise<boolean> {
+export function scheduleStartupVideoAd(): void {
+  if (!startupAdEligible() || startupAdLoadedAt) return;
+  startupAdLoadedAt = Date.now();
+  queueStartupAdAttempt(MIDGAME_COOLDOWN_MS);
+}
+
+async function attemptStartupVideoAd(): Promise<void> {
+  if (startupAdInFlight || startupAdTries >= STARTUP_AD_MAX_TRIES) return;
+  if (!startupAdEligible()) return;
+
+  const dueAt = nextMidgameAt(startupAdLoadedAt, lastMidgameAt);
+  const wait = dueAt - Date.now();
+  if (wait > 0) {
+    queueStartupAdAttempt(wait);
+    return;
+  }
   if (
-    !shouldRequestStartupAd({
-      enabled: platform.enabled,
-      hasAdblock: platform.hasAdblock,
-      disabled: startupAdsDisabled(),
+    !startupAdReady({
+      now: Date.now(),
+      dueAt,
+      covered: isCovered(),
+      visible: document.visibilityState !== 'hidden',
+      seated: seated(),
     })
   ) {
-    return false;
+    queueStartupAdAttempt(2_000);
+    return;
   }
+
+  startupAdInFlight = true;
+  const warned = await showStartupAdCountdown();
+  if (!warned) {
+    startupAdInFlight = false;
+    queueStartupAdAttempt(2_000);
+    return;
+  }
+  if (isCovered() || document.visibilityState === 'hidden' || !seated()) {
+    startupAdInFlight = false;
+    queueStartupAdAttempt(2_000);
+    return;
+  }
+
+  startupAdTries += 1;
+  const shown = await playStartupVideoAd();
+  startupAdInFlight = false;
+  if (shown) lastMidgameAt = Date.now();
+  if (!shown && startupAdTries < STARTUP_AD_MAX_TRIES) {
+    queueStartupAdAttempt(STARTUP_AD_RETRY_MS);
+  }
+}
+
+/** 3 s warning so a clicker player can stop tapping (CrazyGames requirement). */
+function showStartupAdCountdown(): Promise<boolean> {
+  const chip = el('div', 'ad-countdown');
+  chip.setAttribute('role', 'status');
+  chip.setAttribute('aria-live', 'polite');
+  document.body.appendChild(chip);
+  let left = Math.max(1, Math.round(STARTUP_AD_WARNING_MS / 1_000));
+  const paint = () => {
+    chip.textContent = t('ads.startingIn', { n: left });
+  };
+  paint();
+  return new Promise((resolve) => {
+    const id = window.setInterval(() => {
+      if (isCovered() || document.visibilityState === 'hidden') {
+        clearInterval(id);
+        chip.remove();
+        resolve(false);
+        return;
+      }
+      left -= 1;
+      if (left <= 0) {
+        clearInterval(id);
+        chip.remove();
+        resolve(true);
+        return;
+      }
+      paint();
+    }, 1_000);
+  });
+}
+
+async function playStartupVideoAd(): Promise<boolean> {
   const release = mountStartupAdGate();
   try {
-    const shown = await firstSettledOr(
-      platform.requestMidgameAd({ resumeGameplay: false }),
-      STARTUP_AD_TIMEOUT_MS,
-      false,
-    );
+    const shown = await firstSettledOr(platform.requestMidgameAd(), STARTUP_AD_TIMEOUT_MS, false);
     if (import.meta.env.DEV) {
       console.debug('[ads] startup midgame', shown ? 'shown' : 'skipped');
     }
@@ -118,6 +219,7 @@ function mountStartupAdGate(): () => void {
  */
 export function showPrestigeMidgameAd(): void {
   if (!platform.enabled) return;
+  lastMidgameAt = Date.now();
   void platform.requestMidgameAd().then((shown) => {
     if (import.meta.env.DEV) console.debug('[ads] prestige midgame', shown ? 'shown' : 'skipped');
   });
