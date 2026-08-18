@@ -12,7 +12,7 @@ import {
 import { fmt } from './format';
 import { gradeLabel, t } from './i18n';
 import { initMusic, syncMusic } from './music';
-import { readAccountToken, stashAccountToken } from './accountToken';
+import { adoptAccountToken, CG_GUEST_TOKEN_KEY, readAccountToken, stashAccountToken } from './accountToken';
 import { platform } from './platform';
 import { CG_TUTORIAL_KEY, isTutorialDoneLocally, rememberTutorialDoneLocally } from './prefs';
 import { Scene } from './render/scene';
@@ -48,10 +48,13 @@ async function boot(): Promise<void> {
   let initialAuth: Awaited<ReturnType<typeof platform.getAuth>> | null = null;
   if (platform.enabled) {
     await platform.init();
-    // SDK.init restores the CrazyGames *account* localStorage. A fresh
-    // account is empty, which would drop `kr_token` and skip guest migration
-    // on the next hello. Recover it from same-tab sessionStorage first.
+    // SDK.init restores the CrazyGames *account* localStorage (and often Data).
+    // A fresh account is empty, which would drop `kr_token` and skip guest
+    // migration. Recover the current-tab token first, then Data as a fallback.
     readAccountToken();
+    adoptAccountToken(platform.getDataItem(CG_GUEST_TOKEN_KEY));
+    const guestToken = readAccountToken();
+    if (guestToken) platform.setDataItem(CG_GUEST_TOKEN_KEY, guestToken);
     // Resolve login + JWT *before* opening the socket. A hello sent while the
     // SDK still has no token seats a blank guest save for a logged-in player.
     initialAuth = await platform.getAuth();
@@ -188,15 +191,17 @@ async function boot(): Promise<void> {
   // ---------------------------------------------------------- Store reactions
 
   let lastGrade = -1;
+  let lastPlayerId: string | null = null;
 
   store.on('joined', () => {
     closePopover();
     platform.markRoomJoinable();
     platform.showInviteButton();
+    const guestToken = readAccountToken();
+    if (guestToken && platform.enabled) platform.setDataItem(CG_GUEST_TOKEN_KEY, guestToken);
     // Last-resort: if we seated a guest save while CrazyGames says the player
-    // is logged in, reload once so hello can include the JWT. The net layer
-    // already refuses a guest welcome after a JWT hello; this covers the case
-    // where the first hello went out before login was visible.
+    // is logged in, reconnect so hello can include the JWT. Do not full-reload:
+    // that can wipe storage and mint a blank account.
     if (platform.enabled && store.you && !store.you.cgLinked) {
       void platform.getAuth().then((auth) => {
         if (!auth.loggedIn) {
@@ -213,7 +218,8 @@ async function boot(): Promise<void> {
         } catch {
           return;
         }
-        location.reload();
+        stashAccountToken();
+        store.reconnect();
       });
     } else {
       try {
@@ -221,6 +227,12 @@ async function boot(): Promise<void> {
       } catch {
         /* private mode */
       }
+    }
+    // A guest → CrazyGames (or logout) swap is a new save identity: re-run
+    // first-join onboarding against the seated row.
+    if (store.you && store.you.id !== lastPlayerId) {
+      lastPlayerId = store.you.id;
+      lastGrade = -1;
     }
     if (lastGrade === -1) {
       scene.scrollToOwnDesk();
@@ -322,23 +334,24 @@ async function boot(): Promise<void> {
     if (s === 'replaced') replacedModal();
   });
 
-  // Any CrazyGames auth change swaps the active save (account <-> guest), so the
-  // page reloads and the hello handshake resolves the right one.
+  // Any CrazyGames auth change swaps the active save (account <-> guest).
+  // Re-hello in this page so the in-memory guest token is sent with the new
+  // JWT; a full reload can restore empty account storage and mint a blank save.
   if (platform.enabled) {
     let knownUser: string | null = initialAuth?.username ?? null;
     platform.onAuthChange((user) => {
       const next = user?.username ?? null;
       if (next === knownUser) return;
       knownUser = next;
-      // Stash the guest save token + Skip before CG reloads / restores empty
-      // account localStorage over guest data (same-tab sessionStorage survives).
       stashAccountToken();
+      const guestToken = readAccountToken();
+      if (guestToken) platform.setDataItem(CG_GUEST_TOKEN_KEY, guestToken);
       if (store.you?.tutorialDone || isTutorialDoneLocally()) {
         rememberTutorialDoneLocally();
         platform.setDataItem(CG_TUTORIAL_KEY, '1');
         store.markTutorialDone();
       }
-      location.reload();
+      store.reconnect();
     });
   }
 

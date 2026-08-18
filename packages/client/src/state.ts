@@ -107,6 +107,10 @@ class Store {
     this.net.connect(joinInfo);
   }
 
+  reconnect(joinInfo?: JoinInfo): void {
+    this.net.reconnect(joinInfo);
+  }
+
   serverNow(): number {
     return Date.now() + this.timeOffset;
   }

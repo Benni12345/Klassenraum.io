@@ -15,6 +15,9 @@ const LOCAL_KEY = 'kr_token';
 const SESSION_KEY = 'kr_token';
 const TOKEN_RE = /^[a-f0-9]{48}$/;
 
+/** CrazyGames Data key — guest token backup that localStorage restore may miss. */
+export const CG_GUEST_TOKEN_KEY = 'kr_guest_token';
+
 export function isAccountToken(value: unknown): value is string {
   return typeof value === 'string' && TOKEN_RE.test(value);
 }
@@ -40,16 +43,19 @@ function writeStore(store: 'localStorage' | 'sessionStorage', key: string, value
 }
 
 /**
- * Guest token for the next hello. Recovers from sessionStorage when CrazyGames
- * has already restored empty account localStorage, and re-mirrors so a later
- * auth reload still sees it.
+ * Guest token for the next hello. Prefers sessionStorage (this tab's guest
+ * session) over localStorage, because CrazyGames may restore an *older*
+ * account localStorage on login. Re-mirrors so a later auth reload still
+ * sees it.
  */
 export function readAccountToken(): string | null {
   const localRaw = readStore('localStorage', LOCAL_KEY);
   const sessionRaw = readStore('sessionStorage', SESSION_KEY);
   const local = isAccountToken(localRaw) ? localRaw : null;
   const session = isAccountToken(sessionRaw) ? sessionRaw : null;
-  const token = local ?? session;
+  // Session is the current tab. An older kr_token restored with the account
+  // would otherwise roll the player back to an earlier guest snapshot.
+  const token = session ?? local;
   if (!token) return null;
   if (token !== local) writeStore('localStorage', LOCAL_KEY, token);
   if (token !== session) writeStore('sessionStorage', SESSION_KEY, token);
@@ -70,6 +76,15 @@ export function writeAccountToken(token: string): void {
 export function stashAccountToken(): void {
   const token = readAccountToken();
   if (token) writeStore('sessionStorage', SESSION_KEY, token);
+}
+
+/** Use `candidate` only when this tab has no guest token of its own. */
+export function adoptAccountToken(candidate: string | null | undefined): string | null {
+  const existing = readAccountToken();
+  if (existing) return existing;
+  if (!isAccountToken(candidate)) return null;
+  writeAccountToken(candidate);
+  return candidate;
 }
 
 if (typeof window !== 'undefined') {

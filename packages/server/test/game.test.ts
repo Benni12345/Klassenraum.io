@@ -671,6 +671,73 @@ describe('CrazyGames account linking', () => {
     expect(room.youOf(back.playerId)!.gens[0]).toBe(2);
   });
 
+  it('persists a shop buy without waiting for the dirty flush', async () => {
+    const { room, db, clock } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 100;
+    room.buy(guest.playerId, 0, 1);
+
+    // New Room, same DB — simulates a login reload that killed the socket
+    // before the 30s flush (and possibly before disconnect()).
+    const out = { send: () => {}, broadcast: () => {} };
+    const room2 = new Room(db, out, clock.now, () => 0.99, undefined, fakeVerify);
+    const back = await room2.hello(guest.newToken, undefined, undefined);
+    expect(room2.youOf(back.playerId)!.gens[0]).toBe(1);
+  });
+
+  it('repairs a blank CrazyGames account when the guest token arrives later', async () => {
+    const { room, clock } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 100;
+    room.buy(guest.playerId, 0, 1);
+    room.disconnect(guest.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    // First login without the guest token — the live QA failure that minted
+    // an empty account and then refused to copy on later hellos.
+    const blank = await room.hello(undefined, undefined, undefined, cgToken('uBlank', 'Blankie'));
+    expect(blank.playerId).not.toBe(guest.playerId);
+    expect(room.youOf(blank.playerId)!.gens[0]).toBe(0);
+    room.disconnect(blank.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const fixed = await room.hello(
+      guest.newToken,
+      undefined,
+      undefined,
+      cgToken('uBlank', 'Blankie'),
+    );
+    expect(fixed.playerId).toBe(blank.playerId);
+    expect(room.youOf(fixed.playerId)!.gens[0]).toBe(1);
+    expect(room.youOf(fixed.playerId)!.name).toBe('Blankie');
+  });
+
+  it('does not overwrite a richer CrazyGames account with later guest progress', async () => {
+    const { room, clock } = setup();
+    const linked = await room.hello(undefined, undefined, undefined, cgToken('uRich2', 'Richie'));
+    (room as any).players.get(linked.playerId).stars = 8;
+    room.disconnect(linked.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 100;
+    room.buy(guest.playerId, 0, 1);
+    room.disconnect(guest.playerId);
+
+    const back = await room.hello(
+      guest.newToken,
+      undefined,
+      undefined,
+      cgToken('uRich2', 'Richie'),
+    );
+    expect(back.playerId).toBe(linked.playerId);
+    expect(room.youOf(back.playerId)!.stars).toBe(8);
+    expect(room.youOf(back.playerId)!.gens[0]).toBe(0);
+  });
+
   it('migrates guest tutorialDone onto a new CrazyGames account and keeps it without the guest token', async () => {
     const { room, clock } = setup();
 

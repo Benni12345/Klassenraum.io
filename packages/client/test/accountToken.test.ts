@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  adoptAccountToken,
   isAccountToken,
   readAccountToken,
   stashAccountToken,
@@ -80,5 +81,22 @@ describe('accountToken', () => {
     localStorage.setItem('kr_token', 'garbage');
     sessionStorage.setItem('kr_token', TOKEN);
     expect(readAccountToken()).toBe(TOKEN);
+  });
+
+  it('prefers the current-tab session token over a restored older localStorage token', () => {
+    const older = 'b'.repeat(48);
+    localStorage.setItem('kr_token', older);
+    sessionStorage.setItem('kr_token', TOKEN);
+    expect(readAccountToken()).toBe(TOKEN);
+    expect(localStorage.getItem('kr_token')).toBe(TOKEN);
+  });
+
+  it('adopts a CrazyGames Data token only when this tab has none', () => {
+    expect(adoptAccountToken(TOKEN)).toBe(TOKEN);
+    expect(adoptAccountToken('c'.repeat(48))).toBe(TOKEN);
+    localStorage.clear();
+    sessionStorage.clear();
+    expect(adoptAccountToken(null)).toBeNull();
+    expect(adoptAccountToken('c'.repeat(48))).toBe('c'.repeat(48));
   });
 });
