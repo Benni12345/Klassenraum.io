@@ -1,5 +1,6 @@
 import type { ClientMsg, ServerMsg } from '@shared/protocol';
 import type { AvatarSpec } from '@shared/types';
+import { readAccountToken, writeAccountToken } from './accountToken';
 import type { PlatformAuth } from './platform/types';
 import { isTutorialDoneLocally } from './prefs';
 
@@ -41,6 +42,8 @@ export class Net {
   private cgAuthProvider: (() => Promise<PlatformAuth>) | null = null;
   /** Last JWT that made it into a hello this session (reconnect fallback). */
   private lastCgToken: string | null = null;
+  /** Last guest save token sent this page (survives a mid-session storage wipe). */
+  private lastGuestToken: string | null = null;
   /** True when the hello we just sent included a CrazyGames JWT. */
   private expectingCg = false;
 
@@ -56,6 +59,24 @@ export class Net {
   connect(joinInfo?: JoinInfo): void {
     if (joinInfo) this.joinInfo = { ...this.joinInfo, ...joinInfo };
     this.stopped = false;
+    this.open();
+  }
+
+  /**
+   * Close the current socket (if any) and hello again. Used on CrazyGames
+   * login/logout so the still-in-memory guest token is sent with the new JWT
+   * instead of relying on a full page reload (which can wipe storage).
+   */
+  reconnect(joinInfo?: JoinInfo): void {
+    if (joinInfo) this.joinInfo = { ...this.joinInfo, ...joinInfo };
+    const old = this.ws;
+    this.stopped = true;
+    this.ws = null;
+    if (old && (old.readyState === WebSocket.OPEN || old.readyState === WebSocket.CONNECTING)) {
+      old.close();
+    }
+    this.stopped = false;
+    this.backoff = 1000;
     this.open();
   }
 
@@ -83,7 +104,12 @@ export class Net {
           ws.close();
           return;
         }
-        if (msg.token) localStorage.setItem('kr_token', msg.token);
+        if (msg.token) {
+          writeAccountToken(msg.token);
+          this.lastGuestToken = msg.token;
+        } else if (this.lastGuestToken) {
+          writeAccountToken(this.lastGuestToken);
+        }
         this.hooks.onStatus('open');
       }
       this.hooks.onMessage(msg);
@@ -111,7 +137,11 @@ export class Net {
   }
 
   private async sendHello(ws: WebSocket): Promise<void> {
-    const token = localStorage.getItem('kr_token') ?? undefined;
+    const token = readAccountToken() ?? this.lastGuestToken ?? undefined;
+    if (token) {
+      this.lastGuestToken = token;
+      writeAccountToken(token);
+    }
     let cgToken: string | undefined;
     let loggedIn = false;
     if (this.cgAuthProvider) {
