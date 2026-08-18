@@ -2,8 +2,9 @@
  * Local preferences (audio, language, onboarding cache).
  *
  * Game progress itself lives on the server — the only thing kept in
- * localStorage is the anonymous account token plus these preferences. Writes
- * are throttled to at most one per 30 s (CrazyGames limits save operations for
+ * localStorage is the anonymous account token (also mirrored to sessionStorage
+ * so CrazyGames login cannot drop it) plus these preferences. Writes are
+ * throttled to at most one per 30 s (CrazyGames limits save operations for
  * clicker games), with a final flush when the page goes away.
  *
  * Tutorial completion is a one-way flag mirrored to:

@@ -19,6 +19,7 @@ import type {
   PlayerYou,
   RoomEvent,
 } from '@shared/types';
+import { readAccountToken } from './accountToken';
 import { Net, type JoinInfo, type NetStatus } from './net';
 import type { PlatformAuth } from './platform/types';
 
@@ -99,7 +100,7 @@ class Store {
   // ------------------------------------------------------------- Connection
 
   get hasAccount(): boolean {
-    return localStorage.getItem('kr_token') !== null;
+    return readAccountToken() !== null;
   }
 
   connect(joinInfo?: JoinInfo): void {

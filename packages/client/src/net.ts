@@ -1,5 +1,6 @@
 import type { ClientMsg, ServerMsg } from '@shared/protocol';
 import type { AvatarSpec } from '@shared/types';
+import { readAccountToken, writeAccountToken } from './accountToken';
 import type { PlatformAuth } from './platform/types';
 import { isTutorialDoneLocally } from './prefs';
 
@@ -83,7 +84,7 @@ export class Net {
           ws.close();
           return;
         }
-        if (msg.token) localStorage.setItem('kr_token', msg.token);
+        if (msg.token) writeAccountToken(msg.token);
         this.hooks.onStatus('open');
       }
       this.hooks.onMessage(msg);
@@ -111,7 +112,7 @@ export class Net {
   }
 
   private async sendHello(ws: WebSocket): Promise<void> {
-    const token = localStorage.getItem('kr_token') ?? undefined;
+    const token = readAccountToken() ?? undefined;
     let cgToken: string | undefined;
     let loggedIn = false;
     if (this.cgAuthProvider) {

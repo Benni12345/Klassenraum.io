@@ -12,6 +12,7 @@ import {
 import { fmt } from './format';
 import { gradeLabel, t } from './i18n';
 import { initMusic, syncMusic } from './music';
+import { readAccountToken, stashAccountToken } from './accountToken';
 import { platform } from './platform';
 import { CG_TUTORIAL_KEY, isTutorialDoneLocally, rememberTutorialDoneLocally } from './prefs';
 import { Scene } from './render/scene';
@@ -47,6 +48,10 @@ async function boot(): Promise<void> {
   let initialAuth: Awaited<ReturnType<typeof platform.getAuth>> | null = null;
   if (platform.enabled) {
     await platform.init();
+    // SDK.init restores the CrazyGames *account* localStorage. A fresh
+    // account is empty, which would drop `kr_token` and skip guest migration
+    // on the next hello. Recover it from same-tab sessionStorage first.
+    readAccountToken();
     // Resolve login + JWT *before* opening the socket. A hello sent while the
     // SDK still has no token seats a blank guest save for a logged-in player.
     initialAuth = await platform.getAuth();
@@ -325,7 +330,9 @@ async function boot(): Promise<void> {
       const next = user?.username ?? null;
       if (next === knownUser) return;
       knownUser = next;
-      // Stash Skip before CG reloads / restores account storage over guest data.
+      // Stash the guest save token + Skip before CG reloads / restores empty
+      // account localStorage over guest data (same-tab sessionStorage survives).
+      stashAccountToken();
       if (store.you?.tutorialDone || isTutorialDoneLocally()) {
         rememberTutorialDoneLocally();
         platform.setDataItem(CG_TUTORIAL_KEY, '1');
