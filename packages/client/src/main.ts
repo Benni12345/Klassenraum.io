@@ -43,6 +43,7 @@ import { initSchool, maybePromptSchool } from './ui/school';
 import { initShop } from './ui/shop';
 import { applyStaticTexts } from './ui/texts';
 import { initHints, onTutorialEnd, startTutorial } from './ui/tutorial';
+import { showBreakMidgameAd } from './ui/ads';
 
 async function boot(): Promise<void> {
   let initialAuth: Awaited<ReturnType<typeof platform.getAuth>> | null = null;
@@ -327,6 +328,7 @@ async function boot(): Promise<void> {
   store.on('goalDone', () => {
     sfxSuccess();
     toast(t('goal.done'), 'gold');
+    showBreakMidgameAd();
   });
 
   store.on('status', (s) => {

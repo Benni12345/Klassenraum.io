@@ -6,7 +6,7 @@ import { t } from '../i18n';
 import { fmt, fmtDuration } from '../format';
 import { adPlayIcon, iconDataUrl } from '../render/sprites';
 import { el } from './dom';
-import { isCovered, onCoverChange } from './overlay';
+import { isCovered, onCoverChange, pushOverlay } from './overlay';
 import { toast } from './toast';
 
 const BANNER_ID = 'cg-bottom-banner';
@@ -45,14 +45,63 @@ export function bannerAllowedOnDevice(): boolean {
 }
 
 /**
- * Midgame ads are only shown when the player graduates (prestige), after they
- * confirmed the reset — the only placement CrazyGames allows for clicker games.
+ * First few minutes are for the loop, not interstitials. Prestige is a
+ * late-game pause so it may fire earlier. CrazyGames still paces to ~3 min.
  */
+const sessionStartedAt = Date.now();
+const FIRST_BREAK_MIDGAME_MS = 3 * 60_000;
+let midgameQueued = false;
+
 export function showPrestigeMidgameAd(): void {
+  queueMidgameAd(true);
+}
+
+/** Natural pause: attendance stamp, homework notebook, class goal. */
+export function showBreakMidgameAd(): void {
+  queueMidgameAd(false);
+}
+
+function queueMidgameAd(ignoreSessionDelay: boolean): void {
   if (!platform.enabled) return;
-  void platform.requestMidgameAd().then((shown) => {
-    if (import.meta.env.DEV) console.debug('[ads] prestige midgame', shown ? 'shown' : 'skipped');
+  if (document.body.classList.contains('tutoring')) return;
+  if (!ignoreSessionDelay && Date.now() - sessionStartedAt < FIRST_BREAK_MIDGAME_MS) return;
+  if (midgameQueued) return;
+  midgameQueued = true;
+  startMidgameCountdown(() => {
+    void platform.requestMidgameAd().then((shown) => {
+      midgameQueued = false;
+      if (import.meta.env.DEV) console.debug('[ads] midgame', shown ? 'shown' : 'skipped');
+      if (!isCovered()) platform.onGameplayStart();
+    });
   });
+}
+
+function startMidgameCountdown(then: () => void): void {
+  const release = pushOverlay();
+  platform.onGameplayStop();
+  const wrap = el('div', 'ad-countdown');
+  wrap.setAttribute('role', 'alertdialog');
+  wrap.setAttribute('aria-live', 'assertive');
+  const card = el('div', 'ad-countdown-card');
+  card.appendChild(el('div', 'ad-countdown-title', t('ads.midgameTitle')));
+  const num = el('div', 'ad-countdown-n', '3');
+  card.appendChild(num);
+  card.appendChild(el('div', 'ad-countdown-hint', t('ads.midgameHint')));
+  wrap.appendChild(card);
+  document.body.appendChild(wrap);
+
+  let n = 3;
+  const id = window.setInterval(() => {
+    n -= 1;
+    if (n <= 0) {
+      window.clearInterval(id);
+      wrap.remove();
+      release();
+      then();
+      return;
+    }
+    num.textContent = String(n);
+  }, 1000);
 }
 
 /** Rectangular badge with a play symbol, required on rewarded-ad buttons. */
@@ -124,7 +173,7 @@ export function mountRewardedBoostButton(
     const watched = await platform.requestRewardedAd();
     busy = false;
     if (watched) {
-      const reward = adRewardAmount(store.you?.bp ?? 0);
+      const reward = adRewardAmount(store.you?.bp ?? 0, store.you?.bps ?? 0);
       store.claimAdBoost();
       toast(t('settings.adBoostDone', { n: fmt(reward) }), 'gold');
       setTimeout(refresh, 400);

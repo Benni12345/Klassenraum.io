@@ -510,6 +510,47 @@ textarea {
   color: #4a3a2a;
 }
 
+.ad-countdown {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 18, 28, 0.55);
+  pointer-events: auto;
+}
+
+.ad-countdown-card {
+  min-width: 220px;
+  max-width: 90vw;
+  padding: 18px 22px 16px;
+  background: linear-gradient(180deg, #fff8e4 0%, #f0e2b0 100%);
+  border: 3px solid var(--ink);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.ad-countdown-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.ad-countdown-n {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 6px 0 4px;
+  color: var(--ink);
+}
+
+.ad-countdown-hint {
+  font-size: 12px;
+  color: #5a4a28;
+  max-width: 240px;
+}
+
 @keyframes ad-pulse {
   0%,
   100% {

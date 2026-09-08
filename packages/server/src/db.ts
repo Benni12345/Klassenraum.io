@@ -154,10 +154,10 @@ export class Db {
       .prepare(
         `INSERT INTO players (id, token_hash, name, avatar, bp, run_bp, lifetime_bp, clicks,
            gens, upgrades, stars, grade, stolen_total, lost_total, last_steal_at,
-           last_ad_reward_at, cg_user_id, cg_migrated_at, tutorial_done,
+           last_ad_reward_at, cg_user_id, cg_migrated_at, cg_migrated_to, tutorial_done,
            streak, best_streak, last_claim_day, attendance_doubled_day, hw_day, hw_progress, desk_skin,
            created_at, last_seen)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -178,6 +178,7 @@ export class Db {
         row.lastAdRewardAt,
         row.cgUserId,
         row.cgMigratedAt,
+        row.cgMigratedTo,
         row.tutorialDone ? 1 : 0,
         row.streak,
         row.bestStreak,
@@ -246,6 +247,7 @@ export class Db {
         `UPDATE players SET name = ?, avatar = ?, bp = ?, run_bp = ?, lifetime_bp = ?, clicks = ?,
            gens = ?, upgrades = ?, stars = ?, grade = ?, stolen_total = ?, lost_total = ?,
            last_steal_at = ?, last_ad_reward_at = ?, cg_user_id = ?, cg_migrated_at = ?,
+           cg_migrated_to = ?,
            tutorial_done = ?, streak = ?, best_streak = ?, last_claim_day = ?,
            attendance_doubled_day = ?, hw_day = ?, hw_progress = ?, desk_skin = ?, last_seen = ?
          WHERE id = ?`,
@@ -267,6 +269,7 @@ export class Db {
         row.lastAdRewardAt,
         row.cgUserId,
         row.cgMigratedAt,
+        row.cgMigratedTo,
         row.tutorialDone ? 1 : 0,
         row.streak,
         row.bestStreak,

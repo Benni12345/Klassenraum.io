@@ -195,11 +195,12 @@ describe('class goal', () => {
 });
 
 describe('ad reward', () => {
-  it('grants 10% of HS on hand', () => {
-    expect(AD_REWARD_INCOME_FRAC).toBe(0.1);
-    expect(AD_REWARD_COOLDOWN_MS).toBe(60_000);
-    expect(adRewardAmount(1_000)).toBe(100);
-    expect(adRewardAmount(0)).toBe(0);
-    expect(adRewardAmount(-5)).toBe(0);
+  it('pays the better of on-hand cut, production time, and a floor', () => {
+    expect(AD_REWARD_INCOME_FRAC).toBe(0.15);
+    expect(AD_REWARD_COOLDOWN_MS).toBe(90_000);
+    expect(adRewardAmount(1_000)).toBe(150);
+    expect(adRewardAmount(0, 2)).toBe(360);
+    expect(adRewardAmount(0)).toBe(100);
+    expect(adRewardAmount(-5)).toBe(100);
   });
 });
