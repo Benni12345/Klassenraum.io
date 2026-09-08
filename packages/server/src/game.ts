@@ -439,10 +439,12 @@ export class Room {
     target.tutorialDone = target.tutorialDone || guest.tutorialDone;
     target.streak = Math.max(target.streak, guest.streak);
     target.bestStreak = Math.max(target.bestStreak, guest.bestStreak);
-    if (guest.lastClaimDay >= target.lastClaimDay) {
-      target.lastClaimDay = guest.lastClaimDay;
-      target.attendanceDoubledDay = guest.attendanceDoubledDay;
-    }
+if (guest.lastClaimDay > target.lastClaimDay) {
+  target.lastClaimDay = guest.lastClaimDay;
+  target.attendanceDoubledDay = guest.attendanceDoubledDay;
+} else if (guest.lastClaimDay === target.lastClaimDay) {
+  target.attendanceDoubledDay = Math.max(target.attendanceDoubledDay, guest.attendanceDoubledDay);
+}
     if (guest.hwDay >= target.hwDay) {
       target.hwDay = guest.hwDay;
       target.hw = guest.hw;
