@@ -14,7 +14,7 @@ import { platform } from '../platform';
 import { isTutorialDoneLocally } from '../prefs';
 import { calendarIcon, deskSprite, iconDataUrl } from '../render/sprites';
 import { store } from '../state';
-import { adPlayBadge } from './ads';
+import { adPlayBadge, showBreakMidgameAd } from './ads';
 import { el, id } from './dom';
 import { openModal } from './modals';
 import { toast } from './toast';
@@ -235,6 +235,7 @@ function renderAttendance(body: HTMLElement, school: SchoolDay): void {
       sfxSuccess();
       celebrateAttendance(school.upcomingStreak);
       toast(t('school.claimDone', { n: fmt(school.reward), s: school.upcomingStreak }), 'gold');
+      showBreakMidgameAd();
     };
     box.appendChild(claim);
   }
@@ -276,6 +277,7 @@ function renderHomework(body: HTMLElement, school: SchoolDay): void {
       store.claimHomework('bonus');
       sfxSuccess();
       toast(t('school.bonusDoneToast', { n: fmt(school.bonusReward) }), 'gold');
+      showBreakMidgameAd();
     };
     box.appendChild(bonus);
   }

@@ -328,17 +328,33 @@ export const SUB_BUFF_MULT = 2;
 export const SUB_BUFF_MS = 180_000;
 
 /**
- * Rewarded ad (CrazyGames): instantly grant a cut of HS on hand.
- * Framed as “10 % of your income” — juicy enough to watch often.
+ * Rewarded ad (CrazyGames): grant idle-game-shaped value so the offer stays
+ * worth watching after the player spends HS on generators.
+ * - At least `AD_REWARD_MIN` HS (early game still converts)
+ * - 15 % of HS on hand (juicy when they are sitting on a pile)
+ * - 3 minutes of current production (juicy after they spend)
+ * Plus a short ×2 production buff so the watch feels like a speed boost.
  */
-export const AD_REWARD_INCOME_FRAC = 0.1;
-/** Rewarded cooldown — 1 min so ads stay available during idle sessions. */
-export const AD_REWARD_COOLDOWN_MS = 60_000;
+export const AD_REWARD_INCOME_FRAC = 0.15;
+/** Seconds of production granted in addition to the on-hand cut. */
+export const AD_REWARD_SECONDS = 180;
+export const AD_REWARD_MIN = 100;
+export const AD_BUFF_MULT = 2;
+export const AD_BUFF_MS = 120_000;
+/**
+ * Rewarded cooldown. CrazyGames paces video ads (~3 min shared with midgame);
+ * 90 s is the request cadence — unfilled/cooldown responses are harmless.
+ */
+export const AD_REWARD_COOLDOWN_MS = 90_000;
 
 /** Instant HS granted for a completed rewarded ad. */
-export function adRewardAmount(bpOnHand: number): number {
-  if (!Number.isFinite(bpOnHand) || bpOnHand <= 0) return 0;
-  return bpOnHand * AD_REWARD_INCOME_FRAC;
+export function adRewardAmount(bpOnHand: number, bps = 0): number {
+  const hand =
+    Number.isFinite(bpOnHand) && bpOnHand > 0 ? bpOnHand * AD_REWARD_INCOME_FRAC : 0;
+  const rate = Number.isFinite(bps) && bps > 0 ? bps * AD_REWARD_SECONDS : 0;
+  const best = Math.max(hand, rate);
+  if (best <= 0) return AD_REWARD_MIN;
+  return Math.max(AD_REWARD_MIN, best);
 }
 
 // ---------------------------------------------------------------------------

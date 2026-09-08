@@ -24,6 +24,8 @@ import {
   NAME_MAX,
   NAME_MIN,
   adRewardAmount,
+  AD_BUFF_MS,
+  AD_BUFF_MULT,
   AD_REWARD_COOLDOWN_MS,
   OFFLINE_CAP_MS,
   PATROL_CATCH_CHANCE,
@@ -170,9 +172,10 @@ export class Room {
    *
  * - A verified `cgToken` always resolves to the row for that `userId`.
  * - The first time an account is seen, the guest save behind `token` is
- *   *copied* into it and stamped as migrated. Later logins never copy again
- *   *unless* the account is still poorer than an unmigrated guest (a blank
- *   row minted when the guest token was missing).
+ *   *copied* into it and stamped as migrated. Later logins never copy again.
+ * - The only repair copy is onto a *blank* CrazyGames row (no gens / stars /
+ *   upgrades) from a guest that has not yet been migrated. Guest data must
+ *   never overwrite or reset an account that already has shop progress.
  * - Username changes must not mint a second save: `userId` is normalised and
  *   a same-username save this browser already migrated into is reclaimed.
    * - The guest desk is removed (not left sleeping) while the account is seated
@@ -302,7 +305,15 @@ export class Room {
     add(this.findSeatedByCgUserId(cg.userId));
     add(this.db.loadPlayerByCgUserId(cg.userId));
     const migrated = this.migratedCgTarget(token);
-    if (migrated && this.sameCgUsername(migrated, cg)) add(migrated);
+    // Resume the save this browser already copied into when it is the same
+    // CrazyGames account (matching userId *or* username). Never claim a
+    // different account's row just because this guest once migrated elsewhere.
+    if (
+      migrated &&
+      (canonicalCgUserId(migrated.cgUserId) === cg.userId || this.sameCgUsername(migrated, cg))
+    ) {
+      add(migrated);
+    }
     // Pre-column saves have no cg_migrated_to. If this browser already copied
     // into a CrazyGames account, reclaim the same-username row(s) so a rename
     // that drifted userId still loads the original (most stars) save.
@@ -352,7 +363,10 @@ export class Room {
   private migratableGuest(token: string | undefined, now: number): PlayerRow | null {
     if (!token || !/^[a-f0-9]{48}$/.test(token)) return null;
     const row = this.db.loadPlayerByToken(hashToken(token));
-    if (!row || row.cgUserId || row.cgMigratedAt > 0) return null;
+    // Already copied (timestamp *or* pointer). A flush race can rewind
+    // cg_migrated_at to 0 while cg_migrated_to still names the account —
+    // that guest must never be copied again.
+    if (!row || row.cgUserId || row.cgMigratedAt > 0 || row.cgMigratedTo) return null;
     // Prefer live in-memory state when the guest is still seated.
     const live = this.players.get(row.id);
     if (live) {
@@ -364,10 +378,22 @@ export class Room {
   }
 
   /**
-   * If this browser has an unmigrated guest save that is *ahead* of the
-   * CrazyGames row, copy it on. Covers the QA failure where a first login
-   * without the guest token minted a blank account, so later hellos skipped
-   * migration and the player bounced between the guest desk and an empty save.
+   * True when a CrazyGames row still has no shop/prestige progress — the only
+   * case where a later guest copy is allowed (blank account minted before the
+   * guest token arrived). Any gens, stars, or upgrades mean the account is
+   * already a real save and guest data must not touch it.
+   */
+  private cgSaveIsBlank(row: PlayerRow | PlayerState): boolean {
+    if (row.stars > 0 || row.grade > 0 || row.upgrades.length > 0) return false;
+    return padGens(row.gens).every((n) => n === 0);
+  }
+
+  /**
+   * If this browser has an unmigrated guest save and the CrazyGames row is
+   * still empty, copy it on. Covers the QA failure where a first login
+   * without the guest token minted a blank account. A later login must not
+   * copy guest progress onto an account that already bought generators
+   * (logout → guest Lv 2 restored → login must keep the account's Lv 3).
    */
   private absorbMigratableGuest(
     target: PlayerRow | PlayerState,
@@ -377,6 +403,7 @@ export class Room {
     const guest = this.migratableGuest(token, now);
     if (!guest || guest.id === target.id) return;
     const live = this.players.get(target.id) ?? target;
+    if (!this.cgSaveIsBlank(live)) return;
     if (!this.cgSaveRicher(guest, live)) return;
     this.overlayGuestProgress(live, guest);
     this.db.savePlayer(live);
@@ -389,29 +416,43 @@ export class Room {
     if (live.tutorialDone && live.cgUserId) this.db.setCgTutorialDone(live.cgUserId);
   }
 
-  /** Copy economy / school progress from a guest snapshot onto a CrazyGames row. */
+  /**
+   * Copy economy / school progress from a guest snapshot onto a CrazyGames row.
+   * Never decreases existing account progress (QA: guest must not reset a save).
+   */
   private overlayGuestProgress(target: PlayerRow | PlayerState, guest: PlayerRow): void {
-    target.bp = guest.bp;
-    target.runBp = guest.runBp;
-    target.lifetimeBp = guest.lifetimeBp;
-    target.clicks = guest.clicks;
-    target.gens = padGens(guest.gens);
-    target.upgrades = [...guest.upgrades];
-    target.stars = guest.stars;
-    target.grade = guest.grade;
-    target.stolenTotal = guest.stolenTotal;
-    target.lostTotal = guest.lostTotal;
-    target.lastStealAt = guest.lastStealAt;
-    target.lastAdRewardAt = guest.lastAdRewardAt;
+    const guestGens = padGens(guest.gens);
+    const targetGens = padGens(target.gens);
+    const targetWasBlank = targetGens.every((n) => n === 0) && target.stars === 0;
+    target.bp = Math.max(target.bp, guest.bp);
+    target.runBp = Math.max(target.runBp, guest.runBp);
+    target.lifetimeBp = Math.max(target.lifetimeBp, guest.lifetimeBp);
+    target.clicks = Math.max(target.clicks, guest.clicks);
+    target.gens = targetGens.map((n, i) => Math.max(n, guestGens[i] ?? 0));
+    target.upgrades = [...new Set([...target.upgrades, ...guest.upgrades])];
+    target.stars = Math.max(target.stars, guest.stars);
+    target.grade = Math.max(target.grade, guest.grade);
+    target.stolenTotal = Math.max(target.stolenTotal, guest.stolenTotal);
+    target.lostTotal = Math.max(target.lostTotal, guest.lostTotal);
+    target.lastStealAt = Math.max(target.lastStealAt, guest.lastStealAt);
+    target.lastAdRewardAt = Math.max(target.lastAdRewardAt, guest.lastAdRewardAt);
     target.tutorialDone = target.tutorialDone || guest.tutorialDone;
-    target.streak = guest.streak;
+    target.streak = Math.max(target.streak, guest.streak);
     target.bestStreak = Math.max(target.bestStreak, guest.bestStreak);
-    target.lastClaimDay = guest.lastClaimDay;
-    target.attendanceDoubledDay = guest.attendanceDoubledDay;
-    target.hwDay = guest.hwDay;
-    target.hw = guest.hw;
-    target.deskSkin = guest.deskSkin;
-    target.avatar = sanitizeAvatar(guest.avatar);
+if (guest.lastClaimDay > target.lastClaimDay) {
+  target.lastClaimDay = guest.lastClaimDay;
+  target.attendanceDoubledDay = guest.attendanceDoubledDay;
+} else if (guest.lastClaimDay === target.lastClaimDay) {
+  target.attendanceDoubledDay = Math.max(target.attendanceDoubledDay, guest.attendanceDoubledDay);
+}
+    if (guest.hwDay >= target.hwDay) {
+      target.hwDay = guest.hwDay;
+      target.hw = guest.hw;
+    }
+    if (targetWasBlank) {
+      target.deskSkin = guest.deskSkin;
+      target.avatar = sanitizeAvatar(guest.avatar);
+    }
     if ('dirty' in target) (target as PlayerState).dirty = true;
   }
 
@@ -907,10 +948,12 @@ export class Room {
       return;
     }
     this.settle(p, now);
-    const reward = adRewardAmount(p.bp);
+    const reward = adRewardAmount(p.bp, this.effectiveBps(p, now));
     p.lastAdRewardAt = now;
     if (reward > 0) this.earn(p, reward);
+    this.addBuff(p, 'ad', 'buff.ad', AD_BUFF_MULT, AD_BUFF_MS);
     p.dirty = true;
+    this.savePlayer(p);
     this.sendYou(p);
   }
 

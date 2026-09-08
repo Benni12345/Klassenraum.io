@@ -561,17 +561,16 @@ describe('persistence round-trip', () => {
 });
 
 describe('ad boost', () => {
-  it('grants 10% of HS on hand instantly and enforces cooldown', async () => {
+  it('grants production-based HS, a ×2 buff, and enforces cooldown', async () => {
     const { room, clock } = setup();
     const a = await room.hello(undefined, 'Anna', undefined);
-    // Seed some HS so the reward is meaningful.
     room.click(a.playerId, 20);
-    const before = room.youOf(a.playerId)!.bp;
+    const before = room.youOf(a.playerId)!;
     room.adBoost(a.playerId);
     const you = room.youOf(a.playerId)!;
-    expect(you.bp).toBeCloseTo(before * 1.1, 5);
-    expect(you.buffs.some((b) => b.id === 'ad')).toBe(false);
-    expect(you.adRewardReadyAt).toBe(clock.now() + 60_000);
+    expect(you.bp).toBeGreaterThan(before.bp);
+    expect(you.buffs.some((b) => b.id === 'ad' && b.mult === 2)).toBe(true);
+    expect(you.adRewardReadyAt).toBe(clock.now() + 90_000);
     const mid = you.bp;
     room.adBoost(a.playerId); // should no-op while cooling down
     expect(room.youOf(a.playerId)!.bp).toBeCloseTo(mid, 5);
@@ -671,6 +670,63 @@ describe('CrazyGames account linking', () => {
     expect(room.youOf(back.playerId)!.gens[0]).toBe(2);
   });
 
+  it('keeps CrazyGames Lv 3 after logout restores guest Lv 2 (QA save-loss)', async () => {
+    const { room } = setup();
+
+    // Incognito guest buys Stubby Pencil to Lv 2.
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 100;
+    room.buy(guest.playerId, 0, 1);
+    room.buy(guest.playerId, 0, 1);
+    expect(room.youOf(guest.playerId)!.gens[0]).toBe(2);
+
+    // Login to a fresh CrazyGames account — progress is copied.
+    const linked = await room.hello(guest.newToken, undefined, undefined, cgToken('uQa', 'QaPlayer'));
+    expect(linked.playerId).not.toBe(guest.playerId);
+    expect(room.youOf(linked.playerId)!.gens[0]).toBe(2);
+
+    // Keep playing on the account: Stubby Pencil Lv 3. No 6 min wait / tick.
+    (room as any).players.get(linked.playerId).bp = 1_000;
+    room.buy(linked.playerId, 0, 1);
+    expect(room.youOf(linked.playerId)!.gens[0]).toBe(3);
+
+    // Logout: guest progress is restored (Lv 2).
+    const out = await room.hello(guest.newToken, undefined, undefined);
+    expect(out.playerId).toBe(guest.playerId);
+    expect(room.youOf(guest.playerId)!.gens[0]).toBe(2);
+
+    // Login to the same account: must restore Lv 3, never guest-overwrite to 0.
+    const back = await room.hello(guest.newToken, undefined, undefined, cgToken('uQa', 'QaPlayer'));
+    expect(back.playerId).toBe(linked.playerId);
+    expect(room.youOf(back.playerId)!.gens[0]).toBe(3);
+    expect(room.youOf(back.playerId)!.name).toBe('QaPlayer');
+  });
+
+  it('does not recopy a guest whose migrate pointer survived a timestamp rewind', async () => {
+    const { room, db, clock } = setup();
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 100;
+    room.buy(guest.playerId, 0, 1);
+    const linked = await room.hello(guest.newToken, undefined, undefined, cgToken('uPtr', 'Pointer'));
+    (room as any).players.get(linked.playerId).bp = 1_000;
+    room.buy(linked.playerId, 0, 1);
+    expect(room.youOf(linked.playerId)!.gens[0]).toBe(2);
+
+    await room.hello(guest.newToken, undefined, undefined);
+    room.disconnect(guest.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const row = db.loadPlayerById(guest.playerId)!;
+    expect(row.cgMigratedTo).toBe(linked.playerId);
+    row.cgMigratedAt = 0;
+    db.savePlayer(row);
+
+    const back = await room.hello(guest.newToken, undefined, undefined, cgToken('uPtr', 'Pointer'));
+    expect(back.playerId).toBe(linked.playerId);
+    expect(room.youOf(back.playerId)!.gens[0]).toBe(2);
+  });
+
   it('persists a shop buy without waiting for the dirty flush', async () => {
     const { room, db, clock } = setup();
     const guest = await room.hello(undefined, undefined, undefined);
@@ -712,6 +768,32 @@ describe('CrazyGames account linking', () => {
     expect(fixed.playerId).toBe(blank.playerId);
     expect(room.youOf(fixed.playerId)!.gens[0]).toBe(1);
     expect(room.youOf(fixed.playerId)!.name).toBe('Blankie');
+  });
+
+  it('does not copy a later guest onto an account that already has shop progress', async () => {
+    const { room, clock } = setup();
+    const linked = await room.hello(undefined, undefined, undefined, cgToken('uKeep', 'Keeper'));
+    (room as any).players.get(linked.playerId).bp = 1_000;
+    room.buy(linked.playerId, 0, 1);
+    expect(room.youOf(linked.playerId)!.gens[0]).toBe(1);
+    room.disconnect(linked.playerId);
+    clock.advance(6 * 60_000);
+    room.tick();
+
+    const guest = await room.hello(undefined, undefined, undefined);
+    (room as any).players.get(guest.playerId).bp = 1e6;
+    for (let i = 0; i < 5; i++) room.buy(guest.playerId, 0, 1);
+    expect(room.youOf(guest.playerId)!.gens[0]).toBe(5);
+    room.disconnect(guest.playerId);
+
+    const back = await room.hello(
+      guest.newToken,
+      undefined,
+      undefined,
+      cgToken('uKeep', 'Keeper'),
+    );
+    expect(back.playerId).toBe(linked.playerId);
+    expect(room.youOf(back.playerId)!.gens[0]).toBe(1);
   });
 
   it('does not overwrite a richer CrazyGames account with later guest progress', async () => {
